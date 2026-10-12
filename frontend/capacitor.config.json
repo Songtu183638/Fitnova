@@ -1,0 +1,6 @@
+{
+  "appId": "com.fitnova.app",
+  "appName": "FITNOVA",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" }
+}
