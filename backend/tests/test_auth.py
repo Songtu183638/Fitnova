@@ -13,6 +13,9 @@ def setup_function():
     auth._post_likes.clear()
     auth._follows.clear()
     auth._messages.clear()
+    auth._saved_posts.clear()
+    auth._user_settings.clear()
+    auth._account_codes.clear()
     auth._message_seq = 0
     auth._post_seq = 0
     auth._comment_seq = 0
@@ -138,3 +141,62 @@ def test_auth_token_is_persistent_for_one_year(monkeypatch):
     token = _verified_user("long_session", "longsession@example.com", sent)
     payload = auth.jwt.decode(token, auth._SECRET, algorithms=["HS256"])
     assert payload["exp"] - payload["iat"] >= 364 * 24 * 60 * 60
+
+
+def test_saved_posts_account_settings_email_password_and_message_privacy(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    token_a = _verified_user("settings_a", "settingsa@example.com", sent)
+    token_b = _verified_user("settings_b", "settingsb@example.com", sent)
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    post = client.post("/api/posts", headers=headers_a, json={
+        "title":"저장 테스트", "content":"저장할 게시물", "media_type":"image",
+        "media_data":"data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags":["#저장"]
+    })
+    assert post.status_code == 201
+    pid = post.json()["post"]["id"]
+    assert client.post(f"/api/posts/{pid}/save", headers=headers_b).json()["saved"] is True
+    assert client.get("/api/saved-posts", headers=headers_b).json()["posts"][0]["id"] == pid
+    prefs = client.patch("/api/account/settings", headers=headers_b, json={
+        "private_account": True, "allow_messages_from": "following",
+        "show_activity": False, "show_workout_details": False
+    })
+    assert prefs.status_code == 200
+    assert prefs.json()["settings"]["allow_messages_from"] == "following"
+    blocked = client.post("/api/messages/settings_b", headers=headers_a, json={"content":"안녕하세요"})
+    assert blocked.status_code == 403
+    client.post("/api/users/settings_a/follow", headers=headers_b)
+    allowed = client.post("/api/messages/settings_b", headers=headers_a, json={"content":"이제 보낼 수 있나요?"})
+    assert allowed.status_code == 201
+
+    requested = client.post("/api/account/password/request-code", headers=headers_a)
+    assert requested.status_code == 202
+    changed = client.post("/api/account/password/confirm", headers=headers_a, json={
+        "code": sent["code"], "new_password":"NewStrongPass!456"
+    })
+    assert changed.status_code == 200
+    assert auth._password_hash.verify("NewStrongPass!456", auth._users["settings_a"]["password_hash"])
+
+    requested_email = client.post("/api/account/email/request-code", headers=headers_a, json={"email":"newsettingsa@example.com"})
+    assert requested_email.status_code == 202
+    changed_email = client.post("/api/account/email/confirm", headers=headers_a, json={
+        "email":"newsettingsa@example.com", "code":sent["code"]
+    })
+    assert changed_email.status_code == 200
+    assert client.get("/api/account/settings", headers=headers_a).json()["email"] == "newsettingsa@example.com"
+
+
+def test_account_deletion_deactivates_account_for_grace_period(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    token = _verified_user("delete_me", "deleteme@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+    response = client.delete("/api/account", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["deleted"] is False
+    assert client.get("/api/account/settings", headers=headers).status_code == 401
+    assert "delete_me" in auth._users
+    auth._users["delete_me"]["deletion_requested_at"] = (auth.datetime.now(auth.timezone.utc) - auth.timedelta(days=31)).isoformat()
+    auth._purge_expired_accounts()
+    assert "delete_me" not in auth._users
