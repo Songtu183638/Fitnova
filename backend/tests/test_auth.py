@@ -211,3 +211,32 @@ def test_branded_security_email_template():
     assert "10분 동안" in html
     assert "482913" in plain
     assert "10분 동안 유효합니다." in plain
+
+
+def test_hashtag_search_matches_visible_caption_and_video_and_normalizes_case(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    token_a = _verified_user("search_viewer", "searchviewer@example.com", sent)
+    token_b = _verified_user("search_creator", "searchcreator@example.com", sent)
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    created = client.post("/api/posts", headers=headers_b, json={
+        "title": "저녁 러닝",
+        "content": "오늘은 #러닝 기록! 다음에는 #하체운동도 할 예정.",
+        "media_type": "video",
+        "media_data": "data:video/mp4;base64,aGVsbG8=",
+        "hashtags": []
+    })
+    assert created.status_code == 201
+    post = created.json()["post"]
+    assert "러닝" in post["hashtags"]
+    assert "하체운동" in post["hashtags"]
+
+    search_caption = client.get("/api/posts?hashtag=%23%EB%9F%AC%EB%8B%9D", headers=headers_a)
+    assert search_caption.status_code == 200
+    assert any(p["id"] == post["id"] and p["media_type"] == "video" for p in search_caption.json()["posts"])
+
+    search_tag = client.get("/api/posts?hashtag=%23%ED%95%98%EC%B2%B4%EC%9A%B4%EB%8F%99", headers=headers_a)
+    assert search_tag.status_code == 200
+    assert any(p["id"] == post["id"] for p in search_tag.json()["posts"])
