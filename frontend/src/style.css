@@ -204,3 +204,26 @@ input,textarea,select{accent-color:var(--green)}
 @media(max-width:760px){.settings-grid{grid-template-columns:1fr}.settings-page{padding-bottom:26px}.settings-card{padding:18px}.settings-heading h2{font-size:22px}}
 
 @media(max-width:760px){.mobile-nav{overflow-x:auto;justify-content:flex-start}.mobile-nav button{flex:0 0 auto;min-width:56px;padding-left:9px;padding-right:9px}.mobile-nav button span{font-size:9px}}
+
+
+/* Search is a viewport-fixed dialog so it never pushes the dashboard off-screen. */
+.search-modal-backdrop{position:fixed;inset:0;z-index:1200;display:flex;align-items:flex-start;justify-content:center;padding:clamp(16px,6vh,72px) 16px 24px;background:rgba(3,5,3,.78);backdrop-filter:blur(12px);overflow-y:auto}
+.search-modal{width:min(100%,560px);margin:auto 0;background:linear-gradient(145deg,#151a13 0%,#0d100d 72%);border:1px solid #35412e;border-radius:24px;padding:clamp(20px,4vw,30px);box-shadow:0 28px 100px #000a,0 0 0 1px #b7ff3608;animation:searchModalIn .18s ease-out}
+@keyframes searchModalIn{from{opacity:0;transform:translateY(-8px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+.search-modal-head{display:flex;align-items:flex-start;gap:15px;margin-bottom:24px}
+.search-modal-mark{flex:0 0 46px;width:46px;height:46px;display:grid;place-items:center;color:#b7ff36;background:#b7ff3614;border:1px solid #b7ff3630;border-radius:15px}
+.search-modal-heading{flex:1;min-width:0}
+.search-modal-heading .eyebrow{font-size:10px;letter-spacing:1.5px;color:#b7ff36}
+.search-modal-heading h2{margin:7px 0 6px;font-size:clamp(20px,4vw,25px);letter-spacing:-.7px;color:#f4f7ef}
+.search-modal-heading p{margin:0;color:#9aa494;font-size:13px;line-height:1.6}
+.search-modal-close{flex:0 0 36px;width:36px;height:36px;display:grid;place-items:center;border:1px solid #2e352b;border-radius:11px;background:#171c16;color:#aeb7a8;cursor:pointer}
+.search-modal-close:hover{color:#f4f7ef;border-color:#6e8d46}
+.search-modal-form{margin:0;padding:8px 8px 8px 15px;min-height:60px;border-radius:15px;background:#080b08;border-color:#343d2f}
+.search-modal-form:focus-within{border-color:#8ebd43;box-shadow:0 0 0 4px #b7ff3612}
+.search-modal-form input{font-size:15px}
+.search-modal-form button{padding:12px 17px;white-space:nowrap}
+.search-modal-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:15px 2px 0;color:#8c9686;font-size:11px}
+.search-modal-foot span{display:inline-flex;align-items:center;gap:6px}
+.search-modal-foot span:first-child svg{color:#b7ff36}
+.search-modal-reset{margin-top:18px;padding:9px 0;border:0;background:transparent;color:#b7ff36;font-size:12px;cursor:pointer}
+@media(max-width:480px){.search-modal-backdrop{padding:18px 12px;align-items:center}.search-modal{padding:20px 16px;border-radius:20px}.search-modal-head{gap:11px}.search-modal-mark{width:40px;height:40px;flex-basis:40px}.search-modal-form{gap:8px;padding-left:11px}.search-modal-form button{padding:11px 12px;font-size:12px}.search-modal-foot{font-size:10px}}
