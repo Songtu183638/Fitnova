@@ -546,7 +546,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
                     OR strpos(lower(COALESCE(p.title,'')), '#' || %s) > 0)
                   AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
                        OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
-                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 50""",
+                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 30""",
                 (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"])).fetchall()
             if not rows:
                 return {"posts": []}
@@ -573,7 +573,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
         result.append(_post_dict(row, user["username"], _post_comments.get(row["id"], [])))
-        if len(result) >= 50:
+        if len(result) >= 30:
             break
     return {"posts": result}
 
