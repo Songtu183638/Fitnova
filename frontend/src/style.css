@@ -344,3 +344,6 @@ input,textarea,select{accent-color:var(--green)}
  .settings-danger .deletion-note{margin-left:16px;margin-right:16px}
 }
 @media(max-width:390px){.settings-account-status{font-size:0;gap:0}.settings-account-status svg{width:16px;height:16px}.settings-account-copy>small{font-size:10px}}
+
+
+.search-result-stack{display:flex;flex-direction:column;gap:18px}.load-more-posts{display:flex;align-items:center;justify-content:center;min-height:46px;width:min(100%,560px);margin:18px auto 32px;padding:12px 20px;border:1px solid rgba(183,255,54,.32);border-radius:13px;background:rgba(183,255,54,.07);color:#c8ff73;font-weight:800;cursor:pointer;transition:background .18s,border-color .18s}.load-more-posts:hover:not(:disabled){background:rgba(183,255,54,.14);border-color:rgba(183,255,54,.65)}.load-more-posts:disabled{opacity:.55;cursor:wait}
