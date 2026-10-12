@@ -1,4 +1,4 @@
-import os, secrets, hashlib, hmac, time, json, re, urllib.request, urllib.error
+import os, secrets, hashlib, hmac, time, json, re, base64, mimetypes, urllib.request, urllib.error
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from threading import Lock, Thread
@@ -8,7 +8,7 @@ import smtplib
 import jwt
 import psycopg
 from psycopg.rows import dict_row
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, File, Form, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from pwdlib import PasswordHash
@@ -685,6 +685,70 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
         _posts[post["id"]] = post
         _post_comments[post["id"]] = []
     return {"post": _post_dict(post, user["username"], [])}
+
+@app.post("/api/posts/upload", status_code=201)
+async def upload_post_media(
+    title: str = Form(..., min_length=1, max_length=120),
+    content: str = Form(..., min_length=1, max_length=2000),
+    media_type: str = Form(..., pattern=r"^(image|video)$"),
+    media: UploadFile = File(...),
+    media_duration_seconds: int | None = Form(default=None, ge=1, le=60),
+    hashtags: str = Form(default="[]", max_length=5000),
+    weight: float | None = Form(default=None, ge=1, le=500),
+    sets_count: int | None = Form(default=None, ge=0, le=500),
+    exercise_name: str = Form(default="", max_length=100),
+    reps: str = Form(default="", max_length=100),
+    duration_minutes: int | None = Form(default=None, ge=0, le=1440),
+    workout_notes: str = Form(default="", max_length=1000),
+    user: dict = Depends(_current_user),
+):
+    """Accept the original binary file rather than a Base64-expanded JSON body."""
+    if media_type == "video" and media_duration_seconds is None:
+        raise HTTPException(status_code=422, detail="영상 길이 확인이 필요합니다. 영상을 다시 선택해 주세요.")
+    if media_type == "image" and media_duration_seconds is not None:
+        raise HTTPException(status_code=422, detail="사진 게시물에는 영상 길이를 입력할 수 없습니다.")
+    limit = (5 if media_type == "image" else 40) * 1024 * 1024
+    contents = await media.read(limit + 1)
+    if not contents:
+        raise HTTPException(status_code=422, detail="빈 파일은 업로드할 수 없습니다.")
+    if len(contents) > limit:
+        raise HTTPException(status_code=413, detail="사진은 5MB, 영상은 40MB 이하로 업로드해 주세요.")
+    guessed = mimetypes.guess_type(media.filename or "")[0]
+    mime = (media.content_type or guessed or "").lower()
+    if mime in {"application/octet-stream", "binary/octet-stream"} and guessed:
+        mime = guessed.lower()
+    if not mime.startswith(media_type + "/"):
+        raise HTTPException(status_code=415, detail="선택한 파일 형식과 미디어 종류가 일치하지 않습니다.")
+    media_data = f"data:{mime};base64,{base64.b64encode(contents).decode('ascii')}"
+    try:
+        supplied_tags = json.loads(hashtags or "[]")
+        if not isinstance(supplied_tags, list):
+            raise ValueError("hashtags must be a list")
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=422, detail="해시태그 형식이 올바르지 않습니다.")
+    payload = PostIn(
+        title=title, content=content, media_type=media_type, media_data=media_data,
+        media_duration_seconds=media_duration_seconds, hashtags=supplied_tags,
+        weight=weight, sets_count=sets_count, exercise_name=exercise_name,
+        reps=reps, duration_minutes=duration_minutes, workout_notes=workout_notes,
+    )
+    return create_post(payload, user)
+
+
+@app.get("/api/posts/{post_id}/media/file")
+def get_post_media_file(post_id: int, user: dict = Depends(_current_user)):
+    """Return raw media bytes so video playback avoids JSON and Base64 decoding in the browser."""
+    result = get_post_media(post_id, user)
+    media_data = result.get("media_data") or ""
+    match = re.match(r"^data:([^;,]+);base64,(.*)$", media_data, flags=re.DOTALL)
+    if not match:
+        raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
+    try:
+        contents = base64.b64decode(match.group(2), validate=False)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=500, detail="미디어 파일을 읽지 못했습니다.")
+    return Response(content=contents, media_type=match.group(1), headers={"Cache-Control": "private, max-age=120", "X-Content-Type-Options": "nosniff"})
+
 
 @app.get("/api/posts/{post_id}/media")
 def get_post_media(post_id: int, user: dict = Depends(_current_user)):
