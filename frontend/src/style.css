@@ -377,7 +377,7 @@ input,textarea,select{accent-color:var(--green)}
 /* Final layout refinements: truly centered hashtag text and full-width profiles. */
 .full-search-form{position:relative;isolation:isolate}
 .full-search-form>svg{flex:0 0 21px;z-index:1}
-.full-search-form input{min-width:0;text-align:center;text-indent:0;padding-left:0;padding-right:0;caret-color:#b7ff36}
+.full-search-form input{position:absolute;left:50%;transform:translateX(-50%);width:calc(100% - 190px);max-width:calc(100% - 190px);min-width:0;text-align:center;text-indent:0;padding-left:0;padding-right:0;caret-color:#b7ff36}
 .full-search-form input::placeholder{text-align:center;opacity:1}
 .full-search-form button{position:relative;z-index:1;flex:0 0 auto}
 .module-view:has(.profile-card){display:block;width:100%;max-width:none;min-width:0;place-items:initial}
@@ -388,7 +388,7 @@ input,textarea,select{accent-color:var(--green)}
 .module-view:has(.profile-card)>.profile-posts .post-card{width:100%;max-width:none}
 @media(max-width:650px){
   .full-search-form{gap:8px;padding-left:12px;padding-right:8px}
-  .full-search-form input{font-size:14px}
+  .full-search-form input{width:calc(100% - 170px);max-width:calc(100% - 170px);font-size:14px}
   .module-view:has(.profile-card)>.profile-card{padding:26px 18px}
   .module-view:has(.profile-card)>.profile-posts{margin-top:18px}
 }
