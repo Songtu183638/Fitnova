@@ -386,3 +386,10 @@ def test_binary_video_upload_and_raw_media_delivery(monkeypatch):
     assert raw.status_code == 200
     assert raw.headers["content-type"].startswith("video/mp4")
     assert raw.content == b"fake-mp4-content"
+    playback = client.get(f"/api/posts/{post_id}/media/playback", headers=headers)
+    assert playback.status_code == 200
+    stream = client.get(playback.json()["url"], headers={"Range":"bytes=0-4"})
+    assert stream.status_code == 206
+    assert stream.content == b"fake-"
+    assert stream.headers["content-range"].startswith("bytes 0-4/")
+    assert stream.headers["accept-ranges"] == "bytes"
