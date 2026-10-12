@@ -773,6 +773,85 @@ def get_post_media(post_id: int, user: dict = Depends(_current_user)):
     return {"media_data": row.get("media_data", "")}
 
 
+@app.get("/api/posts/{post_id}/media/playback")
+def get_post_playback_url(post_id: int, user: dict = Depends(_current_user)):
+    """Issue a short-lived signed URL so the browser can stream video with HTTP Range requests."""
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            author = row["author_username"]
+            if author != user["username"]:
+                settings = conn.execute("SELECT private_account FROM user_settings WHERE username=%s", (author,)).fetchone()
+                private = bool(settings and settings["private_account"])
+                if private and not conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (user["username"], author)).fetchone():
+                    raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    else:
+        row = _posts.get(post_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+        author = row["author_username"]
+        if author != user["username"] and _get_user_settings(author)["private_account"] and (user["username"], author) not in _follows:
+            raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    expires = int(time.time()) + 180
+    signature = hmac.new(_SECRET.encode(), f"{post_id}:{expires}".encode(), hashlib.sha256).hexdigest()
+    return {"url": f"/api/posts/{post_id}/media/stream?expires={expires}&signature={signature}", "expires_at": expires}
+
+
+@app.get("/api/posts/{post_id}/media/stream")
+def stream_post_media(post_id: int, request: Request, expires: int, signature: str):
+    """Serve signed media URLs progressively, including byte ranges requested by HTML video."""
+    now = int(time.time())
+    expected = hmac.new(_SECRET.encode(), f"{post_id}:{expires}".encode(), hashlib.sha256).hexdigest()
+    if expires < now or expires > now + 180 or not hmac.compare_digest(expected, signature):
+        raise HTTPException(status_code=403, detail="영상 재생 링크가 만료되었습니다. 다시 불러와 주세요.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT media_data FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
+            media_data = row["media_data"] or ""
+    else:
+        row = _posts.get(post_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
+        media_data = row.get("media_data", "")
+    match = re.match(r"^data:([^;,]+);base64,(.*)$", media_data, flags=re.DOTALL)
+    if not match:
+        raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
+    try:
+        contents = base64.b64decode(match.group(2), validate=False)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=500, detail="미디어 파일을 읽지 못했습니다.")
+    total = len(contents)
+    if total == 0:
+        raise HTTPException(status_code=404, detail="빈 미디어 파일입니다.")
+    headers = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=120", "X-Content-Type-Options": "nosniff"}
+    range_header = request.headers.get("range", "")
+    if range_header:
+        found = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+        if not found:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{total}", "Accept-Ranges": "bytes"})
+        start_text, end_text = found.groups()
+        if not start_text:
+            suffix = int(end_text or "0")
+            if suffix <= 0:
+                return Response(status_code=416, headers={"Content-Range": f"bytes */{total}", "Accept-Ranges": "bytes"})
+            start = max(0, total - suffix)
+            end = total - 1
+        else:
+            start = int(start_text)
+            end = min(total - 1, int(end_text)) if end_text else min(total - 1, start + 1024 * 1024 - 1)
+        if start >= total or end < start:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{total}", "Accept-Ranges": "bytes"})
+        chunk = contents[start:end + 1]
+        headers.update({"Content-Range": f"bytes {start}-{end}/{total}", "Content-Length": str(len(chunk))})
+        return Response(content=chunk, status_code=206, media_type=match.group(1), headers=headers)
+    headers["Content-Length"] = str(total)
+    return Response(content=contents, media_type=match.group(1), headers=headers)
+
+
 @app.post("/api/posts/{post_id}/like")
 def toggle_like(post_id: int, user: dict = Depends(_current_user)):
     if _DATABASE_URL:
