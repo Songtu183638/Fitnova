@@ -347,3 +347,19 @@ input,textarea,select{accent-color:var(--green)}
 
 
 .search-result-stack{display:flex;flex-direction:column;gap:18px}.load-more-posts{display:flex;align-items:center;justify-content:center;min-height:46px;width:min(100%,560px);margin:18px auto 32px;padding:12px 20px;border:1px solid rgba(183,255,54,.32);border-radius:13px;background:rgba(183,255,54,.07);color:#c8ff73;font-weight:800;cursor:pointer;transition:background .18s,border-color .18s}.load-more-posts:hover:not(:disabled){background:rgba(183,255,54,.14);border-color:rgba(183,255,54,.65)}.load-more-posts:disabled{opacity:.55;cursor:wait}
+
+
+/* Search layout and states: stable alignment across desktop and mobile. */
+.full-search-results{width:100%;min-width:0}
+.full-search-results-heading.hashtag-results-banner{width:100%;box-sizing:border-box}
+.hashtag-results-title{flex:1}
+.result-count{flex:0 0 auto;white-space:nowrap;text-align:right}
+.search-result-stack{width:100%;min-width:0;display:flex;flex-direction:column;gap:16px}
+.full-search-results .feed-list{width:100%;max-width:700px;min-width:0}
+.search-error-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:190px;padding:24px;text-align:center;border:1px solid #472d2d;border-radius:16px;background:#160f0f;color:#e8e8e3}
+.search-error-state p{max-width:440px;margin:0;color:#b8a6a3;line-height:1.6;overflow-wrap:anywhere}
+.search-retry-button{margin-top:6px;padding:10px 17px;border:1px solid #b7ff3655;border-radius:10px;background:#b7ff3612;color:#caff83;font-weight:750;cursor:pointer}
+.search-retry-button:hover{background:#b7ff3624}
+.search-loading{box-sizing:border-box;width:100%;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;border:1px solid #293328;border-radius:16px;background:#0d110d}
+.search-loading p{margin:0;color:#8d9985;line-height:1.5}
+@media(max-width:600px){.full-search-results-heading.hashtag-results-banner{align-items:flex-start}.result-count{font-size:11px;padding-top:5px}.full-search-form{width:100%;box-sizing:border-box}.full-search-form button[type=submit]{padding:12px 14px}.search-result-stack{gap:12px}}
