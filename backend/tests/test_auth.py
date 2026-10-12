@@ -332,3 +332,28 @@ def test_post_feed_defers_media_payload_until_media_endpoint(monkeypatch):
     feed = client.get("/api/posts", headers=headers).json()["posts"][0]
     assert "media_data" not in feed
     assert client.get(f"/api/posts/{pid}/media", headers=headers).json()["media_data"].startswith("data:image/png")
+
+def test_duplicate_display_names_are_allowed_but_usernames_are_unique(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+
+    first = {"name": "민준", "username": "minjun_01", "email": "minjun01@example.com", "password": "StrongPass!123"}
+    first_response = client.post("/api/auth/register", json=first)
+    assert first_response.status_code == 202
+    first_verified = client.post("/api/auth/verify", json={"email": first["email"], "code": sent["code"]})
+    assert first_verified.status_code == 200
+    assert first_verified.json()["user"]["name"] == "민준"
+
+    second = {"name": "민준", "username": "minjun_02", "email": "minjun02@example.com", "password": "StrongPass!123"}
+    second_response = client.post("/api/auth/register", json=second)
+    assert second_response.status_code == 202
+    second_verified = client.post("/api/auth/verify", json={"email": second["email"], "code": sent["code"]})
+    assert second_verified.status_code == 200
+    assert second_verified.json()["user"]["name"] == "민준"
+
+    duplicate_username = client.post("/api/auth/register", json={
+        "name": "다른 이름", "username": "minjun_01", "email": "minjun03@example.com",
+        "password": "StrongPass!123"
+    })
+    assert duplicate_username.status_code == 409
+
