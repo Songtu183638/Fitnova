@@ -366,3 +366,7 @@ input,textarea,select{accent-color:var(--green)}
  .auth-card form{gap:11px}
  .auth-card .secure-note{margin-top:13px;padding-top:12px}
 }
+
+
+/* Upload progress for binary media uploads */
+.upload-progress-wrap{display:grid;gap:7px;margin-top:6px}.upload-progress-wrap small{color:#b7ff36;font-size:11px;text-align:right}.upload-progress-track{height:5px;overflow:hidden;border-radius:99px;background:#252c22}.upload-progress-track span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#8bd51c,#c7ff63);transition:width .12s linear}
