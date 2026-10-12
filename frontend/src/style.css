@@ -259,3 +259,8 @@ input,textarea,select{accent-color:var(--green)}
 .search-empty-prompt p{font-size:13px}
 .search-empty-prompt button{border:0;background:transparent;color:#b7ff36;font:inherit;cursor:pointer}
 @media(max-width:600px){.full-search-header{min-height:62px;padding:10px 14px;gap:10px}.full-search-content{padding-top:28px}.full-search-form{min-height:62px;padding:8px 8px 8px 13px;gap:8px}.full-search-form button[type=submit]{padding:13px 15px}.full-search-suggestions{margin-bottom:30px}.full-search-results-heading{align-items:flex-start}.search-empty-prompt{padding:18px;min-height:120px}}
+
+.search-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:190px;color:#dfe8d7;text-align:center}
+.search-loading p{margin:0;color:#8d9986;font-size:12px}
+.search-spinner{width:28px;height:28px;border:2px solid #293326;border-top-color:#b7ff36;border-radius:50%;animation:searchSpin .75s linear infinite}
+@keyframes searchSpin{to{transform:rotate(360deg)}}
