@@ -535,7 +535,7 @@ def _post_dict(row: dict, username: str, comments=None):
             "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": comments or []}
 
 @app.get("/api/posts")
-def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: int = Query(default=15, ge=1, le=30), user: dict = Depends(_current_user)):
+def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: int = Query(default=15, ge=1, le=30), offset: int = Query(default=0, ge=0, le=10000), user: dict = Depends(_current_user)):
     normalized_tag = (hashtag or "").strip().lstrip("#").strip().lower()
     if _DATABASE_URL:
         with _db() as conn:
@@ -549,8 +549,8 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                     OR strpos(lower(COALESCE(p.title,'')), '#' || %s) > 0)
                   AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
                        OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
-                GROUP BY p.id ORDER BY p.created_at DESC LIMIT %s""",
-                (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"], limit)).fetchall()
+                GROUP BY p.id ORDER BY p.created_at DESC LIMIT %s OFFSET %s""",
+                (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"], limit, offset)).fetchall()
             if not rows:
                 return {"posts": []}
             post_ids = [row["id"] for row in rows]
@@ -565,7 +565,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
             result = [_post_dict(dict(row), user["username"], comments_by_post.get(row["id"], [])) for row in rows]
             return {"posts": result}
     result = []
-    for p in sorted(_posts.values(), key=lambda x: x["created_at"], reverse=True):
+    for p in sorted(_posts.values(), key=lambda x: x["created_at"], reverse=True)[offset:offset + limit]:
         if p["author_username"] != user["username"] and _get_user_settings(p["author_username"])["private_account"] and (user["username"],p["author_username"]) not in _follows:
             continue
         tags = [str(tag).lstrip("#").lower() for tag in p.get("hashtags", [])]
