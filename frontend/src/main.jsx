@@ -30,6 +30,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,7 +71,7 @@ function App() {
     e.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
       if (mode === 'register' && step === 'form') {
-        await request('/api/auth/register', { username, email, password });
+        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password });
         setStep('verify');
         setNotice('인증 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요.');
       } else if (mode === 'register') {
@@ -133,6 +134,7 @@ function App() {
           <button type="button" className={mode==='register'?'active':''} onClick={()=>switchMode('register')}>회원가입</button>
         </div>
         <form onSubmit={submit}>
+          {mode==='register'&&step==='form'&&<label>이름<div className="input-wrap"><UserRound size={17}/><input required minLength="1" maxLength="40" value={name} onChange={e=>setName(e.target.value)} placeholder="이름" autoComplete="name"/></div></label>}
           {mode==='register'&&step==='form'&&<label>아이디<div className="input-wrap"><UserRound size={17}/><input required minLength="3" maxLength="24" pattern="[A-Za-z0-9_]+" value={username} onChange={e=>setUsername(e.target.value)} placeholder="아이디 (영문·숫자·밑줄)" autoComplete="username"/></div></label>}
           {mode==='register'&&step==='form'&&<label>이메일<div className="input-wrap"><Mail size={17}/><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 주소" autoComplete="email"/></div></label>}
           {mode==='login'&&step==='form'&&<label>아이디 또는 이메일<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="아이디 또는 이메일" autoComplete="username"/></div></label>}
