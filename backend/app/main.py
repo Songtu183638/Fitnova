@@ -225,15 +225,61 @@ def startup():
 def _hash_code(email: str, code: str) -> str:
     return hmac.new(_CODE_SECRET.encode(), f"{email.lower()}:{code}".encode(), hashlib.sha256).hexdigest()
 
+def _verification_email_html(code: str) -> str:
+    """Branded, responsive HTML email used by both SMTP and the Apps Script provider."""
+    return f\'''<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#080b08;font-family:Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f5ee">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#080b08;padding:32px 12px">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#111610;border:1px solid #293326;border-radius:20px;overflow:hidden">
+        <tr><td style="padding:26px 28px 22px;border-bottom:1px solid #293326">
+          <div style="font-size:12px;font-weight:800;letter-spacing:2px;color:#b7ff36">FIT<span style="color:#f2f5ee">NOVA</span></div>
+          <div style="margin-top:22px;font-size:11px;letter-spacing:1.6px;color:#a1b18e">MOVE. CONNECT. EVOLVE.</div>
+          <h1 style="margin:8px 0 0;font-size:25px;line-height:1.35;color:#f5f7f1">계정 보안을 위한<br>인증 코드예요.</h1>
+        </td></tr>
+        <tr><td style="padding:26px 28px 30px">
+          <p style="margin:0 0 18px;font-size:14px;line-height:1.8;color:#c2cbbd">FITNOVA에서 요청한 인증을 완료하려면 아래 6자리 코드를 입력해 주세요.</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:20px 12px;background:#080b08;border:1px solid #34432b;border-radius:14px">
+            <div style="font-size:11px;letter-spacing:2px;color:#98a58e">YOUR SECURITY CODE</div>
+            <div style="margin-top:10px;font-size:36px;line-height:1.2;font-weight:800;letter-spacing:10px;color:#b7ff36">{code}</div>
+          </td></tr></table>
+          <p style="margin:18px 0 0;font-size:12px;line-height:1.8;color:#9da795">이 코드는 발송 후 <strong style="color:#e7ecdf">10분 동안</strong> 유효합니다. 보안을 위해 다른 사람과 공유하지 마세요.</p>
+          <div style="margin-top:24px;padding-top:18px;border-top:1px solid #293326;font-size:12px;line-height:1.8;color:#899384">본인이 요청하지 않았다면 이 메일을 무시해도 됩니다. 계정 보안을 위해 인증 코드를 타인에게 알려주지 마세요.</div>
+        </td></tr>
+        <tr><td style="padding:17px 28px;background:#0b0e0a;border-top:1px solid #293326;font-size:10px;letter-spacing:.7px;color:#697462">© 2026 FITNOVA · YOUR FITNESS UNIVERSE</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>\'''
+
+
+def _verification_email_text(code: str) -> str:
+    return (
+        "FITNOVA | 계정 보안 인증\\n\\n"
+        f"인증 코드: {code}\\n\\n"
+        "이 코드는 발송 후 10분 동안 유효합니다.\\n"
+        "보안을 위해 다른 사람과 공유하지 마세요.\\n"
+        "본인이 요청하지 않았다면 이 메일을 무시해도 됩니다."
+    )
+
+
 def _send_code(email: str, code: str):
-    # Preferred provider: a Google Apps Script Web App. The shared secret is
-    # sent in the request body and must match the script's Script Property.
+    subject = "FITNOVA | 계정 보안 인증 코드"
+    html_body = _verification_email_html(code)
+    text_body = _verification_email_text(code)
+    # Preferred provider: Google Apps Script. It receives both MIME variants
+    # so its MailApp.sendEmail call can render htmlBody in supported mail clients.
     script_url = os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
     script_secret = os.getenv("GOOGLE_APPS_SCRIPT_SECRET", "").strip()
     if script_url:
         if not script_secret:
             raise HTTPException(status_code=503, detail="Google 이메일 발송 보안 설정이 완료되지 않았습니다.")
-        payload = json.dumps({"to": email, "code": code, "secret": script_secret}).encode("utf-8")
+        payload = json.dumps({
+            "to": email, "code": code, "secret": script_secret,
+            "subject": subject, "body": text_body, "htmlBody": html_body
+        }).encode("utf-8")
         req = urllib.request.Request(script_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=15) as response:
@@ -244,7 +290,8 @@ def _send_code(email: str, code: str):
         except Exception:
             raise HTTPException(status_code=503, detail="Google 이메일 발송에 실패했습니다. Apps Script 배포와 설정을 확인해 주세요.")
 
-    # Optional SMTP fallback for deployments that still use SMTP.
+    # Optional SMTP fallback sends a plain-text alternative for clients that
+    # cannot display HTML, plus the branded HTML version for modern clients.
     host = os.getenv("SMTP_HOST")
     if not host:
         if os.getenv("APP_ENV", "development") != "production":
@@ -252,10 +299,11 @@ def _send_code(email: str, code: str):
             return
         raise HTTPException(status_code=503, detail="이메일 발송 설정이 완료되지 않았습니다.")
     msg = EmailMessage()
-    msg["Subject"] = "FITNOVA 이메일 인증 코드"
+    msg["Subject"] = subject
     msg["From"] = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
     msg["To"] = email
-    msg.set_content(f"FITNOVA 가입 인증 코드: {code}\\n이 코드는 10분 후 만료됩니다. 본인이 요청하지 않았다면 이 메일을 무시하세요.")
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
     try:
         with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=10) as server:
             server.starttls()
