@@ -48,10 +48,16 @@ def test_posts_likes_comments_and_delete(monkeypatch):
     verified = client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
     token = verified.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    created = client.post("/api/posts", json={"content":"첫 FITNOVA 게시물"}, headers=headers)
+    created = client.post("/api/posts", json={"title":"첫 FITNOVA 게시물","content":"오늘의 운동 기록","media_type":"image","media_data":"data:image/png;base64,aGVsbG8gd29ybGQ=","hashtags":["#운동기록"],"weight":68.5,"sets_count":4,"exercise_name":"벤치프레스","reps":"10회 × 60kg","duration_minutes":45,"workout_notes":"마지막 세트까지 완료"}, headers=headers)
     assert created.status_code == 201
     post_id = created.json()["post"]["id"]
-    assert client.get("/api/posts", headers=headers).json()["posts"][0]["content"] == "첫 FITNOVA 게시물"
+    listed_post = client.get("/api/posts", headers=headers).json()["posts"][0]
+    assert listed_post["content"] == "오늘의 운동 기록"
+    assert listed_post["media_type"] == "image"
+    assert listed_post["title"] == "첫 FITNOVA 게시물"
+    assert listed_post["weight"] == 68.5
+    assert listed_post["sets_count"] == 4
+    assert listed_post["hashtags"] == ["#운동기록"]
     assert client.post(f"/api/posts/{post_id}/like", headers=headers).json()["liked"] is True
     comment = client.post(f"/api/posts/{post_id}/comments", json={"content":"멋져요!"}, headers=headers)
     assert comment.status_code == 201
