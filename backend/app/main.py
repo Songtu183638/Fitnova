@@ -297,10 +297,7 @@ def _send_code(email: str, code: str, purpose: str = "계정 보안"):
     # cannot display HTML, plus the branded HTML version for modern clients.
     host = os.getenv("SMTP_HOST")
     if not host:
-        if os.getenv("APP_ENV", "development") != "production":
-            print(f"[DEV ONLY] FITNOVA verification code for {email}: {code}")
-            return
-        raise HTTPException(status_code=503, detail="이메일 발송 설정이 완료되지 않았습니다.")
+        raise HTTPException(status_code=503, detail="이메일 발송 설정이 없습니다. SMTP_HOST 또는 GOOGLE_APPS_SCRIPT_URL을 설정해 주세요.")
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
