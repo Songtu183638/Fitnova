@@ -6,25 +6,29 @@ from email.message import EmailMessage
 import smtplib
 
 import jwt
+import psycopg
+from psycopg.rows import dict_row
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from pwdlib import PasswordHash
 
-app = FastAPI(title="FITNOVA API", version="0.1.0")
+app = FastAPI(title="FITNOVA API", version="0.2.0")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:4173,capacitor://localhost,http://localhost").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["GET","POST","OPTIONS"], allow_headers=["Authorization","Content-Type"])
 
 _password_hash = PasswordHash.recommended()
 _lock = Lock()
-_users = {}  # demo/dev adapter only; use PostgreSQL before production
+_users = {}  # in-memory adapter used only for local tests/development without DATABASE_URL
 _codes = {}
 _attempts = defaultdict(list)
+_DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 _SECRET = os.getenv("JWT_SECRET")
 if not _SECRET:
-    # A process-local secret is intentionally unsuitable for multi-worker/production use.
+    if os.getenv("APP_ENV") == "production":
+        raise RuntimeError("JWT_SECRET must be configured in production.")
     _SECRET = secrets.token_urlsafe(48)
-    print("WARNING: JWT_SECRET is unset; sessions will be invalidated on restart. Configure a stable secret in deployment.")
+    print("WARNING: JWT_SECRET is unset; sessions will be invalidated on restart.")
 _CODE_SECRET = os.getenv("VERIFICATION_CODE_SECRET", _SECRET)
 
 class RegisterIn(BaseModel):
@@ -39,6 +43,45 @@ class VerifyIn(BaseModel):
 class LoginIn(BaseModel):
     identifier: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=128)
+
+def _db():
+    if not _DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not configured")
+    return psycopg.connect(_DATABASE_URL, row_factory=dict_row, connect_timeout=10)
+
+def _init_db():
+    if not _DATABASE_URL:
+        if os.getenv("APP_ENV") == "production":
+            raise RuntimeError("DATABASE_URL must be configured in production.")
+        return
+    with _db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id BIGSERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                username_key TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                verified BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pending_registrations (
+                email TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                username_key TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                code_hash TEXT NOT NULL,
+                expires_at DOUBLE PRECISION NOT NULL,
+                tries INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+
+@app.on_event("startup")
+def startup():
+    _init_db()
 
 def _hash_code(email: str, code: str) -> str:
     return hmac.new(_CODE_SECRET.encode(), f"{email.lower()}:{code}".encode(), hashlib.sha256).hexdigest()
@@ -72,6 +115,76 @@ def _rate_limit(key: str, limit: int = 8, window: int = 900):
             raise HTTPException(status_code=429, detail="요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.")
         _attempts[key].append(now)
 
+def _find_user(identifier: str):
+    key = identifier.lower()
+    if _DATABASE_URL:
+        with _db() as conn:
+            return conn.execute(
+                "SELECT username, email, password_hash, verified FROM users WHERE username_key=%s OR lower(email)=%s LIMIT 1",
+                (key, key)
+            ).fetchone()
+    return next((u for u in _users.values() if u["username"].lower() == key or u["email"].lower() == key), None)
+
+def _find_email(email: str):
+    if _DATABASE_URL:
+        with _db() as conn:
+            return conn.execute("SELECT username, email, password_hash, verified FROM users WHERE lower(email)=%s LIMIT 1", (email.lower(),)).fetchone()
+    return next((u for u in _users.values() if u["email"].lower() == email.lower()), None)
+
+def _find_username(username: str):
+    if _DATABASE_URL:
+        with _db() as conn:
+            return conn.execute("SELECT username, email, password_hash, verified FROM users WHERE username_key=%s LIMIT 1", (username.lower(),)).fetchone()
+    return next((u for u in _users.values() if u["username"].lower() == username.lower()), None)
+
+def _get_pending(email: str):
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT username, password_hash, code_hash, expires_at AS expires, tries FROM pending_registrations WHERE email=%s", (email.lower(),)).fetchone()
+            return dict(row) if row else None
+    return _codes.get(email.lower())
+
+def _save_pending(email: str, record: dict):
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("""
+                INSERT INTO pending_registrations(email, username, username_key, password_hash, code_hash, expires_at, tries)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT(email) DO UPDATE SET username=EXCLUDED.username, username_key=EXCLUDED.username_key,
+                    password_hash=EXCLUDED.password_hash, code_hash=EXCLUDED.code_hash, expires_at=EXCLUDED.expires_at, tries=0
+            """, (email.lower(), record["username"], record["username"].lower(), record["password_hash"], record["code_hash"], record["expires"], 0))
+    else:
+        _codes[email.lower()] = record
+
+def _delete_pending(email: str):
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("DELETE FROM pending_registrations WHERE email=%s", (email.lower(),))
+    else:
+        _codes.pop(email.lower(), None)
+
+def _increment_pending_tries(email: str):
+    record = _get_pending(email)
+    if not record:
+        return None
+    record["tries"] += 1
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("UPDATE pending_registrations SET tries=%s WHERE email=%s", (record["tries"], email.lower()))
+    else:
+        _codes[email.lower()] = record
+    return record
+
+def _create_user(user: dict):
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("""
+                INSERT INTO users(username, username_key, email, password_hash, verified)
+                VALUES (%s,%s,%s,%s,%s)
+            """, (user["username"], user["username"].lower(), user["email"].lower(), user["password_hash"], True))
+    else:
+        _users[user["username"]] = user
+
 def _token(user: dict) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode({"sub": user["username"], "iat": now, "exp": now + timedelta(hours=12)}, _SECRET, algorithm="HS256")
@@ -84,59 +197,58 @@ def _current_user(authorization: str | None = Header(default=None)) -> dict:
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
     try:
         data = jwt.decode(authorization[7:], _SECRET, algorithms=["HS256"])
-        user = _users.get(data["sub"])
-        if not user: raise ValueError()
-        return user
+        user = _find_username(data["sub"])
+        if not user:
+            raise ValueError()
+        return dict(user)
     except Exception:
         raise HTTPException(status_code=401, detail="세션이 만료되었거나 유효하지 않습니다.")
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "fitnova-api"}
+    db_status = "configured" if _DATABASE_URL else "development-memory"
+    return {"status": "ok", "service": "fitnova-api", "database": db_status}
 
 @app.post("/api/auth/register", status_code=202)
 def register(payload: RegisterIn, request: Request):
     email = str(payload.email).lower()
     _rate_limit("register:" + (request.client.host if request.client else "unknown"), 5)
-    with _lock:
-        if payload.username.lower() in _users or any(u["email"] == email for u in _users.values()):
-            raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
+    if _find_username(payload.username) or _find_email(email):
+        raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
     code = f"{secrets.randbelow(1_000_000):06d}"
     _send_code(email, code)
-    with _lock:
-        _codes[email] = {"username": payload.username, "password_hash": _password_hash.hash(payload.password), "code_hash": _hash_code(email, code), "expires": time.time()+600, "tries": 0}
+    _save_pending(email, {"username": payload.username, "password_hash": _password_hash.hash(payload.password), "code_hash": _hash_code(email, code), "expires": time.time()+600, "tries": 0})
     return {"message": "인증 코드를 이메일로 발송했습니다. 10분 안에 인증해 주세요.", "email": email}
 
 @app.post("/api/auth/verify")
 def verify(payload: VerifyIn, request: Request):
     email = str(payload.email).lower()
     _rate_limit("verify:" + (request.client.host if request.client else "unknown"), 15)
-    with _lock:
-        record = _codes.get(email)
-        if not record or record["expires"] < time.time():
-            _codes.pop(email, None)
-            raise HTTPException(status_code=400, detail="인증 코드가 만료되었거나 요청 내역이 없습니다.")
-        record["tries"] += 1
-        if record["tries"] > 5:
-            _codes.pop(email, None)
-            raise HTTPException(status_code=429, detail="인증 시도 횟수를 초과했습니다. 다시 가입해 주세요.")
-        if not hmac.compare_digest(record["code_hash"], _hash_code(email, payload.code)):
-            raise HTTPException(status_code=400, detail="인증 코드가 올바르지 않습니다.")
-        username = record["username"]
-        if username.lower() in _users or any(u["email"] == email for u in _users.values()):
-            _codes.pop(email, None)
-            raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
-        user = {"username": username, "email": email, "password_hash": record["password_hash"], "verified": True}
-        _users[username] = user
-        _codes.pop(email, None)
+    record = _increment_pending_tries(email)
+    if not record or record["expires"] < time.time():
+        _delete_pending(email)
+        raise HTTPException(status_code=400, detail="인증 코드가 만료되었거나 요청 내역이 없습니다.")
+    if record["tries"] > 5:
+        _delete_pending(email)
+        raise HTTPException(status_code=429, detail="인증 시도 횟수를 초과했습니다. 다시 가입해 주세요.")
+    if not hmac.compare_digest(record["code_hash"], _hash_code(email, payload.code)):
+        raise HTTPException(status_code=400, detail="인증 코드가 올바르지 않습니다.")
+    username = record["username"]
+    if _find_username(username) or _find_email(email):
+        _delete_pending(email)
+        raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
+    user = {"username": username, "email": email, "password_hash": record["password_hash"], "verified": True}
+    try:
+        _create_user(user)
+    except psycopg.errors.UniqueViolation:
+        raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
+    _delete_pending(email)
     return {"message": "이메일 인증과 회원가입이 완료되었습니다.", "user": _public(user), "access_token": _token(user), "token_type": "bearer"}
 
 @app.post("/api/auth/login")
 def login(payload: LoginIn, request: Request):
     _rate_limit("login:" + (request.client.host if request.client else "unknown"), 12)
-    identifier = payload.identifier.strip().lower()
-    with _lock:
-        user = next((u for u in _users.values() if u["username"].lower() == identifier or u["email"] == identifier), None)
+    user = _find_user(payload.identifier.strip())
     if not user or not _password_hash.verify(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="아이디/이메일 또는 비밀번호를 확인해 주세요.")
     if not user["verified"]:
