@@ -19,7 +19,7 @@ def setup_function():
     auth._message_seq = 0
     auth._post_seq = 0
     auth._comment_seq = 0
-    auth._send_code = lambda email, code: auth._codes.__setitem__("captured-test-code", {"code": code, "email": email})
+    auth._send_code = lambda email, code, purpose='': auth._codes.__setitem__("captured-test-code", {"code": code, "email": email})
 
 def test_health():
     response = client.get("/health")
@@ -28,7 +28,7 @@ def test_health():
 
 def test_registration_verify_login_and_me(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     payload = {"username": "runner_01", "email": "runner@example.com", "password": "StrongPass!123"}
     response = client.post("/api/auth/register", json=payload)
     assert response.status_code == 202
@@ -48,7 +48,7 @@ def test_registration_verify_login_and_me(monkeypatch):
 
 def test_posts_likes_comments_and_delete(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     body = {"username":"poster_01","email":"poster@example.com","password":"StrongPass!123"}
     client.post("/api/auth/register", json=body)
     verified = client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
@@ -74,14 +74,14 @@ def test_posts_likes_comments_and_delete(monkeypatch):
     assert client.delete(f"/api/posts/{post_id}", headers=headers).json()["deleted"] is True
 
 def test_wrong_verification_code(monkeypatch):
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: None)
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': None)
     client.post("/api/auth/register", json={"username":"runner_02","email":"runner2@example.com","password":"StrongPass!123"})
     response = client.post("/api/auth/verify", json={"email":"runner2@example.com","code":"111111"})
     assert response.status_code == 400
 
 def test_duplicate_email_rejected(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(code=code))
     body = {"username":"runner_03","email":"runner3@example.com","password":"StrongPass!123"}
     client.post("/api/auth/register", json=body)
     client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
@@ -99,7 +99,7 @@ def _verified_user(username, email, sent):
 
 def test_hashtag_search_follow_profile_and_direct_messages(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token_a = _verified_user("member_a", "membera@example.com", sent)
     token_b = _verified_user("member_b", "memberb@example.com", sent)
     headers_a = {"Authorization": f"Bearer {token_a}"}
@@ -137,7 +137,7 @@ def test_hashtag_search_follow_profile_and_direct_messages(monkeypatch):
 
 def test_auth_token_is_persistent_for_one_year(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token = _verified_user("long_session", "longsession@example.com", sent)
     payload = auth.jwt.decode(token, auth._SECRET, algorithms=["HS256"])
     assert payload["exp"] - payload["iat"] >= 364 * 24 * 60 * 60
@@ -145,7 +145,7 @@ def test_auth_token_is_persistent_for_one_year(monkeypatch):
 
 def test_saved_posts_account_settings_email_password_and_message_privacy(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token_a = _verified_user("settings_a", "settingsa@example.com", sent)
     token_b = _verified_user("settings_b", "settingsb@example.com", sent)
     headers_a = {"Authorization": f"Bearer {token_a}"}
@@ -189,7 +189,7 @@ def test_saved_posts_account_settings_email_password_and_message_privacy(monkeyp
 
 def test_account_deletion_deactivates_account_for_grace_period(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token = _verified_user("delete_me", "deleteme@example.com", sent)
     headers = {"Authorization": f"Bearer {token}"}
     response = client.delete("/api/account", headers=headers)
@@ -215,7 +215,7 @@ def test_branded_security_email_template():
 
 def test_hashtag_search_matches_visible_caption_and_video_and_normalizes_case(monkeypatch):
     sent = {}
-    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token_a = _verified_user("search_viewer", "searchviewer@example.com", sent)
     token_b = _verified_user("search_creator", "searchcreator@example.com", sent)
     headers_a = {"Authorization": f"Bearer {token_a}"}
@@ -226,6 +226,7 @@ def test_hashtag_search_matches_visible_caption_and_video_and_normalizes_case(mo
         "content": "오늘은 #러닝 기록! 다음에는 #하체운동, 도 할 예정.",
         "media_type": "video",
         "media_data": "data:video/mp4;base64,aGVsbG8=",
+        "media_duration_seconds": 60,
         "hashtags": []
     })
     assert created.status_code == 201
@@ -240,3 +241,18 @@ def test_hashtag_search_matches_visible_caption_and_video_and_normalizes_case(mo
     search_tag = client.get("/api/posts?hashtag=%23%ED%95%98%EC%B2%B4%EC%9A%B4%EB%8F%99", headers=headers_a)
     assert search_tag.status_code == 200
     assert any(p["id"] == post["id"] for p in search_tag.json()["posts"])
+
+
+def test_video_post_requires_duration_and_rejects_over_one_minute(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token = _verified_user("video_user", "videouser@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+    base = {"title": "운동 영상", "content": "오늘 운동", "media_type": "video", "media_data": "data:video/mp4;base64,aGVsbG8="}
+    missing = client.post("/api/posts", headers=headers, json=base)
+    assert missing.status_code == 422
+    too_long = client.post("/api/posts", headers=headers, json={**base, "media_duration_seconds": 61})
+    assert too_long.status_code == 422
+    valid = client.post("/api/posts", headers=headers, json={**base, "media_duration_seconds": 60})
+    assert valid.status_code == 201
+    assert valid.json()["post"]["media_duration_seconds"] == 60
