@@ -581,7 +581,7 @@ def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> lis
     """Merge explicit hashtag input with tags visibly written in the post."""
     collected = []
     seen = set()
-    for raw in [*(supplied or []), *re.findall(r"(?<!\w)#([\w가-힣]{1,50})", content + " " + title, flags=re.UNICODE)]:
+    for raw in [*(supplied or []), *re.findall(r"#([\w가-힣]{1,50})", content + " " + title, flags=re.UNICODE)]:
         tag = str(raw).strip().lstrip("#")[:50]
         if not tag:
             continue
