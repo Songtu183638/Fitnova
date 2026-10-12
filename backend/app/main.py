@@ -62,6 +62,7 @@ def _validate_community_text(*values: str) -> None:
         raise HTTPException(status_code=422, detail="욕설이나 성적으로 부적절한 표현은 사용할 수 없습니다. 내용을 수정해 주세요.")
 
 class RegisterIn(BaseModel):
+    name: str = Field(default="", max_length=40)
     username: str = Field(min_length=3, max_length=24, pattern=r"^[a-zA-Z0-9_]+$")
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
@@ -112,6 +113,7 @@ def _init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id BIGSERIAL PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
                 username TEXT NOT NULL,
                 username_key TEXT NOT NULL UNIQUE,
                 email TEXT NOT NULL UNIQUE,
@@ -169,6 +171,8 @@ def _init_db():
                 PRIMARY KEY(post_id, username)
             )
         """)
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''")
+        conn.execute("UPDATE users SET name=username WHERE name='' OR name IS NULL")
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
@@ -222,6 +226,7 @@ def _init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS pending_registrations (
                 email TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
                 username TEXT NOT NULL,
                 username_key TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
@@ -231,6 +236,7 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''")
 
 def _deletion_purge_worker():
     while True:
@@ -366,7 +372,7 @@ def _find_user(identifier: str):
     if _DATABASE_URL:
         with _db() as conn:
             return conn.execute(
-                "SELECT username, email, password_hash, verified FROM users WHERE username_key=%s OR lower(email)=%s LIMIT 1",
+                "SELECT name, username, email, password_hash, verified FROM users WHERE username_key=%s OR lower(email)=%s LIMIT 1",
                 (key, key)
             ).fetchone()
     return next((u for u in _users.values() if u["username"].lower() == key or u["email"].lower() == key), None)
@@ -380,13 +386,13 @@ def _find_email(email: str):
 def _find_username(username: str):
     if _DATABASE_URL:
         with _db() as conn:
-            return conn.execute("SELECT username,email,password_hash,verified,deletion_requested_at FROM users WHERE username_key=%s AND deletion_requested_at IS NULL LIMIT 1", (username.lower(),)).fetchone()
+            return conn.execute("SELECT name,username,email,password_hash,verified,deletion_requested_at FROM users WHERE username_key=%s AND deletion_requested_at IS NULL LIMIT 1", (username.lower(),)).fetchone()
     return next((u for u in _users.values() if u["username"].lower() == username.lower() and not u.get("deletion_requested_at")), None)
 
 def _get_pending(email: str):
     if _DATABASE_URL:
         with _db() as conn:
-            row = conn.execute("SELECT username, password_hash, code_hash, expires_at AS expires, tries FROM pending_registrations WHERE email=%s", (email.lower(),)).fetchone()
+            row = conn.execute("SELECT name, username, password_hash, code_hash, expires_at AS expires, tries FROM pending_registrations WHERE email=%s", (email.lower(),)).fetchone()
             return dict(row) if row else None
     return _codes.get(email.lower())
 
@@ -394,11 +400,11 @@ def _save_pending(email: str, record: dict):
     if _DATABASE_URL:
         with _db() as conn:
             conn.execute("""
-                INSERT INTO pending_registrations(email, username, username_key, password_hash, code_hash, expires_at, tries)
-                VALUES (%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT(email) DO UPDATE SET username=EXCLUDED.username, username_key=EXCLUDED.username_key,
+                INSERT INTO pending_registrations(email, name, username, username_key, password_hash, code_hash, expires_at, tries)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name, username=EXCLUDED.username, username_key=EXCLUDED.username_key,
                     password_hash=EXCLUDED.password_hash, code_hash=EXCLUDED.code_hash, expires_at=EXCLUDED.expires_at, tries=0
-            """, (email.lower(), record["username"], record["username"].lower(), record["password_hash"], record["code_hash"], record["expires"], 0))
+            """, (email.lower(), record.get("name", record["username"]), record["username"], record["username"].lower(), record["password_hash"], record["code_hash"], record["expires"], 0))
     else:
         _codes[email.lower()] = record
 
@@ -425,9 +431,9 @@ def _create_user(user: dict):
     if _DATABASE_URL:
         with _db() as conn:
             conn.execute("""
-                INSERT INTO users(username, username_key, email, password_hash, verified)
-                VALUES (%s,%s,%s,%s,%s)
-            """, (user["username"], user["username"].lower(), user["email"].lower(), user["password_hash"], True))
+                INSERT INTO users(name, username, username_key, email, password_hash, verified)
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, (user.get("name", user["username"]), user["username"], user["username"].lower(), user["email"].lower(), user["password_hash"], True))
     else:
         _users[user["username"]] = user
 
@@ -436,7 +442,7 @@ def _token(user: dict) -> str:
     return jwt.encode({"sub": user["username"], "iat": now, "exp": now + timedelta(days=365)}, _SECRET, algorithm="HS256")
 
 def _public(user: dict) -> dict:
-    return {"username": user["username"], "email": user["email"], "verified": user["verified"]}
+    return {"name": user.get("name") or user["username"], "username": user["username"], "email": user["email"], "verified": user["verified"]}
 
 def _current_user(authorization: str | None = Header(default=None)) -> dict:
     _purge_expired_accounts()
@@ -460,11 +466,14 @@ def health():
 def register(payload: RegisterIn, request: Request):
     email = str(payload.email).lower()
     _rate_limit("register:" + (request.client.host if request.client else "unknown"), 5)
+    display_name = payload.name.strip() or payload.username
+    if len(display_name) > 40:
+        raise HTTPException(status_code=422, detail="이름은 40자 이하로 입력해 주세요.")
     if _find_username(payload.username) or _find_email(email):
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
     code = f"{secrets.randbelow(1_000_000):06d}"
     _send_code(email, code)
-    _save_pending(email, {"username": payload.username, "password_hash": _password_hash.hash(payload.password), "code_hash": _hash_code(email, code), "expires": time.time()+600, "tries": 0})
+    _save_pending(email, {"name": display_name, "username": payload.username, "password_hash": _password_hash.hash(payload.password), "code_hash": _hash_code(email, code), "expires": time.time()+600, "tries": 0})
     return {"message": "인증 코드를 이메일로 발송했습니다. 10분 안에 인증해 주세요.", "email": email}
 
 @app.post("/api/auth/verify")
@@ -484,7 +493,7 @@ def verify(payload: VerifyIn, request: Request):
     if _find_username(username) or _find_email(email):
         _delete_pending(email)
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
-    user = {"username": username, "email": email, "password_hash": record["password_hash"], "verified": True}
+    user = {"name": record.get("name") or username, "username": username, "email": email, "password_hash": record["password_hash"], "verified": True}
     try:
         _create_user(user)
     except psycopg.errors.UniqueViolation:
@@ -801,7 +810,7 @@ def _profile_summary(username: str, viewer: str):
             is_followed_by = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (target["username"], viewer)).fetchone())
     else:
         is_followed_by = (target["username"], viewer) in _follows
-    return {"username": target["username"], "email": target["email"] if target["username"] == viewer else None,
+    return {"name": target.get("name") or target["username"], "username": target["username"], "email": target["email"] if target["username"] == viewer else None,
             "verified": bool(target["verified"]), "follower_count": followers, "following_count": following,
             "post_count": post_count, "following_by_me": is_following, "followed_by_me": is_followed_by,
             "is_mutual": is_following and is_followed_by, "is_me": target["username"] == viewer}
@@ -1001,7 +1010,7 @@ def _purge_expired_accounts():
 @app.get("/api/account/settings")
 def get_account_settings(user: dict = Depends(_current_user)):
     _purge_expired_accounts()
-    return {"settings":_get_user_settings(user["username"]),"email":user["email"],"username":user["username"]}
+    return {"settings":_get_user_settings(user["username"]),"name":user.get("name") or user["username"],"email":user["email"],"username":user["username"]}
 
 @app.patch("/api/account/settings")
 def update_account_settings(payload: SettingsIn,user: dict = Depends(_current_user)):
