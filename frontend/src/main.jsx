@@ -189,6 +189,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   };
   const searchHashtag = (e) => { e.preventDefault(); const tag = searchInput.trim().replace(/^#/, ''); setHashtagSearch(tag); loadPosts(tag); setTab('search'); };
   useEffect(() => { if (tab === 'feed' || tab === 'home' || tab === 'search') loadPosts(); if (tab === 'profile') {loadProfile(); if(!selectedProfile || selectedProfile===user.username) loadOwnPosts();} if (tab === 'messages') loadThreads(); if(tab==='saved')loadSavedPosts(); if(tab==='settings')loadSettings(); }, [tab, selectedProfile]);
+  useEffect(() => { loadSavedPosts(); }, []);
   useEffect(() => { if (tab === 'messages' && activeChat) loadConversation(activeChat); }, [tab, activeChat]);
   const resetPostForm = () => { setPostTitle(''); setPostContent(''); setPostHashtags(''); setPostWeight(''); setPostSets(''); setPostExercise(''); setPostReps(''); setPostDuration(''); setPostNotes(''); setPostMedia(null); setPostMediaName(''); };
   const chooseMedia = (file) => {
