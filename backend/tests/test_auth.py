@@ -200,3 +200,14 @@ def test_account_deletion_deactivates_account_for_grace_period(monkeypatch):
     auth._users["delete_me"]["deletion_requested_at"] = (auth.datetime.now(auth.timezone.utc) - auth.timedelta(days=31)).isoformat()
     auth._purge_expired_accounts()
     assert "delete_me" not in auth._users
+
+
+def test_branded_security_email_template():
+    html = auth._verification_email_html("482913")
+    plain = auth._verification_email_text("482913")
+    assert "FITNOVA" in html
+    assert "#b7ff36" in html
+    assert "482913" in html
+    assert "10분 동안" in html
+    assert "482913" in plain
+    assert "10분 동안 유효합니다." in plain
