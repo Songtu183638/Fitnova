@@ -111,11 +111,9 @@ function App() {
         <span className="auth-app-mark"><Activity size={24} strokeWidth={2.5}/></span>
         <span>FIT<span>NOVA</span></span>
       </a>
-      <span className="auth-app-badge"><i /> MOVE TOGETHER</span>
     </header>
     <section className="auth-layout" id="top">
       <div className="auth-welcome">
-        <div className="auth-overline"><Sparkles size={14}/> YOUR FITNESS, YOUR PACE</div>
         <h1>{mode==='register' ? <>오늘부터<br/><em>함께 움직여요.</em></> : <>다시 돌아온 걸<br/><em>환영해요.</em></>}</h1>
         <p>{mode==='register' ? '운동을 기록하고, 친구와 연결하고\n매일의 변화를 쌓아 보세요.' : '당신의 운동 기록과 피트니스 커뮤니티가\n여기서 기다리고 있어요.'}</p>
         <div className="auth-benefits">
@@ -148,7 +146,6 @@ function App() {
         <div className="secure-note"><ShieldCheck size={15}/><span>안전한 인증 · 비밀번호 보호</span></div>
       </section>
     </section>
-    <footer className="auth-app-footer"><span>© 2026 FITNOVA</span><span>MOVE. CONNECT. EVOLVE.</span></footer>
   </main>;
 }
 
