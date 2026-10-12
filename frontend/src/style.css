@@ -164,3 +164,9 @@ input,textarea,select{accent-color:var(--green)}
  .profile-actions{flex-direction:column}
  .profile-actions button{justify-content:center}
 }
+
+
+/* Compact hashtag search opened from the top-bar magnifying glass */
+.top-actions{position:relative}
+.search-popover{position:absolute;z-index:50;right:calc(100% - 92px);top:calc(100% + 12px);width:min(420px,calc(100vw - 34px));margin:0;box-shadow:0 18px 45px #0009}
+@media(max-width:650px){.search-popover{right:-48px;top:calc(100% + 10px);width:min(360px,calc(100vw - 28px));gap:7px}.search-popover input{font-size:12px}.search-popover button{padding:8px 10px}}
