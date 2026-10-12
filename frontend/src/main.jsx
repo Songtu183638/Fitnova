@@ -103,7 +103,53 @@ function App() {
   if (booting) return <main className="boot-screen"><div className="boot-logo"><Activity size={28}/></div><b>FIT<span>NOVA</span></b><div className="boot-track"><i/></div><small>세션을 확인하고 있어요</small></main>;
   if (user) return <Dashboard user={user} tab={tab} setTab={setTab} logout={logout} />;
 
-  return <main className="shell"><nav className="topbar"><a className="brand" href="#top"><span className="brand-icon"><Activity size={20}/></span> FIT<span>NOVA</span></a><div className="status"><i/> YOUR FITNESS UNIVERSE</div></nav><section className="hero" id="top"><div className="hero-copy"><div className="eyebrow"><Sparkles size={14}/> YOUR NEXT LEVEL STARTS HERE</div><h1>움직임이 모여<br/><em>새로운 나</em>가 되다.</h1><p className="lead">기록하고, 연결하고, 함께 성장해.<br/>당신의 피트니스 라이프를 새롭게.</p><div className="feature-row"><div><span className="feature-icon"><Flame size={18}/></span><b>매일의 기록</b><small>작은 변화의 축적</small></div><div><span className="feature-icon"><UserRound size={18}/></span><b>함께하는 성장</b><small>운동으로 이어지는 연결</small></div></div><div className="quote"><div className="quote-line"/> <span>MOVE WITH PURPOSE. LIVE WITH ENERGY.</span></div></div><section className="auth-card"><div className="card-head"><div className="mini-mark"><Activity size={19}/></div><div className="card-kicker">WELCOME TO FITNOVA</div><h2>{mode==='register'?(step==='verify'?'이메일을 확인해 주세요':'계정 만들기'):'다시 만나 반가워요'}</h2><p>{mode==='register'?(step==='verify'?'이메일로 받은 6자리 코드를 입력하세요.':'새로운 피트니스 여정을 시작하세요.'):'계정에 로그인하고 여정을 이어가세요.'}</p></div><div className="tabs"><button className={mode==='register'?'active':''} onClick={()=>switchMode('register')}>회원가입</button><button className={mode==='login'?'active':''} onClick={()=>switchMode('login')}>로그인</button></div><form onSubmit={submit}>{mode==='register'&&step==='form'&&<label>아이디<div className="input-wrap"><UserRound size={17}/><input required minLength="3" maxLength="24" pattern="[A-Za-z0-9_]+" value={username} onChange={e=>setUsername(e.target.value)} placeholder="영문, 숫자, 밑줄 3~24자" autoComplete="username"/></div></label>}{mode==='register'&&step==='form'&&<label>이메일<div className="input-wrap"><Mail size={17}/><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" autoComplete="email"/></div></label>}{mode==='login'&&step==='form'&&<label>아이디 또는 이메일<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="아이디 또는 이메일" autoComplete="username"/></div></label>}{((mode==='register'||mode==='login')&&step==='verify')&&<><label>{mode==='register'?'인증 이메일':'보안 코드 발송 이메일'}<div className="input-wrap"><Mail size={17}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div></label><label>6자리 인증 코드<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="000000" className="code-input"/></div></label></>}{((mode==='register'&&step==='form')||(mode==='login'&&step==='form'))&&<label>비밀번호<div className="input-wrap"><LockKeyhole size={17}/><input required minLength={mode==='register'?10:1} maxLength="128" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='register'?'10자 이상 입력':'비밀번호 입력'} autoComplete={mode==='register'?'new-password':'current-password'}/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label="비밀번호 표시">{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>{mode==='register'&&<small className="hint">안전한 계정을 위해 10자 이상 사용해 주세요.</small>}</label>}{error&&<div className="alert error">{error}</div>}{notice&&<div className="alert success"><CheckCircle2 size={16}/>{notice}</div>}<button className="primary" disabled={busy}>{busy?'처리 중...':mode==='register'?(step==='verify'?'인증하고 시작하기':'인증 코드 받기'):(step==='verify'?'보안 코드 확인 후 로그인':'보안 코드 받기')}<ArrowRight size={17}/></button>{step==='verify'&&<button type="button" className="text-button" onClick={()=>{setStep('form');setCode('');setError('');setNotice('');}}>정보 다시 입력</button>}</form><div className="secure-note"><ShieldCheck size={15}/><span>안전한 인증 · 비밀번호 보호 · 개인정보 존중</span></div></section></section><footer><span>© 2026 FITNOVA</span><span>MOVE. CONNECT. EVOLVE.</span><span className="footer-dot"><i/> BUILT FOR YOUR NEXT LEVEL</span></footer></main>;
+  return <main className="auth-screen">
+    <div className="auth-glow auth-glow-one" aria-hidden="true" />
+    <div className="auth-glow auth-glow-two" aria-hidden="true" />
+    <header className="auth-app-header">
+      <a className="auth-app-brand" href="#top" aria-label="FITNOVA 홈">
+        <span className="auth-app-mark"><Activity size={24} strokeWidth={2.5}/></span>
+        <span>FIT<span>NOVA</span></span>
+      </a>
+      <span className="auth-app-badge"><i /> MOVE TOGETHER</span>
+    </header>
+    <section className="auth-layout" id="top">
+      <div className="auth-welcome">
+        <div className="auth-overline"><Sparkles size={14}/> YOUR FITNESS, YOUR PACE</div>
+        <h1>{mode==='register' ? <>오늘부터<br/><em>함께 움직여요.</em></> : <>다시 돌아온 걸<br/><em>환영해요.</em></>}</h1>
+        <p>{mode==='register' ? '운동을 기록하고, 친구와 연결하고\n매일의 변화를 쌓아 보세요.' : '당신의 운동 기록과 피트니스 커뮤니티가\n여기서 기다리고 있어요.'}</p>
+        <div className="auth-benefits">
+          <span><Activity size={16}/> 운동 기록</span>
+          <span><Users size={16}/> 함께 성장</span>
+          <span><Heart size={16}/> 동기 부여</span>
+        </div>
+      </div>
+      <section className="auth-card">
+        <div className="card-head">
+          <div className="mini-mark"><Activity size={20}/></div>
+          <h2>{mode==='register'?(step==='verify'?'이메일을 확인해 주세요':'FITNOVA 시작하기'):'다시 만나 반가워요'}</h2>
+          <p>{mode==='register'?(step==='verify'?'이메일로 받은 6자리 코드를 입력해 주세요.':'계정을 만들고 나만의 운동 여정을 시작하세요.'):'로그인하고 오늘의 활동을 이어가세요.'}</p>
+        </div>
+        <div className="tabs">
+          <button type="button" className={mode==='login'?'active':''} onClick={()=>switchMode('login')}>로그인</button>
+          <button type="button" className={mode==='register'?'active':''} onClick={()=>switchMode('register')}>회원가입</button>
+        </div>
+        <form onSubmit={submit}>
+          {mode==='register'&&step==='form'&&<label>아이디<div className="input-wrap"><UserRound size={17}/><input required minLength="3" maxLength="24" pattern="[A-Za-z0-9_]+" value={username} onChange={e=>setUsername(e.target.value)} placeholder="아이디 (영문·숫자·밑줄)" autoComplete="username"/></div></label>}
+          {mode==='register'&&step==='form'&&<label>이메일<div className="input-wrap"><Mail size={17}/><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 주소" autoComplete="email"/></div></label>}
+          {mode==='login'&&step==='form'&&<label>아이디 또는 이메일<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="아이디 또는 이메일" autoComplete="username"/></div></label>}
+          {((mode==='register'||mode==='login')&&step==='verify')&&<><label>{mode==='register'?'인증 이메일':'보안 코드 발송 이메일'}<div className="input-wrap"><Mail size={17}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div></label><label>6자리 인증 코드<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="이메일 인증 코드" className="code-input"/></div></label></>}
+          {((mode==='register'&&step==='form')||(mode==='login'&&step==='form'))&&<label>비밀번호<div className="input-wrap"><LockKeyhole size={17}/><input required minLength={mode==='register'?10:1} maxLength="128" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='register'?'비밀번호 10자 이상':'비밀번호'} autoComplete={mode==='register'?'new-password':'current-password'}/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label="비밀번호 표시">{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>{mode==='register'&&<small className="hint">영문, 숫자 등을 조합해 10자 이상 입력해 주세요.</small>}</label>}
+          {error&&<div className="alert error">{error}</div>}
+          {notice&&<div className="alert success"><CheckCircle2 size={16}/>{notice}</div>}
+          <button className="primary" disabled={busy}>{busy?'처리 중...':mode==='register'?(step==='verify'?'인증하고 시작하기':'인증 코드 받기'):(step==='verify'?'보안 코드 확인 후 로그인':'로그인하기')}<ArrowRight size={17}/></button>
+          {step==='verify'&&<button type="button" className="text-button" onClick={()=>{setStep('form');setCode('');setError('');setNotice('');}}>정보 다시 입력</button>}
+        </form>
+        <div className="secure-note"><ShieldCheck size={15}/><span>안전한 인증 · 비밀번호 보호</span></div>
+      </section>
+    </section>
+    <footer className="auth-app-footer"><span>© 2026 FITNOVA</span><span>MOVE. CONNECT. EVOLVE.</span></footer>
+  </main>;
 }
 
 function Dashboard({ user, tab, setTab, logout }) {
