@@ -342,6 +342,7 @@ def _public(user: dict) -> dict:
     return {"username": user["username"], "email": user["email"], "verified": user["verified"]}
 
 def _current_user(authorization: str | None = Header(default=None)) -> dict:
+    _purge_expired_accounts()
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
     try:
