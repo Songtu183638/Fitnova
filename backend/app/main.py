@@ -227,7 +227,7 @@ def _hash_code(email: str, code: str) -> str:
 
 def _verification_email_html(code: str) -> str:
     """Branded, responsive HTML email used by both SMTP and the Apps Script provider."""
-    return f\'''<!doctype html>
+    return f'''<!doctype html>
 <html lang="ko">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#080b08;font-family:Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f5ee">
@@ -252,15 +252,15 @@ def _verification_email_html(code: str) -> str:
       </table>
     </td></tr>
   </table>
-</body></html>\'''
+</body></html>'''
 
 
 def _verification_email_text(code: str) -> str:
     return (
-        "FITNOVA | 계정 보안 인증\\n\\n"
-        f"인증 코드: {code}\\n\\n"
-        "이 코드는 발송 후 10분 동안 유효합니다.\\n"
-        "보안을 위해 다른 사람과 공유하지 마세요.\\n"
+        "FITNOVA | 계정 보안 인증\n\n"
+        f"인증 코드: {code}\n\n"
+        "이 코드는 발송 후 10분 동안 유효합니다.\n"
+        "보안을 위해 다른 사람과 공유하지 마세요.\n"
         "본인이 요청하지 않았다면 이 메일을 무시해도 됩니다."
     )
 
