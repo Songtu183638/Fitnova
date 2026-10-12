@@ -8,7 +8,7 @@ import smtplib
 import jwt
 import psycopg
 from psycopg.rows import dict_row
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from pwdlib import PasswordHash
@@ -25,6 +25,9 @@ _login_codes = {}
 _posts = {}
 _post_comments = {}
 _post_likes = set()
+_follows = set()
+_messages = []
+_message_seq = 0
 _post_seq = 0
 _comment_seq = 0
 _attempts = defaultdict(list)
@@ -69,6 +72,9 @@ class PostIn(BaseModel):
 
 class CommentIn(BaseModel):
     content: str = Field(min_length=1, max_length=500)
+
+class MessageIn(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
 
 def _db():
     if not _DATABASE_URL:
@@ -137,6 +143,25 @@ def _init_db():
                 PRIMARY KEY(post_id, username)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_follows (
+                follower_username TEXT NOT NULL,
+                followed_username TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY(follower_username, followed_username),
+                CHECK(follower_username <> followed_username)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS direct_messages (
+                id BIGSERIAL PRIMARY KEY,
+                sender_username TEXT NOT NULL,
+                recipient_username TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS direct_messages_pair_idx ON direct_messages(sender_username, recipient_username, created_at)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_comments (
                 id BIGSERIAL PRIMARY KEY,
@@ -286,7 +311,7 @@ def _create_user(user: dict):
 
 def _token(user: dict) -> str:
     now = datetime.now(timezone.utc)
-    return jwt.encode({"sub": user["username"], "iat": now, "exp": now + timedelta(hours=12)}, _SECRET, algorithm="HS256")
+    return jwt.encode({"sub": user["username"], "iat": now, "exp": now + timedelta(days=365)}, _SECRET, algorithm="HS256")
 
 def _public(user: dict) -> dict:
     return {"username": user["username"], "email": user["email"], "verified": user["verified"]}
@@ -424,14 +449,16 @@ def _post_dict(row: dict, username: str, comments=None):
             "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": comments or []}
 
 @app.get("/api/posts")
-def list_posts(user: dict = Depends(_current_user)):
+def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: dict = Depends(_current_user)):
+    normalized_tag = (hashtag or "").strip().lstrip("#").lower()
     if _DATABASE_URL:
         with _db() as conn:
             rows = conn.execute("""SELECT p.*,
                 COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
                 FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
-                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""", (user["username"],)).fetchall()
+                WHERE (%s = '' OR EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(tag)=%s))
+                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""", (user["username"], normalized_tag, normalized_tag)).fetchall()
             result = []
             for row in rows:
                 comments = conn.execute("""SELECT id,author_username,content,created_at FROM post_comments
@@ -440,6 +467,8 @@ def list_posts(user: dict = Depends(_current_user)):
             return {"posts": result}
     result = []
     for p in sorted(_posts.values(), key=lambda x: x["created_at"], reverse=True):
+        if normalized_tag and not any(str(tag).lstrip("#").lower() == normalized_tag for tag in p.get("hashtags", [])):
+            continue
         row = dict(p)
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
@@ -527,3 +556,121 @@ def delete_post(post_id: int, user: dict = Depends(_current_user)):
         for key in list(_post_likes):
             if key[0] == post_id: _post_likes.remove(key)
     return {"deleted": True}
+
+
+def _profile_summary(username: str, viewer: str):
+    target = _find_username(username)
+    if not target:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            followers = conn.execute("SELECT COUNT(*)::int AS n FROM user_follows WHERE followed_username=%s", (target["username"],)).fetchone()["n"]
+            following = conn.execute("SELECT COUNT(*)::int AS n FROM user_follows WHERE follower_username=%s", (target["username"],)).fetchone()["n"]
+            is_following = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (viewer, target["username"])).fetchone())
+            post_count = conn.execute("SELECT COUNT(*)::int AS n FROM posts WHERE author_username=%s", (target["username"],)).fetchone()["n"]
+    else:
+        followers = sum(1 for follower, followed in _follows if followed == target["username"])
+        following = sum(1 for follower, followed in _follows if follower == target["username"])
+        is_following = (viewer, target["username"]) in _follows
+        post_count = sum(1 for p in _posts.values() if p["author_username"] == target["username"])
+    return {"username": target["username"], "email": target["email"] if target["username"] == viewer else None,
+            "verified": bool(target["verified"]), "follower_count": followers, "following_count": following,
+            "post_count": post_count, "following_by_me": is_following, "is_me": target["username"] == viewer}
+
+@app.get("/api/users/{username}")
+def get_user_profile(username: str, user: dict = Depends(_current_user)):
+    return {"profile": _profile_summary(username, user["username"])}
+
+@app.post("/api/users/{username}/follow")
+def toggle_follow(username: str, user: dict = Depends(_current_user)):
+    target = _find_username(username)
+    if not target:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    me = user["username"]
+    if target["username"] == me:
+        raise HTTPException(status_code=400, detail="자신을 팔로우할 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            exists = conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (me, target["username"])).fetchone()
+            if exists:
+                conn.execute("DELETE FROM user_follows WHERE follower_username=%s AND followed_username=%s", (me, target["username"]))
+                followed = False
+            else:
+                conn.execute("INSERT INTO user_follows(follower_username,followed_username) VALUES (%s,%s) ON CONFLICT DO NOTHING", (me, target["username"]))
+                followed = True
+    else:
+        key = (me, target["username"])
+        if key in _follows:
+            _follows.remove(key); followed = False
+        else:
+            _follows.add(key); followed = True
+    return {"following": followed, "profile": _profile_summary(target["username"], me)}
+
+def _message_dict(row):
+    created = row["created_at"]
+    return {"id": row["id"], "sender_username": row["sender_username"], "recipient_username": row["recipient_username"],
+            "content": row["content"], "created_at": created.isoformat() if hasattr(created, "isoformat") else created}
+
+@app.get("/api/messages")
+def list_message_threads(user: dict = Depends(_current_user)):
+    me = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            rows = conn.execute("""
+                SELECT DISTINCT ON (other_user) other_user, id, sender_username, recipient_username, content, created_at
+                FROM (
+                    SELECT CASE WHEN sender_username=%s THEN recipient_username ELSE sender_username END AS other_user,
+                           id, sender_username, recipient_username, content, created_at
+                    FROM direct_messages WHERE sender_username=%s OR recipient_username=%s
+                ) dm
+                ORDER BY other_user, created_at DESC
+            """, (me, me, me)).fetchall()
+        threads = [_message_dict(dict(row)) | {"username": row["other_user"]} for row in rows]
+    else:
+        latest = {}
+        for msg in _messages:
+            if me not in (msg["sender_username"], msg["recipient_username"]): continue
+            other = msg["recipient_username"] if msg["sender_username"] == me else msg["sender_username"]
+            if other not in latest or msg["created_at"] > latest[other]["created_at"]:
+                latest[other] = msg
+        threads = [_message_dict(msg) | {"username": name} for name, msg in latest.items()]
+        threads.sort(key=lambda item: item["created_at"], reverse=True)
+    return {"threads": threads}
+
+@app.get("/api/messages/{username}")
+def get_conversation(username: str, user: dict = Depends(_current_user)):
+    target = _find_username(username)
+    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    me = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            rows = conn.execute("""SELECT id,sender_username,recipient_username,content,created_at FROM direct_messages
+                WHERE (sender_username=%s AND recipient_username=%s) OR (sender_username=%s AND recipient_username=%s)
+                ORDER BY created_at ASC LIMIT 500""", (me,target["username"],target["username"],me)).fetchall()
+        messages = [_message_dict(dict(row)) for row in rows]
+    else:
+        messages = [_message_dict(m) for m in _messages if
+                    (m["sender_username"] == me and m["recipient_username"] == target["username"]) or
+                    (m["sender_username"] == target["username"] and m["recipient_username"] == me)]
+    return {"username": target["username"], "messages": messages}
+
+@app.post("/api/messages/{username}", status_code=201)
+def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(_current_user)):
+    global _message_seq
+    target = _find_username(username)
+    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    content = payload.content.strip()
+    if not content: raise HTTPException(status_code=422, detail="메시지를 입력해 주세요.")
+    if target["username"] == user["username"]: raise HTTPException(status_code=400, detail="자기 자신에게 메시지를 보낼 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("""INSERT INTO direct_messages(sender_username,recipient_username,content)
+                VALUES (%s,%s,%s) RETURNING id,sender_username,recipient_username,content,created_at""",
+                (user["username"],target["username"],content)).fetchone()
+        return {"message": _message_dict(dict(row))}
+    with _lock:
+        _message_seq += 1
+        message = {"id": _message_seq, "sender_username": user["username"], "recipient_username": target["username"],
+                   "content": content, "created_at": datetime.now(timezone.utc).isoformat()}
+        _messages.append(message)
+    return {"message": _message_dict(message)}
