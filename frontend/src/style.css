@@ -264,3 +264,83 @@ input,textarea,select{accent-color:var(--green)}
 .search-loading p{margin:0;color:#8d9986;font-size:12px}
 .search-spinner{width:28px;height:28px;border:2px solid #293326;border-top-color:#b7ff36;border-radius:50%;animation:searchSpin .75s linear infinite}
 @keyframes searchSpin{to{transform:rotate(360deg)}}
+
+
+/* Search results: one clear hashtag header followed by a vertical post stream. */
+.full-search-suggestions{display:none!important}
+.full-search-results{border-top:0;padding-top:8px}
+.full-search-results-heading.hashtag-results-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 25px;padding:22px 24px;background:linear-gradient(120deg,#151d11,#101410);border:1px solid #2c3827;border-radius:17px}
+.hashtag-results-title{display:flex;align-items:center;gap:15px;min-width:0}
+.hashtag-results-icon{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border-radius:15px;color:#b7ff36;background:#b7ff3615;border:1px solid #b7ff3630}
+.hashtag-results-title .eyebrow{font-size:10px;letter-spacing:1.6px;color:#92a285}
+.hashtag-results-title h3{margin:4px 0 3px;font-size:clamp(23px,4vw,32px);letter-spacing:-.8px;overflow-wrap:anywhere}
+.hashtag-results-title p{margin:0;color:#8f9b89;font-size:12px;line-height:1.5}
+.full-search-results .feed-list{display:flex;flex-direction:column;gap:18px;max-width:700px;margin:0 auto}
+.full-search-results .post-card{width:100%;border-radius:16px}
+.full-search-content{padding-top:clamp(22px,4vw,42px)}
+.full-search-intro h2{font-size:clamp(25px,4vw,36px)}
+@media(max-width:600px){
+ .full-search-results-heading.hashtag-results-banner{padding:16px 14px;margin-bottom:18px;gap:8px}
+ .hashtag-results-title{gap:10px}
+ .hashtag-results-icon{width:40px;height:40px;flex-basis:40px;border-radius:12px}
+ .hashtag-results-title h3{font-size:23px}
+ .hashtag-results-title p{font-size:11px}
+ .result-count{font-size:10px}
+ .full-search-results .feed-list{gap:13px}
+}
+
+/* Social-app style account center: identity header, clear sections and tactile settings rows. */
+.settings-page{max-width:900px;padding-bottom:54px}
+.settings-heading{margin-bottom:20px}
+.settings-heading .eyebrow{display:inline-flex;align-items:center;gap:7px;color:#b7ff36;font-size:10px;letter-spacing:1.5px}
+.settings-heading h2{font-size:clamp(25px,3.2vw,32px);letter-spacing:-1px;margin:8px 0}
+.settings-heading p{font-size:13px;color:#9ca696}
+.settings-account-banner{display:flex;align-items:center;gap:15px;padding:19px 21px;margin-bottom:23px;background:linear-gradient(115deg,#171d15,#101310 72%);border:1px solid #303a2c;border-radius:16px}
+.settings-account-avatar{width:54px;height:54px;flex:0 0 54px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#c4ff63,#719b2d);color:#11170b;font-size:23px;font-weight:850;box-shadow:0 0 0 4px #b7ff3610}
+.settings-account-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.settings-account-copy>span{font-size:10px;color:#929d8c}
+.settings-account-copy>b{font-size:16px;color:#f3f6ef}
+.settings-account-copy>small{font-size:12px;color:#9ba596;overflow-wrap:anywhere}
+.settings-account-status{display:inline-flex;align-items:center;gap:6px;margin-left:auto;white-space:nowrap;padding:8px 11px;border-radius:999px;border:1px solid #34462a;background:#1a2414;color:#b7ff36;font-size:11px}
+.settings-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.settings-card{position:relative;overflow:hidden;background:#101310;border:1px solid #292f29;border-radius:15px;padding:0;transition:border-color .18s ease,background .18s ease}
+.settings-card:hover{border-color:#3a4932;background:#111511}
+.settings-card-title{align-items:center;gap:13px;margin:0;padding:19px 20px 17px;border-bottom:1px solid #272e26;background:#131713}
+.settings-card-title>svg{width:38px;height:38px;flex:0 0 38px;padding:10px;border-radius:12px;background:#1b2416;border:1px solid #303d27;color:#b7ff36}
+.settings-card-title h3{font-size:14px;letter-spacing:-.2px}
+.settings-card-title p{font-size:11px;line-height:1.55}
+.setting-toggle,.setting-select{margin:0 19px;padding:15px 0;border-top:1px solid #222922}
+.setting-toggle:first-of-type{border-top:0}
+.setting-toggle b,.setting-select b{font-size:12px}
+.setting-toggle small,.setting-select small{font-size:11px;line-height:1.55}
+.setting-toggle input{appearance:none;position:relative;width:39px;height:23px;flex:0 0 39px;border:1px solid #414a3e;border-radius:999px;background:#252b23;cursor:pointer;transition:background .18s,border-color .18s}
+.setting-toggle input:before{content:"";position:absolute;left:3px;top:3px;width:15px;height:15px;border-radius:50%;background:#a0aa99;transition:transform .18s,background .18s}
+.setting-toggle input:checked{background:#b7ff36;border-color:#b7ff36}
+.setting-toggle input:checked:before{transform:translateX(16px);background:#18200e}
+.setting-toggle input:focus-visible{outline:2px solid #b7ff36;outline-offset:3px}
+.setting-select{padding-bottom:18px}
+.setting-select select{min-height:42px;border-color:#30382d;background:#0b0e0b;border-radius:10px}
+.settings-form{padding:0 19px 19px;margin-top:0}
+.settings-form label{font-size:11px;color:#aeb8a7}
+.settings-form input{min-height:42px;border-radius:10px}
+.settings-card>.secondary-action{margin:17px 19px 20px}
+.settings-card .settings-form .primary,.settings-card .settings-form .secondary-action{margin:0}
+.settings-danger{border-color:#492d2b}
+.settings-danger .settings-card-title>svg{background:#2a1716;border-color:#50302d;color:#ffb2a8}
+.settings-danger .deletion-note{margin:0 19px 20px;padding-top:15px}
+.settings-danger>.secondary-action{margin-top:18px}
+.deletion-note p{font-size:11px;line-height:1.75}
+.danger-button{border-radius:9px}
+@media(max-width:760px){
+ .settings-page{padding-bottom:32px}
+ .settings-account-banner{gap:12px;padding:15px;margin-bottom:17px}
+ .settings-account-avatar{width:46px;height:46px;flex-basis:46px;font-size:20px}
+ .settings-account-status{padding:7px 8px;font-size:10px}
+ .settings-grid{grid-template-columns:1fr;gap:12px}
+ .settings-card-title{padding:16px}
+ .setting-toggle,.setting-select{margin:0 16px}
+ .settings-form{padding:0 16px 16px}
+ .settings-card>.secondary-action{margin-left:16px;margin-right:16px}
+ .settings-danger .deletion-note{margin-left:16px;margin-right:16px}
+}
+@media(max-width:390px){.settings-account-status{font-size:0;gap:0}.settings-account-status svg{width:16px;height:16px}.settings-account-copy>small{font-size:10px}}
