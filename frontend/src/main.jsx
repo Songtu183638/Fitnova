@@ -112,6 +112,11 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [hashtagSearch, setHashtagSearch] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const postsRequestId = useRef(0);
+  const settingsRequestId = useRef(0);
+  const pendingLikes = useRef(new Set());
+  const pendingSaves = useRef(new Set());
+  const pendingFollows = useRef(new Set());
+  const pendingComments = useRef(new Set());
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [profileData, setProfileData] = useState(null);
   const [ownPosts, setOwnPosts] = useState([]);
@@ -178,8 +183,37 @@ function Dashboard({ user, tab, setTab, logout }) {
   const loadOwnPosts = async () => { try { const d=await api('/api/users/'+encodeURIComponent(user.username)+'/posts'); setOwnPosts(d.posts||[]); } catch(e){setError(e.message||'내 게시물을 불러오지 못했습니다.');} };
   const loadSavedPosts = async () => { try { const d=await api('/api/saved-posts'); setSavedPosts(d.posts||[]); setSavedPostIds(new Set((d.posts||[]).map(p=>p.id))); } catch(e){setError(e.message||'저장한 게시물을 불러오지 못했습니다.');} };
   const loadSettings = async () => { try { const d=await api('/api/account/settings'); setAccountSettings(d.settings); setAccountEmail(d.email||user.email); setSettingsEmailInput(d.email||user.email); } catch(e){setError(e.message||'설정을 불러오지 못했습니다.');} };
-  const saveSettings = async (next=accountSettings) => { setSettingsBusy(true); try { const d=await api('/api/account/settings',{method:'PATCH',body:JSON.stringify(next)}); setAccountSettings(d.settings); setNotice('개인정보 설정을 저장했습니다.'); } catch(e){setError(e.message||'설정을 저장하지 못했습니다.');} finally{setSettingsBusy(false);} };
-  const toggleSavePost = async (id) => { try { const d=await api('/api/posts/'+id+'/save',{method:'POST'}); setSavedPostIds(prev=>{const n=new Set(prev);if(d.saved)n.add(id);else n.delete(id);return n;}); if(d.saved){const p=posts.find(x=>x.id===id)||ownPosts.find(x=>x.id===id)||savedPosts.find(x=>x.id===id);if(p)setSavedPosts(prev=>[p,...prev.filter(x=>x.id!==id)]);}else setSavedPosts(prev=>prev.filter(x=>x.id!==id)); } catch(e){setError(e.message||'게시물을 저장하지 못했습니다.');} };
+  const saveSettings = async (next=accountSettings) => {
+    const requestId = ++settingsRequestId.current;
+    const previous = accountSettings;
+    setAccountSettings(next); setError(''); setNotice('설정을 저장하는 중…');
+    try {
+      const d = await api('/api/account/settings', {method:'PATCH', body:JSON.stringify(next)});
+      if (requestId === settingsRequestId.current) { setAccountSettings(d.settings); setNotice('설정을 저장했습니다.'); }
+    } catch(e) {
+      if (requestId === settingsRequestId.current) { setAccountSettings(previous); setError((e.message||'설정을 저장하지 못했습니다.')+' 설정 변경이 저장되지 않아 이전 값으로 되돌렸습니다.'); setNotice(''); }
+    }
+  };
+  const toggleSavePost = async (id) => {
+    if (pendingSaves.current.has(id)) return;
+    pendingSaves.current.add(id);
+    const wasSaved = savedPostIds.has(id), nextSaved = !wasSaved;
+    const post = posts.find(x=>x.id===id)||ownPosts.find(x=>x.id===id)||savedPosts.find(x=>x.id===id);
+    setSavedPostIds(prev=>{const n=new Set(prev);if(nextSaved)n.add(id);else n.delete(id);return n;});
+    if(nextSaved && post) setSavedPosts(prev=>[post,...prev.filter(x=>x.id!==id)]);
+    if(!nextSaved) setSavedPosts(prev=>prev.filter(x=>x.id!==id));
+    try {
+      const d=await api('/api/posts/'+id+'/save',{method:'POST'});
+      setSavedPostIds(prev=>{const n=new Set(prev);if(d.saved)n.add(id);else n.delete(id);return n;});
+      if(d.saved && post) setSavedPosts(prev=>[post,...prev.filter(x=>x.id!==id)]);
+      if(!d.saved) setSavedPosts(prev=>prev.filter(x=>x.id!==id));
+    } catch(e) {
+      setSavedPostIds(prev=>{const n=new Set(prev);if(wasSaved)n.add(id);else n.delete(id);return n;});
+      if(wasSaved && post) setSavedPosts(prev=>[post,...prev.filter(x=>x.id!==id)]);
+      if(!wasSaved) setSavedPosts(prev=>prev.filter(x=>x.id!==id));
+      setError(e.message||'게시물을 저장하지 못했습니다.');
+    } finally { pendingSaves.current.delete(id); }
+  };
   const requestSettingsCode = async (kind) => { setSettingsBusy(true); setError(''); try { if(kind==='password'){await api('/api/account/password/request-code',{method:'POST'});setSettingsPasswordCodeSent(true);setNotice('현재 이메일로 비밀번호 변경 보안 코드를 보냈습니다.');} else {await api('/api/account/email/request-code',{method:'POST',body:JSON.stringify({email:settingsEmailInput})});setSettingsEmailCodeSent(true);setNotice('새 이메일로 인증 코드를 보냈습니다.');} } catch(e){setError(e.message||'보안 코드를 보내지 못했습니다.');} finally{setSettingsBusy(false);} };
   const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice('비밀번호를 변경했습니다.');}catch(e){setError(e.message||'비밀번호를 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
   const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('이메일을 변경했습니다.');}catch(e){setError(e.message||'이메일을 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
@@ -188,8 +222,17 @@ function Dashboard({ user, tab, setTab, logout }) {
   const loadConversation = async (username) => { setActiveChat(username); try { const data = await api('/api/messages/' + encodeURIComponent(username)); setChatMessages(data.messages || []); } catch (e) { setError(e.message || '대화 내용을 불러오지 못했습니다.'); } };
   const toggleFollow = async () => {
     if (!profileData || profileData.is_me) return;
-    try { const data = await api('/api/users/' + encodeURIComponent(profileData.username) + '/follow', { method: 'POST' }); setProfileData(data.profile); setNotice(data.following ? '팔로우했습니다.' : '언팔로우했습니다.'); }
-    catch (e) { setError(e.message || '팔로우를 변경하지 못했습니다.'); }
+    const target = profileData.username;
+    if (pendingFollows.current.has(target)) return;
+    pendingFollows.current.add(target);
+    const before = profileData, nextFollowing = !profileData.following_by_me;
+    setProfileData(prev=>prev?({...prev,following_by_me:nextFollowing,is_mutual:nextFollowing&&prev.followed_by_me,follower_count:Math.max(0,(prev.follower_count||0)+(nextFollowing?1:-1))}):prev);
+    setNotice(nextFollowing?'팔로우했어요.':'팔로우를 취소했어요.'); setError('');
+    try {
+      const data = await api('/api/users/' + encodeURIComponent(target) + '/follow', { method: 'POST' });
+      setProfileData(data.profile); setNotice(data.following ? '팔로우했습니다.' : '언팔로우했습니다.');
+    } catch (e) { setProfileData(before); setNotice(''); setError(e.message || '팔로우를 변경하지 못했습니다.'); }
+    finally { pendingFollows.current.delete(target); }
   };
   const sendMessage = async (e) => {
     e.preventDefault(); const content = messageDraft.trim(); if (!content || !activeChat) return;
@@ -222,17 +265,43 @@ function Dashboard({ user, tab, setTab, logout }) {
     } catch(e){setError(e.message||'게시물을 올리지 못했습니다.');} finally{setBusy(false);}
   };
   const toggleLike = async (id) => {
-    try { const result = await api('/api/posts/' + id + '/like', { method: 'POST' }); setPosts(items => items.map(p => p.id === id ? { ...p, liked_by_me: result.liked, like_count: Math.max(0, p.like_count + (result.liked ? 1 : -1)) } : p)); }
-    catch (e) { setError(e.message || '좋아요를 처리하지 못했습니다.'); }
+    if (pendingLikes.current.has(id)) return;
+    pendingLikes.current.add(id);
+    let previousLiked = false;
+    const update = (items, liked) => items.map(p => { if(p.id!==id)return p; previousLiked=!!p.liked_by_me; return {...p,liked_by_me:liked,like_count:Math.max(0,(p.like_count||0)+(liked?(p.liked_by_me?0:1):(p.liked_by_me?-1:0)))}; });
+    const current = posts.find(p=>p.id===id); if(!current){pendingLikes.current.delete(id);return;}
+    previousLiked=!!current.liked_by_me; const nextLiked=!previousLiked;
+    setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:nextLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?1:-1))}:p));
+    setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:nextLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?1:-1))}:p));
+    try {
+      const result=await api('/api/posts/'+id+'/like',{method:'POST'});
+      const apply=items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked,like_count:Math.max(0,(p.like_count||0)+(result.liked===nextLiked?0:(result.liked?1:-1)))}:p);
+      setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked}:p));
+      setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked}:p));
+    } catch(e) {
+      setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(previousLiked?1:-1)*(nextLiked?1:-1))}:p));
+      setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(previousLiked?1:-1)*(nextLiked?1:-1))}:p));
+      setError(e.message||'좋아요를 처리하지 못했습니다.');
+    } finally { pendingLikes.current.delete(id); }
   };
   const addComment = async (id) => {
     const content = (commentDrafts[id] || '').trim();
-    if (!content) return;
+    if (!content || pendingComments.current.has(id)) return;
+    pendingComments.current.add(id);
+    const tempId = 'pending-'+Date.now();
+    const optimistic = {id:tempId,author_username:user.username,content,created_at:new Date().toISOString(),pending:true};
+    setPosts(items=>items.map(p=>p.id===id?{...p,comments:[...(p.comments||[]),optimistic]}:p));
+    setOwnPosts(items=>items.map(p=>p.id===id?{...p,comments:[...(p.comments||[]),optimistic]}:p));
+    setCommentDrafts(items=>({...items,[id]:''})); setError('');
     try {
-      const result = await api('/api/posts/' + id + '/comments', { method: 'POST', body: JSON.stringify({ content }) });
-      setPosts(items => items.map(p => p.id === id ? { ...p, comments: [...(p.comments || []), result.comment] } : p));
-      setCommentDrafts(items => ({ ...items, [id]: '' }));
-    } catch (e) { setError(e.message || '댓글을 등록하지 못했습니다.'); }
+      const result=await api('/api/posts/'+id+'/comments',{method:'POST',body:JSON.stringify({content})});
+      const replace=items=>items.map(p=>p.id===id?{...p,comments:(p.comments||[]).map(comment=>comment.id===tempId?result.comment:comment)}:p);
+      setPosts(replace); setOwnPosts(replace);
+    } catch(e) {
+      const remove=items=>items.map(p=>p.id===id?{...p,comments:(p.comments||[]).filter(comment=>comment.id!==tempId)}:p);
+      setPosts(remove); setOwnPosts(remove); setCommentDrafts(items=>({...items,[id]:content}));
+      setError(e.message||'댓글을 등록하지 못했습니다.');
+    } finally { pendingComments.current.delete(id); }
   };
   const removePost = async (id) => {
     if (!window.confirm('이 게시물을 삭제할까요?')) return;
