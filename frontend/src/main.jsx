@@ -279,7 +279,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked}:p));
       setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked}:p));
     } catch(e) {
-      setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(previousLiked?1:-1)*(nextLiked?1:-1))}:p));
+      setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
       setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(previousLiked?1:-1)*(nextLiked?1:-1))}:p));
       setError(e.message||'좋아요를 처리하지 못했습니다.');
     } finally { pendingLikes.current.delete(id); }
