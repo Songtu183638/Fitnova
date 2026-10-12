@@ -170,7 +170,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     const normalizedTag = String(tag || '').trim().replace(/^#+/, '').trim();
     const offset = append ? postsOffset.current : 0;
     if (!append) { postsOffset.current = 0; setHasMorePosts(false); }
-    if (normalizedTag) setSearchLoading(true);
+    setSearchLoading(true);
     try {
       const data = await api('/api/posts?limit=15&offset=' + offset + (normalizedTag ? '&hashtag=' + encodeURIComponent(normalizedTag) : ''));
       if (requestId === postsRequestId.current) {
