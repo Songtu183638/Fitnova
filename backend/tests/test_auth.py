@@ -357,3 +357,32 @@ def test_duplicate_display_names_are_allowed_but_usernames_are_unique(monkeypatc
     })
     assert duplicate_username.status_code == 409
 
+
+
+def test_binary_video_upload_and_raw_media_delivery(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    body = {"username":"video_user","email":"video@example.com","password":"StrongPass!123"}
+    registered = client.post("/api/auth/register", json=body)
+    assert registered.status_code == 202
+    verified = client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
+    assert verified.status_code == 200
+    headers = {"Authorization": f"Bearer {verified.json()['access_token']}"}
+    created = client.post(
+        "/api/posts/upload",
+        headers=headers,
+        data={
+            "title":"테스트 영상",
+            "content":"바이너리 업로드 확인",
+            "media_type":"video",
+            "media_duration_seconds":"5",
+            "hashtags":"[\"운동\"]",
+        },
+        files={"media":("sample.mp4", b"fake-mp4-content", "video/mp4")},
+    )
+    assert created.status_code == 201, created.text
+    post_id = created.json()["post"]["id"]
+    raw = client.get(f"/api/posts/{post_id}/media/file", headers=headers)
+    assert raw.status_code == 200
+    assert raw.headers["content-type"].startswith("video/mp4")
+    assert raw.content == b"fake-mp4-content"
