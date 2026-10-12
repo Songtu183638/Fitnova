@@ -43,6 +43,24 @@ if not _SECRET:
     print("WARNING: JWT_SECRET is unset; sessions will be invalidated on restart.")
 _CODE_SECRET = os.getenv("VERIFICATION_CODE_SECRET", _SECRET)
 
+_MODERATION_TERMS = (
+    "씨발", "시발", "ㅅㅂ", "씨바", "병신", "븅신", "개새끼", "씹새끼",
+    "좆같", "좆", "지랄", "염병", "애미뒤", "애비뒤", "개자식", "개같",
+    "섹스", "야동", "야사", "딸딸이", "딸치", "후장", "강간", "성폭행",
+    "성관계", "꼴려", "유두", "젖꼭지", "오럴섹스", "보짓물", "자지빨", "보지빨",
+)
+
+def _moderation_normalize(value: str) -> str:
+    import unicodedata
+    value = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    value = re.sub(r"[\u200b-\u200f\uFEFF]", "", value)
+    return re.sub(r"[^0-9a-z가-힣]", "", value)
+
+def _validate_community_text(*values: str) -> None:
+    normalized = _moderation_normalize(" ".join(str(value or "") for value in values))
+    if any(term in normalized for term in _MODERATION_TERMS):
+        raise HTTPException(status_code=422, detail="욕설이나 성적으로 부적절한 표현은 사용할 수 없습니다. 내용을 수정해 주세요.")
+
 class RegisterIn(BaseModel):
     username: str = Field(min_length=3, max_length=24, pattern=r"^[a-zA-Z0-9_]+$")
     email: EmailStr
@@ -561,7 +579,13 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                     "id": comment["id"], "author_username": comment["author_username"],
                     "content": comment["content"], "created_at": comment["created_at"]
                 })
-            result = [_post_dict(dict(row), user["username"], comments_by_post.get(row["id"], [])) for row in rows]
+            result = []
+            for row in rows:
+                item = dict(row)
+                item.pop("media_data", None)
+                post_data = _post_dict(item, user["username"], comments_by_post.get(row["id"], []))
+                post_data.pop("media_data", None)
+                result.append(post_data)
             return {"posts": result}
     # Filter before paginating so matches older than the first page remain searchable.
     result = []
@@ -577,9 +601,12 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
     visible_posts.sort(key=lambda p: p["created_at"], reverse=True)
     for p in visible_posts[offset:offset + limit]:
         row = dict(p)
+        row.pop("media_data", None)
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
-        result.append(_post_dict(row, user["username"], _post_comments.get(row["id"], [])))
+        post_data = _post_dict(row, user["username"], _post_comments.get(row["id"], []))
+        post_data.pop("media_data", None)
+        result.append(post_data)
     return {"posts": result}
 
 def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> list[str]:
@@ -605,6 +632,7 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
     content = payload.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="게시물 내용을 입력해 주세요.")
+    _validate_community_text(payload.title, content, payload.exercise_name, payload.reps, payload.workout_notes, *(payload.hashtags or []))
     if payload.media_type == "video" and payload.media_duration_seconds is None:
         raise HTTPException(status_code=422, detail="영상 길이 확인이 필요합니다. 영상을 다시 선택해 주세요.")
     if payload.media_type == "image" and payload.media_duration_seconds is not None:
@@ -626,6 +654,29 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
         _posts[post["id"]] = post
         _post_comments[post["id"]] = []
     return {"post": _post_dict(post, user["username"], [])}
+
+@app.get("/api/posts/{post_id}/media")
+def get_post_media(post_id: int, user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT author_username, media_data FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            author = row["author_username"]
+            if author != user["username"]:
+                settings = conn.execute("SELECT private_account FROM user_settings WHERE username=%s", (author,)).fetchone()
+                private = bool(settings and settings["private_account"])
+                if private and not conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (user["username"], author)).fetchone():
+                    raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            return {"media_data": row["media_data"]}
+    row = _posts.get(post_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    author = row["author_username"]
+    if author != user["username"] and _get_user_settings(author)["private_account"] and (user["username"], author) not in _follows:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    return {"media_data": row.get("media_data", "")}
+
 
 @app.post("/api/posts/{post_id}/like")
 def toggle_like(post_id: int, user: dict = Depends(_current_user)):
@@ -652,6 +703,7 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
     global _comment_seq
     content = payload.content.strip()
     if not content: raise HTTPException(status_code=422, detail="댓글 내용을 입력해 주세요.")
+    _validate_community_text(content)
     if _DATABASE_URL:
         with _db() as conn:
             if not conn.execute("SELECT id FROM posts WHERE id=%s", (post_id,)).fetchone():
@@ -666,6 +718,29 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
         comment = {"id": _comment_seq, "author_username": user["username"], "content": content, "created_at": datetime.now(timezone.utc).isoformat()}
         _post_comments.setdefault(post_id, []).append(comment)
     return {"comment": comment}
+
+@app.delete("/api/posts/{post_id}/comments/{comment_id}")
+def delete_comment(post_id: int, comment_id: int, user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT author_username FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+            if row["author_username"] != user["username"]:
+                raise HTTPException(status_code=403, detail="본인이 작성한 댓글만 삭제할 수 있습니다.")
+            conn.execute("DELETE FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id))
+    else:
+        if post_id not in _posts:
+            raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+        comments = _post_comments.get(post_id, [])
+        target = next((item for item in comments if str(item["id"]) == str(comment_id)), None)
+        if not target:
+            raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+        if target["author_username"] != user["username"]:
+            raise HTTPException(status_code=403, detail="본인이 작성한 댓글만 삭제할 수 있습니다.")
+        _post_comments[post_id] = [item for item in comments if str(item["id"]) != str(comment_id)]
+    return {"deleted": True}
+
 
 @app.delete("/api/posts/{post_id}")
 def delete_post(post_id: int, user: dict = Depends(_current_user)):
@@ -795,6 +870,7 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
     if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     content = payload.content.strip()
     if not content: raise HTTPException(status_code=422, detail="메시지를 입력해 주세요.")
+    _validate_community_text(content)
     if target["username"] == user["username"]: raise HTTPException(status_code=400, detail="자기 자신에게 메시지를 보낼 수 없습니다.")
     prefs = _get_user_settings(target["username"])
     if prefs["allow_messages_from"] == "following":
