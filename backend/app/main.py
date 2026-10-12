@@ -58,7 +58,7 @@ class PostIn(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     content: str = Field(min_length=1, max_length=2000)
     media_type: str = Field(pattern=r"^(image|video)$")
-    media_data: str = Field(min_length=20, max_length=16_000_000)
+    media_data: str = Field(min_length=20, max_length=17_000_000)
     hashtags: list[str] = Field(default_factory=list, max_length=20)
     weight: float | None = Field(default=None, ge=1, le=500)
     sets_count: int | None = Field(default=None, ge=0, le=500)
@@ -119,18 +119,16 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
-        conn.execute("""
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'text';
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_data TEXT NOT NULL DEFAULT '';
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS hashtags TEXT[] NOT NULL DEFAULT '{}';
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS weight DOUBLE PRECISION;
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS sets_count INTEGER;
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS exercise_name TEXT NOT NULL DEFAULT '';
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS reps TEXT NOT NULL DEFAULT '';
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS duration_minutes INTEGER;
-            ALTER TABLE posts ADD COLUMN IF NOT EXISTS workout_notes TEXT NOT NULL DEFAULT '';
-        """)
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'text'")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_data TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS hashtags TEXT[] NOT NULL DEFAULT '{}'")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS weight DOUBLE PRECISION")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS sets_count INTEGER")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS exercise_name TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS reps TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS duration_minutes INTEGER")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS workout_notes TEXT NOT NULL DEFAULT ''")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_likes (
                 post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
