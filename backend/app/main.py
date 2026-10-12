@@ -561,20 +561,23 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                 })
             result = [_post_dict(dict(row), user["username"], comments_by_post.get(row["id"], [])) for row in rows]
             return {"posts": result}
+    # Filter before paginating so matches older than the first page remain searchable.
     result = []
-    for p in sorted(_posts.values(), key=lambda x: x["created_at"], reverse=True)[offset:offset + limit]:
+    visible_posts = []
+    for p in _posts.values():
         if p["author_username"] != user["username"] and _get_user_settings(p["author_username"])["private_account"] and (user["username"],p["author_username"]) not in _follows:
             continue
-        tags = [str(tag).lstrip("#").lower() for tag in p.get("hashtags", [])]
+        tags = [str(tag).lstrip("#").strip().lower() for tag in p.get("hashtags", [])]
         visible_text = (str(p.get("content") or "") + " " + str(p.get("title") or "")).lower()
         if normalized_tag and normalized_tag not in tags and ("#" + normalized_tag) not in visible_text:
             continue
+        visible_posts.append(p)
+    visible_posts.sort(key=lambda p: p["created_at"], reverse=True)
+    for p in visible_posts[offset:offset + limit]:
         row = dict(p)
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
         result.append(_post_dict(row, user["username"], _post_comments.get(row["id"], [])))
-        if len(result) >= limit:
-            break
     return {"posts": result}
 
 def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> list[str]:
