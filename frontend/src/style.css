@@ -202,3 +202,5 @@ input,textarea,select{accent-color:var(--green)}
 .danger-button{display:inline-flex;align-items:center;gap:8px;background:#361a1a;border:1px solid #743333;color:#ffb7ae;border-radius:10px;padding:11px 14px;cursor:pointer;font-size:12px}
 .danger-button:hover{background:#4b2020}
 @media(max-width:760px){.settings-grid{grid-template-columns:1fr}.settings-page{padding-bottom:26px}.settings-card{padding:18px}.settings-heading h2{font-size:22px}}
+
+@media(max-width:760px){.mobile-nav{overflow-x:auto;justify-content:flex-start}.mobile-nav button{flex:0 0 auto;min-width:56px;padding-left:9px;padding-right:9px}.mobile-nav button span{font-size:9px}}
