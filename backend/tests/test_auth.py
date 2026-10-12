@@ -256,3 +256,27 @@ def test_video_post_requires_duration_and_rejects_over_one_minute(monkeypatch):
     valid = client.post("/api/posts", headers=headers, json={**base, "media_duration_seconds": 60})
     assert valid.status_code == 201
     assert valid.json()["post"]["media_duration_seconds"] == 60
+
+
+
+def test_in_memory_hashtag_search_paginates_after_filtering(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token = _verified_user("search_page_user", "searchpage@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+    # Put the matching post behind a full page of newer, unrelated posts.
+    matching = client.post("/api/posts", headers=headers, json={
+        "title": "오래된 러닝 기록", "content": "아침 #러닝", "media_type": "text",
+        "media_data": "text", "hashtags": ["러닝"]
+    })
+    assert matching.status_code == 201
+    matching_id = matching.json()["post"]["id"]
+    for index in range(18):
+        created = client.post("/api/posts", headers=headers, json={
+            "title": f"일반 기록 {index}", "content": "일반 운동 기록", "media_type": "text",
+            "media_data": "text", "hashtags": []
+        })
+        assert created.status_code == 201
+    first_page = client.get("/api/posts?hashtag=러닝&limit=15&offset=0", headers=headers)
+    assert first_page.status_code == 200
+    assert any(post["id"] == matching_id for post in first_page.json()["posts"])
