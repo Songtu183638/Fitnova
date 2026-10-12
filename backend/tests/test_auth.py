@@ -11,6 +11,9 @@ def setup_function():
     auth._posts.clear()
     auth._post_comments.clear()
     auth._post_likes.clear()
+    auth._follows.clear()
+    auth._messages.clear()
+    auth._message_seq = 0
     auth._post_seq = 0
     auth._comment_seq = 0
     auth._send_code = lambda email, code: auth._codes.__setitem__("captured-test-code", {"code": code, "email": email})
@@ -81,3 +84,57 @@ def test_duplicate_email_rejected(monkeypatch):
     client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
     response = client.post("/api/auth/register", json={"username":"runner_04","email":body["email"],"password":"StrongPass!123"})
     assert response.status_code == 409
+
+
+def _verified_user(username, email, sent):
+    body = {"username": username, "email": email, "password": "StrongPass!123"}
+    registered = client.post("/api/auth/register", json=body)
+    assert registered.status_code == 202
+    verified = client.post("/api/auth/verify", json={"email": email, "code": sent["code"]})
+    assert verified.status_code == 200
+    return verified.json()["access_token"]
+
+def test_hashtag_search_follow_profile_and_direct_messages(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    token_a = _verified_user("member_a", "membera@example.com", sent)
+    token_b = _verified_user("member_b", "memberb@example.com", sent)
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    created = client.post("/api/posts", headers=headers_b, json={
+        "title": "오늘의 하체 운동", "content": "스쿼트 기록", "media_type": "image",
+        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": ["#하체", "#스쿼트"]
+    })
+    assert created.status_code == 201
+    searched = client.get("/api/posts?hashtag=%23%ED%95%98%EC%B2%B4", headers=headers_a)
+    assert searched.status_code == 200
+    assert len(searched.json()["posts"]) == 1
+    assert searched.json()["posts"][0]["author_username"] == "member_b"
+
+    profile = client.get("/api/users/member_b", headers=headers_a)
+    assert profile.status_code == 200
+    assert profile.json()["profile"]["following_by_me"] is False
+    followed = client.post("/api/users/member_b/follow", headers=headers_a)
+    assert followed.status_code == 200
+    assert followed.json()["following"] is True
+    assert followed.json()["profile"]["follower_count"] == 1
+    unfollowed = client.post("/api/users/member_b/follow", headers=headers_a)
+    assert unfollowed.json()["following"] is False
+
+    sent_message = client.post("/api/messages/member_b", headers=headers_a, json={"content": "오늘 운동 멋져요!"})
+    assert sent_message.status_code == 201
+    assert sent_message.json()["message"]["content"] == "오늘 운동 멋져요!"
+    conversation = client.get("/api/messages/member_a", headers=headers_b)
+    assert conversation.status_code == 200
+    assert conversation.json()["messages"][0]["sender_username"] == "member_a"
+    threads = client.get("/api/messages", headers=headers_b)
+    assert threads.status_code == 200
+    assert threads.json()["threads"][0]["username"] == "member_a"
+
+def test_auth_token_is_persistent_for_one_year(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code: sent.update(email=email, code=code))
+    token = _verified_user("long_session", "longsession@example.com", sent)
+    payload = auth.jwt.decode(token, auth._SECRET, algorithms=["HS256"])
+    assert payload["exp"] - payload["iat"] >= 364 * 24 * 60 * 60
