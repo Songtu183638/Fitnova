@@ -249,33 +249,53 @@ def _hash_code(email: str, code: str) -> str:
     return hmac.new(_CODE_SECRET.encode(), f"{email.lower()}:{code}".encode(), hashlib.sha256).hexdigest()
 
 def _verification_email_html(code: str, purpose: str = "계정 보안") -> str:
-    """Branded, responsive HTML email used by both SMTP and the Apps Script provider."""
+    """Responsive, branded HTML email for verification and account-security codes."""
+    safe_purpose = (purpose or "계정 보안").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    safe_code = "".join(ch for ch in str(code) if ch.isdigit())[:6]
     return f'''<!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#080b08;font-family:Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f5ee">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#080b08;padding:32px 12px">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#111610;border:1px solid #293326;border-radius:20px;overflow:hidden">
-        <tr><td style="padding:26px 28px 22px;border-bottom:1px solid #293326">
-          <div style="font-size:12px;font-weight:800;letter-spacing:2px;color:#b7ff36">FIT<span style="color:#f2f5ee">NOVA</span></div>
-          <div style="margin-top:22px;font-size:11px;letter-spacing:1.6px;color:#a1b18e">MOVE. CONNECT. EVOLVE.</div>
-          <h1 style="margin:8px 0 0;font-size:25px;line-height:1.35;color:#f5f7f1">{purpose}을 위한<br>인증 코드예요.</h1>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>FITNOVA 인증 코드</title>
+</head>
+<body style="margin:0;padding:0;background-color:#080b09;font-family:Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f5ee">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">FITNOVA {safe_purpose} 인증 코드입니다. 10분 안에 입력해 주세요.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background-color:#080b09">
+    <tr><td align="center" style="padding:30px 12px">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:540px;background-color:#111611;border:1px solid #2a3428;border-radius:22px;overflow:hidden">
+        <tr><td style="padding:25px 27px 23px;border-bottom:1px solid #293326;background-color:#141a13">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+            <td valign="middle" style="width:42px;height:42px;background-color:#b7ff36;border-radius:13px;text-align:center;color:#10160a;font-size:22px;font-weight:900">F</td>
+            <td valign="middle" style="padding-left:12px;color:#f4f7f1;font-size:20px;font-weight:900;letter-spacing:-.7px">FIT<span style="color:#b7ff36">NOVA</span><div style="margin-top:4px;color:#899584;font-size:11px;font-weight:400;letter-spacing:0">운동을 기록하고 함께 성장해요</div></td>
+          </tr></table>
         </td></tr>
-        <tr><td style="padding:26px 28px 30px">
-          <p style="margin:0 0 18px;font-size:14px;line-height:1.8;color:#c2cbbd">FITNOVA에서 요청한 {purpose} 절차를 완료하려면 아래 6자리 코드를 입력해 주세요.</p>
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:20px 12px;background:#080b08;border:1px solid #34432b;border-radius:14px">
-            <div style="font-size:11px;letter-spacing:2px;color:#98a58e">YOUR SECURITY CODE</div>
-            <div style="margin-top:10px;font-size:36px;line-height:1.2;font-weight:800;letter-spacing:10px;color:#b7ff36">{code}</div>
-          </td></tr></table>
-          <p style="margin:18px 0 0;font-size:12px;line-height:1.8;color:#9da795">이 코드는 발송 후 <strong style="color:#e7ecdf">10분 동안</strong> 유효합니다. 보안을 위해 다른 사람과 공유하지 마세요.</p>
-          <div style="margin-top:24px;padding-top:18px;border-top:1px solid #293326;font-size:12px;line-height:1.8;color:#899384">본인이 요청하지 않았다면 이 메일을 무시해도 됩니다. 계정 보안을 위해 인증 코드를 타인에게 알려주지 마세요.</div>
+        <tr><td style="padding:30px 27px 28px">
+          <div style="display:inline-block;padding:7px 10px;border:1px solid #34432b;border-radius:999px;background-color:#1a2415;color:#b7ff36;font-size:11px;font-weight:700">계정 보안 확인</div>
+          <h1 style="margin:17px 0 10px;font-size:25px;line-height:1.4;letter-spacing:-.7px;color:#f5f7f1">{safe_purpose} 인증 코드</h1>
+          <p style="margin:0 0 24px;font-size:14px;line-height:1.8;color:#b8c2b2">FITNOVA에서 요청한 절차를 완료하려면 아래 인증 코드를 입력해 주세요.</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%">
+            <tr><td align="center" style="padding:24px 12px 22px;background-color:#090d09;border:1px solid #3a4b30;border-radius:16px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#9aa890">인증 코드</div>
+              <div style="margin-top:12px;font-family:Arial,sans-serif;font-size:36px;line-height:1.25;font-weight:800;letter-spacing:9px;color:#b7ff36">{safe_code}</div>
+              <div style="margin-top:13px;font-size:11px;color:#8c9884">숫자 6자리 · 10분 동안 유효</div>
+            </td></tr>
+          </table>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:20px;width:100%">
+            <tr><td valign="top" style="width:25px;padding-top:2px;color:#b7ff36;font-size:16px">●</td><td style="font-size:12px;line-height:1.8;color:#aab5a3">인증 코드는 발송 후 <strong style="color:#f0f4eb">10분 동안</strong> 사용할 수 있습니다.</td></tr>
+            <tr><td valign="top" style="width:25px;padding-top:8px;color:#b7ff36;font-size:16px">●</td><td style="padding-top:6px;font-size:12px;line-height:1.8;color:#aab5a3">본인이 요청하지 않았다면 코드를 입력하거나 다른 사람에게 전달하지 말고 이 메일을 무시해 주세요.</td></tr>
+          </table>
         </td></tr>
-        <tr><td style="padding:17px 28px;background:#0b0e0a;border-top:1px solid #293326;font-size:10px;letter-spacing:.7px;color:#697462">© 2026 FITNOVA · YOUR FITNESS UNIVERSE</td></tr>
+        <tr><td style="padding:17px 27px;background-color:#0b0f0b;border-top:1px solid #293326">
+          <div style="font-size:11px;line-height:1.7;color:#879281">이 메일은 FITNOVA 계정 보안을 위해 자동으로 발송되었습니다.</div>
+          <div style="margin-top:7px;font-size:10px;color:#626e5d">© 2026 FITNOVA</div>
+        </td></tr>
       </table>
     </td></tr>
   </table>
-</body></html>'''
+</body>
+</html>'''
 
 
 def _verification_email_text(code: str, purpose: str = "계정 보안") -> str:
