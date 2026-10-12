@@ -444,17 +444,13 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
    if (mediaData || !post.id || !post.media_type || post.media_type === 'text') return;
    let active = true;
    let requested = false;
-   let objectUrl = '';
    const loadMedia = async () => {
      if (requested) return;
      requested = true;
      try {
        if(post.media_type==='video') {
-         const token=localStorage.getItem(TOKEN_KEY);
-         const response=await fetch(API+'/api/posts/'+post.id+'/media/file',{headers:token?{Authorization:'Bearer '+token}:{}});
-         if(!response.ok) throw new Error('영상 파일을 불러오지 못했습니다.');
-         const blob=await response.blob(); objectUrl=URL.createObjectURL(blob);
-         if(active) setMediaData(objectUrl); else URL.revokeObjectURL(objectUrl);
+         const data=await api('/api/posts/'+post.id+'/media/playback');
+         if(active) setMediaData(API+data.url);
        } else {
          const data = await api('/api/posts/' + post.id + '/media');
          if (active) setMediaData(data.media_data || '');
@@ -467,10 +463,10 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
        if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); loadMedia(); }
      }, { rootMargin: '300px 0px' });
      observer.observe(node);
-     return () => { active = false; observer.disconnect(); if(objectUrl) URL.revokeObjectURL(objectUrl); };
+     return () => { active = false; observer.disconnect(); };
    }
    loadMedia();
-   return () => { active = false; if(objectUrl) URL.revokeObjectURL(objectUrl); };
+   return () => { active = false; };
  }, [post.id, post.media_type]);
  return <article className="post-card" ref={cardRef}><div className="post-top"><button className="post-author author-link" onClick={()=>openProfile(post.author_username)} aria-label={post.author_username+' 프로필 보기'}><div className="composer-avatar">{(post.author_username||'?').slice(0,1).toUpperCase()}</div><div><b>{post.author_username}</b><small>{prettyDate(post.created_at)}</small></div></button>{post.author_username===user.username&&<button className="delete-post" onClick={()=>removePost(post.id)} aria-label="게시물 삭제"><Trash2 size={17}/></button>}</div><h3 className="post-title">{post.title||'운동 기록'}</h3>{(mediaData||(!mediaFailed&&post.media_type!=='text'))&&<div className={mediaData?'post-media':'post-media media-loading'}>{mediaData?(post.media_type==='image'?<img src={mediaData} alt={post.title||'운동 사진'} loading="lazy" decoding="async"/>:<video src={mediaData} controls preload="auto" autoPlay muted loop playsInline/>):<span>미디어 불러오는 중…</span>}</div>}<p className="post-content">{post.content}</p>{post.hashtags?.length>0&&<div className="post-hashtags">{post.hashtags.map((tag,i)=><span key={i}>{tag.startsWith('#')?tag:'#'+tag}</span>)}</div>}{(post.weight!=null||post.sets_count!=null||post.exercise_name||post.reps||post.duration_minutes!=null||post.workout_notes)&&<div className="workout-details">{post.weight!=null&&<span><Weight size={14}/> 체중 {post.weight}kg</span>}{post.sets_count!=null&&<span><Dumbbell size={14}/> {post.sets_count}세트</span>}{post.exercise_name&&<span><Activity size={14}/> {post.exercise_name}</span>}{post.reps&&<span><TrendingUp size={14}/> {post.reps}</span>}{post.duration_minutes!=null&&<span><Clock3 size={14}/> {post.duration_minutes}분</span>}{post.workout_notes&&<p>{post.workout_notes}</p>}</div>}<div className="post-actions"><button className={post.liked_by_me?'liked':''} onClick={()=>toggleLike(post.id)}><Heart size={17} fill={post.liked_by_me?'currentColor':'none'}/><span>좋아요 {post.like_count||0}</span></button><button className={savedPostIds.has(post.id)?'saved-post-button active':'saved-post-button'} onClick={()=>toggleSavePost(post.id)} aria-label={savedPostIds.has(post.id)?'저장 취소':'게시물 저장'}><Bookmark size={17} fill={savedPostIds.has(post.id)?'currentColor':'none'}/><span>{savedPostIds.has(post.id)?'저장됨':'저장'}</span></button><span className="comment-count"><MessageCircle size={17}/>{(post.comments||[]).length}개 댓글</span></div>{(post.comments||[]).length>0&&<div className="comments-list">{post.comments.map(comment=><div className="comment" key={comment.id}><b>{comment.author_username}</b><span>{comment.content}</span>{comment.author_username===user.username&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>deleteComment(post.id,comment.id)} aria-label="내 댓글 삭제">삭제</button>}</div>)}</div>}<form className="comment-form" onSubmit={e=>{e.preventDefault();addComment(post.id);}}><input aria-label="댓글 입력" value={commentDrafts[post.id]||''} onChange={e=>setCommentDrafts(items=>({...items,[post.id]:e.target.value.slice(0,500)}))} placeholder="응원의 댓글을 남겨보세요..." maxLength={500}/><button type="submit" disabled={!(commentDrafts[post.id]||'').trim()} aria-label="댓글 등록"><Send size={16}/></button></form></article>;
 }
