@@ -41,7 +41,7 @@ function App() {
     const token = sessionStorage.getItem(TOKEN_KEY);
     if (!token) { setBooting(false); return () => { active = false; }; }
     api('/api/auth/me')
-      .then(data => { if (active) setUser(data.user); })
+      .then(data => { if (active) setUser(data.user); setTab('feed'); })
       .catch(() => { sessionStorage.removeItem(TOKEN_KEY); if (active) setUser(null); })
       .finally(() => { if (active) setBooting(false); });
     return () => { active = false; };
@@ -94,7 +94,7 @@ function App() {
   };
   const logout = () => {
     sessionStorage.removeItem(TOKEN_KEY);
-    setUser(null); setTab('home'); setMode('login'); setStep('form');
+    setUser(null); setTab('feed'); setMode('login'); setStep('form');
     setPassword(''); setError(''); setNotice('안전하게 로그아웃했습니다.');
   };
 
