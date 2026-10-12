@@ -548,11 +548,18 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
                        OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
                 GROUP BY p.id ORDER BY p.created_at DESC LIMIT 50""",
                 (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"])).fetchall()
-            result = []
-            for row in rows:
-                comments = conn.execute("""SELECT id,author_username,content,created_at FROM post_comments
-                    WHERE post_id=%s ORDER BY created_at ASC""", (row["id"],)).fetchall()
-                result.append(_post_dict(dict(row), user["username"], [dict(c) for c in comments]))
+            if not rows:
+                return {"posts": []}
+            post_ids = [row["id"] for row in rows]
+            comment_rows = conn.execute("""SELECT id,post_id,author_username,content,created_at
+                FROM post_comments WHERE post_id = ANY(%s) ORDER BY created_at ASC""", (post_ids,)).fetchall()
+            comments_by_post = {}
+            for comment in comment_rows:
+                comments_by_post.setdefault(comment["post_id"], []).append({
+                    "id": comment["id"], "author_username": comment["author_username"],
+                    "content": comment["content"], "created_at": comment["created_at"]
+                })
+            result = [_post_dict(dict(row), user["username"], comments_by_post.get(row["id"], [])) for row in rows]
             return {"posts": result}
     result = []
     for p in sorted(_posts.values(), key=lambda x: x["created_at"], reverse=True):
@@ -574,7 +581,7 @@ def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> lis
     """Merge explicit hashtag input with tags visibly written in the post."""
     collected = []
     seen = set()
-    for raw in [*(supplied or []), *re.findall(r"(?<![\\w])#([\\w가-힣]{1,50})", content + " " + title, flags=re.UNICODE)]:
+    for raw in [*(supplied or []), *re.findall(r"(?<!\w)#([\w가-힣]{1,50})", content + " " + title, flags=re.UNICODE)]:
         tag = str(raw).strip().lstrip("#")[:50]
         if not tag:
             continue
