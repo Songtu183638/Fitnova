@@ -265,7 +265,7 @@ function Dashboard({ user, tab, setTab, logout }) {
           probe.src = url;
         });
         if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) { setError('영상 길이를 확인할 수 없습니다.'); return; }
-        if (durationSeconds > 60.05) { setError('영상은 최대 1분(60초)까지 업로드할 수 있습니다.'); return; }
+        if (durationSeconds > 60) { setError('영상은 최대 1분(60초)까지 업로드할 수 있습니다.'); return; }
       } catch (e) { setError(e.message || '영상 정보를 읽지 못했습니다.'); return; }
     }
     const reader=new FileReader();
