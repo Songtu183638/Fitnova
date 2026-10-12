@@ -141,6 +141,8 @@ def _init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS reps TEXT NOT NULL DEFAULT ''")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS duration_minutes INTEGER")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS workout_notes TEXT NOT NULL DEFAULT ''")
+        conn.execute("CREATE INDEX IF NOT EXISTS posts_created_at_idx ON posts(created_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS posts_hashtags_gin_idx ON posts USING GIN (hashtags)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_likes (
                 post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -537,17 +539,17 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
     if _DATABASE_URL:
         with _db() as conn:
             rows = conn.execute("""SELECT p.*,
-                COUNT(DISTINCT l.username)::int AS like_count,
-                COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
-                FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
-                WHERE (%s = '' OR
-                    EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag, '#'))=%s)
+                (SELECT COUNT(*)::int FROM post_likes l WHERE l.post_id=p.id) AS like_count,
+                EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.username=%s) AS liked_by_me
+                FROM posts p
+                WHERE (%s = '' OR p.hashtags @> ARRAY[%s]::text[]
+                    OR EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag, '#'))=%s)
                     OR strpos(lower(COALESCE(p.content,'')), '#' || %s) > 0
                     OR strpos(lower(COALESCE(p.title,'')), '#' || %s) > 0)
                   AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
                        OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
-                GROUP BY p.id ORDER BY p.created_at DESC LIMIT %s OFFSET %s""",
-                (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"], limit, offset)).fetchall()
+                ORDER BY p.created_at DESC LIMIT %s OFFSET %s""",
+                (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"], limit, offset)).fetchall()
             if not rows:
                 return {"posts": []}
             post_ids = [row["id"] for row in rows]
