@@ -1,4 +1,4 @@
-import os, secrets, hashlib, hmac, time, json, urllib.request, urllib.error
+import os, secrets, hashlib, hmac, time, json, re, urllib.request, urllib.error
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from threading import Lock, Thread
@@ -533,17 +533,21 @@ def _post_dict(row: dict, username: str, comments=None):
 
 @app.get("/api/posts")
 def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: dict = Depends(_current_user)):
-    normalized_tag = (hashtag or "").strip().lstrip("#").lower()
+    normalized_tag = (hashtag or "").strip().lstrip("#").strip().lower()
     if _DATABASE_URL:
         with _db() as conn:
             rows = conn.execute("""SELECT p.*,
                 COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
                 FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
-                WHERE (%s = '' OR EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(tag)=%s))
+                WHERE (%s = '' OR
+                    EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag, '#'))=%s)
+                    OR strpos(lower(COALESCE(p.content,'')), '#' || %s) > 0
+                    OR strpos(lower(COALESCE(p.title,'')), '#' || %s) > 0)
                   AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
                        OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
-                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""", (user["username"], normalized_tag, normalized_tag, user["username"], user["username"])).fetchall()
+                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 50""",
+                (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"])).fetchall()
             result = []
             for row in rows:
                 comments = conn.execute("""SELECT id,author_username,content,created_at FROM post_comments
@@ -554,13 +558,34 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
     for p in sorted(_posts.values(), key=lambda x: x["created_at"], reverse=True):
         if p["author_username"] != user["username"] and _get_user_settings(p["author_username"])["private_account"] and (user["username"],p["author_username"]) not in _follows:
             continue
-        if normalized_tag and not any(str(tag).lstrip("#").lower() == normalized_tag for tag in p.get("hashtags", [])):
+        tags = [str(tag).lstrip("#").lower() for tag in p.get("hashtags", [])]
+        visible_text = (str(p.get("content") or "") + " " + str(p.get("title") or "")).lower()
+        if normalized_tag and normalized_tag not in tags and ("#" + normalized_tag) not in visible_text:
             continue
         row = dict(p)
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
         result.append(_post_dict(row, user["username"], _post_comments.get(row["id"], [])))
+        if len(result) >= 50:
+            break
     return {"posts": result}
+
+def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> list[str]:
+    """Merge explicit hashtag input with tags visibly written in the post."""
+    collected = []
+    seen = set()
+    for raw in [*(supplied or []), *re.findall(r"(?<![\\w])#([\\w가-힣]{1,50})", content + " " + title, flags=re.UNICODE)]:
+        tag = str(raw).strip().lstrip("#")[:50]
+        if not tag:
+            continue
+        key = tag.casefold()
+        if key not in seen:
+            seen.add(key)
+            collected.append(tag)
+        if len(collected) >= 20:
+            break
+    return collected
+
 
 @app.post("/api/posts", status_code=201)
 def create_post(payload: PostIn, user: dict = Depends(_current_user)):
@@ -573,13 +598,13 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
             row = conn.execute("""INSERT INTO posts(author_username,content,title,media_type,media_data,hashtags,weight,sets_count,exercise_name,reps,duration_minutes,workout_notes)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (user["username"], content, payload.title.strip(), payload.media_type, payload.media_data,
-                [x.lstrip("#")[:50] for x in payload.hashtags if x.strip()][:20], payload.weight, payload.sets_count,
+                _collect_post_hashtags(content, payload.title, payload.hashtags), payload.weight, payload.sets_count,
                 payload.exercise_name.strip(), payload.reps.strip(), payload.duration_minutes, payload.workout_notes.strip())).fetchone()
             return {"post": _post_dict(dict(row), user["username"], [])}
     with _lock:
         _post_seq += 1
         post = {"id": _post_seq, "author_username": user["username"], "title": payload.title.strip(), "content": content, "media_type": payload.media_type, "media_data": payload.media_data,
-                "hashtags": [x.lstrip("#")[:50] for x in payload.hashtags if x.strip()][:20], "weight": payload.weight, "sets_count": payload.sets_count,
+                "hashtags": _collect_post_hashtags(content, payload.title, payload.hashtags), "weight": payload.weight, "sets_count": payload.sets_count,
                 "exercise_name": payload.exercise_name.strip(), "reps": payload.reps.strip(), "duration_minutes": payload.duration_minutes,
                 "workout_notes": payload.workout_notes.strip(), "created_at": datetime.now(timezone.utc).isoformat(), "like_count": 0, "liked_by_me": False}
         _posts[post["id"]] = post
