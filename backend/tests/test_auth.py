@@ -280,3 +280,55 @@ def test_in_memory_hashtag_search_paginates_after_filtering(monkeypatch):
     first_page = client.get("/api/posts?hashtag=러닝&limit=15&offset=0", headers=headers)
     assert first_page.status_code == 200
     assert any(post["id"] == matching_id for post in first_page.json()["posts"])
+
+
+def test_comment_delete_requires_author_and_removes_comment(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token_a = _verified_user("comment_owner", "commentowner@example.com", sent)
+    token_b = _verified_user("comment_other", "commentother@example.com", sent)
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    post = client.post("/api/posts", headers=headers_a, json={
+        "title": "운동 기록", "content": "오늘 운동 완료", "media_type": "image",
+        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+    }).json()["post"]
+    comment = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "좋은 기록!"}).json()["comment"]
+    forbidden = client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=headers_a)
+    assert forbidden.status_code == 403
+    deleted = client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=headers_b)
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+    comments = client.get("/api/posts", headers=headers_a).json()["posts"][0]["comments"]
+    assert all(item["id"] != comment["id"] for item in comments)
+
+
+def test_profanity_and_sexual_content_blocked_server_side(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token = _verified_user("safe_user", "safeuser@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+    base = {"title": "운동 기록", "content": "오늘 운동 완료", "media_type": "image",
+            "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []}
+    bad_post = client.post("/api/posts", headers=headers, json={**base, "content": "씨 발 진짜"})
+    assert bad_post.status_code == 422
+    post = client.post("/api/posts", headers=headers, json=base)
+    assert post.status_code == 201
+    bad_comment = client.post(f"/api/posts/{post.json()['post']['id']}/comments", headers=headers, json={"content": "야동 보고 싶다"})
+    assert bad_comment.status_code == 422
+    assert auth._moderation_normalize("씨 발") == "씨발"
+
+
+def test_post_feed_defers_media_payload_until_media_endpoint(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token = _verified_user("media_user", "mediauser@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+    created = client.post("/api/posts", headers=headers, json={
+        "title": "미디어 지연 로딩", "content": "게시물 본문", "media_type": "image",
+        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+    })
+    pid = created.json()["post"]["id"]
+    feed = client.get("/api/posts", headers=headers).json()["posts"][0]
+    assert "media_data" not in feed
+    assert client.get(f"/api/posts/{pid}/media", headers=headers).json()["media_data"].startswith("data:image/png")
