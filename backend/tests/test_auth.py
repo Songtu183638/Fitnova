@@ -57,7 +57,7 @@ def test_posts_likes_comments_and_delete(monkeypatch):
     assert listed_post["title"] == "첫 FITNOVA 게시물"
     assert listed_post["weight"] == 68.5
     assert listed_post["sets_count"] == 4
-    assert listed_post["hashtags"] == ["#운동기록"]
+    assert listed_post["hashtags"] == ["운동기록"]
     assert client.post(f"/api/posts/{post_id}/like", headers=headers).json()["liked"] is True
     comment = client.post(f"/api/posts/{post_id}/comments", json={"content":"멋져요!"}, headers=headers)
     assert comment.status_code == 201
