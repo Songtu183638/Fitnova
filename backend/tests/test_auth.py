@@ -266,15 +266,15 @@ def test_in_memory_hashtag_search_paginates_after_filtering(monkeypatch):
     headers = {"Authorization": f"Bearer {token}"}
     # Put the matching post behind a full page of newer, unrelated posts.
     matching = client.post("/api/posts", headers=headers, json={
-        "title": "오래된 러닝 기록", "content": "아침 #러닝", "media_type": "text",
-        "media_data": "text", "hashtags": ["러닝"]
+        "title": "오래된 러닝 기록", "content": "아침 #러닝", "media_type": "image",
+        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": ["러닝"]
     })
     assert matching.status_code == 201
     matching_id = matching.json()["post"]["id"]
     for index in range(18):
         created = client.post("/api/posts", headers=headers, json={
-            "title": f"일반 기록 {index}", "content": "일반 운동 기록", "media_type": "text",
-            "media_data": "text", "hashtags": []
+            "title": f"일반 기록 {index}", "content": "일반 운동 기록", "media_type": "image",
+            "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
         })
         assert created.status_code == 201
     first_page = client.get("/api/posts?hashtag=러닝&limit=15&offset=0", headers=headers)
