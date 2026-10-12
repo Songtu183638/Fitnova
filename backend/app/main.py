@@ -1,4 +1,4 @@
-import os, secrets, hashlib, hmac, time
+import os, secrets, hashlib, hmac, time, json, urllib.request, urllib.error
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from threading import Lock
@@ -87,6 +87,25 @@ def _hash_code(email: str, code: str) -> str:
     return hmac.new(_CODE_SECRET.encode(), f"{email.lower()}:{code}".encode(), hashlib.sha256).hexdigest()
 
 def _send_code(email: str, code: str):
+    # Preferred provider: a Google Apps Script Web App. The shared secret is
+    # sent in the request body and must match the script's Script Property.
+    script_url = os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
+    script_secret = os.getenv("GOOGLE_APPS_SCRIPT_SECRET", "").strip()
+    if script_url:
+        if not script_secret:
+            raise HTTPException(status_code=503, detail="Google 이메일 발송 보안 설정이 완료되지 않았습니다.")
+        payload = json.dumps({"to": email, "code": code, "secret": script_secret}).encode("utf-8")
+        req = urllib.request.Request(script_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            if not result.get("ok"):
+                raise RuntimeError("Google Apps Script rejected the request")
+            return
+        except Exception:
+            raise HTTPException(status_code=503, detail="Google 이메일 발송에 실패했습니다. Apps Script 배포와 설정을 확인해 주세요.")
+
+    # Optional SMTP fallback for deployments that still use SMTP.
     host = os.getenv("SMTP_HOST")
     if not host:
         if os.getenv("APP_ENV", "development") != "production":
@@ -97,7 +116,7 @@ def _send_code(email: str, code: str):
     msg["Subject"] = "FITNOVA 이메일 인증 코드"
     msg["From"] = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
     msg["To"] = email
-    msg.set_content(f"FITNOVA 가입 인증 코드: {code}\n이 코드는 10분 후 만료됩니다. 본인이 요청하지 않았다면 이 메일을 무시하세요.")
+    msg.set_content(f"FITNOVA 가입 인증 코드: {code}\\n이 코드는 10분 후 만료됩니다. 본인이 요청하지 않았다면 이 메일을 무시하세요.")
     try:
         with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=10) as server:
             server.starttls()
