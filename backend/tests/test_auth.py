@@ -223,7 +223,7 @@ def test_hashtag_search_matches_visible_caption_and_video_and_normalizes_case(mo
 
     created = client.post("/api/posts", headers=headers_b, json={
         "title": "저녁 러닝",
-        "content": "오늘은 #러닝 기록! 다음에는 #하체운동도 할 예정.",
+        "content": "오늘은 #러닝 기록! 다음에는 #하체운동, 도 할 예정.",
         "media_type": "video",
         "media_data": "data:video/mp4;base64,aGVsbG8=",
         "hashtags": []
