@@ -64,7 +64,8 @@ class PostIn(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     content: str = Field(min_length=1, max_length=2000)
     media_type: str = Field(pattern=r"^(image|video)$")
-    media_data: str = Field(min_length=20, max_length=17_000_000)
+    media_data: str = Field(min_length=20, max_length=56_000_000)
+    media_duration_seconds: int | None = Field(default=None, ge=1, le=60)
     hashtags: list[str] = Field(default_factory=list, max_length=20)
     weight: float | None = Field(default=None, ge=1, le=500)
     sets_count: int | None = Field(default=None, ge=0, le=500)
@@ -118,6 +119,7 @@ def _init_db():
                 title TEXT NOT NULL DEFAULT '',
                 media_type TEXT NOT NULL DEFAULT 'text',
                 media_data TEXT NOT NULL DEFAULT '',
+                media_duration_seconds INTEGER,
                 hashtags TEXT[] NOT NULL DEFAULT '{}',
                 weight DOUBLE PRECISION,
                 sets_count INTEGER,
@@ -131,6 +133,7 @@ def _init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'text'")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_data TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_duration_seconds INTEGER")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS hashtags TEXT[] NOT NULL DEFAULT '{}'")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS weight DOUBLE PRECISION")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS sets_count INTEGER")
@@ -225,7 +228,7 @@ def startup():
 def _hash_code(email: str, code: str) -> str:
     return hmac.new(_CODE_SECRET.encode(), f"{email.lower()}:{code}".encode(), hashlib.sha256).hexdigest()
 
-def _verification_email_html(code: str) -> str:
+def _verification_email_html(code: str, purpose: str = "계정 보안") -> str:
     """Branded, responsive HTML email used by both SMTP and the Apps Script provider."""
     return f'''<!doctype html>
 <html lang="ko">
@@ -237,10 +240,10 @@ def _verification_email_html(code: str) -> str:
         <tr><td style="padding:26px 28px 22px;border-bottom:1px solid #293326">
           <div style="font-size:12px;font-weight:800;letter-spacing:2px;color:#b7ff36">FIT<span style="color:#f2f5ee">NOVA</span></div>
           <div style="margin-top:22px;font-size:11px;letter-spacing:1.6px;color:#a1b18e">MOVE. CONNECT. EVOLVE.</div>
-          <h1 style="margin:8px 0 0;font-size:25px;line-height:1.35;color:#f5f7f1">계정 보안을 위한<br>인증 코드예요.</h1>
+          <h1 style="margin:8px 0 0;font-size:25px;line-height:1.35;color:#f5f7f1">{purpose}을 위한<br>인증 코드예요.</h1>
         </td></tr>
         <tr><td style="padding:26px 28px 30px">
-          <p style="margin:0 0 18px;font-size:14px;line-height:1.8;color:#c2cbbd">FITNOVA에서 요청한 인증을 완료하려면 아래 6자리 코드를 입력해 주세요.</p>
+          <p style="margin:0 0 18px;font-size:14px;line-height:1.8;color:#c2cbbd">FITNOVA에서 요청한 {purpose} 절차를 완료하려면 아래 6자리 코드를 입력해 주세요.</p>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:20px 12px;background:#080b08;border:1px solid #34432b;border-radius:14px">
             <div style="font-size:11px;letter-spacing:2px;color:#98a58e">YOUR SECURITY CODE</div>
             <div style="margin-top:10px;font-size:36px;line-height:1.2;font-weight:800;letter-spacing:10px;color:#b7ff36">{code}</div>
@@ -255,9 +258,9 @@ def _verification_email_html(code: str) -> str:
 </body></html>'''
 
 
-def _verification_email_text(code: str) -> str:
+def _verification_email_text(code: str, purpose: str = "계정 보안") -> str:
     return (
-        "FITNOVA | 계정 보안 인증\n\n"
+        f"FITNOVA | {purpose} 인증\n\n"
         f"인증 코드: {code}\n\n"
         "이 코드는 발송 후 10분 동안 유효합니다.\n"
         "보안을 위해 다른 사람과 공유하지 마세요.\n"
@@ -265,10 +268,10 @@ def _verification_email_text(code: str) -> str:
     )
 
 
-def _send_code(email: str, code: str):
-    subject = "FITNOVA | 계정 보안 인증 코드"
-    html_body = _verification_email_html(code)
-    text_body = _verification_email_text(code)
+def _send_code(email: str, code: str, purpose: str = "계정 보안"):
+    subject = f"FITNOVA | {purpose} 인증 코드"
+    html_body = _verification_email_html(code, purpose)
+    text_body = _verification_email_text(code, purpose)
     # Preferred provider: Google Apps Script. It receives both MIME variants
     # so its MailApp.sendEmail call can render htmlBody in supported mail clients.
     script_url = os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
@@ -524,7 +527,7 @@ def _post_dict(row: dict, username: str, comments=None):
     hashtags = row.get("hashtags") or []
     if isinstance(hashtags, str): hashtags = [x for x in hashtags.split(",") if x]
     return {"id": row["id"], "author_username": row["author_username"], "title": row.get("title", ""),
-            "content": row["content"], "media_type": row.get("media_type", "text"), "media_data": row.get("media_data", ""),
+            "content": row["content"], "media_type": row.get("media_type", "text"), "media_data": row.get("media_data", ""), "media_duration_seconds": row.get("media_duration_seconds"),
             "hashtags": hashtags, "weight": row.get("weight"), "sets_count": row.get("sets_count"),
             "exercise_name": row.get("exercise_name", ""), "reps": row.get("reps", ""),
             "duration_minutes": row.get("duration_minutes"), "workout_notes": row.get("workout_notes", ""),
@@ -532,7 +535,7 @@ def _post_dict(row: dict, username: str, comments=None):
             "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": comments or []}
 
 @app.get("/api/posts")
-def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: dict = Depends(_current_user)):
+def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: int = Query(default=15, ge=1, le=30), user: dict = Depends(_current_user)):
     normalized_tag = (hashtag or "").strip().lstrip("#").strip().lower()
     if _DATABASE_URL:
         with _db() as conn:
@@ -546,8 +549,8 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
                     OR strpos(lower(COALESCE(p.title,'')), '#' || %s) > 0)
                   AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
                        OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
-                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 30""",
-                (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"])).fetchall()
+                GROUP BY p.id ORDER BY p.created_at DESC LIMIT %s""",
+                (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"], limit)).fetchall()
             if not rows:
                 return {"posts": []}
             post_ids = [row["id"] for row in rows]
@@ -573,7 +576,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
         result.append(_post_dict(row, user["username"], _post_comments.get(row["id"], [])))
-        if len(result) >= 30:
+        if len(result) >= limit:
             break
     return {"posts": result}
 
@@ -600,17 +603,21 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
     content = payload.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="게시물 내용을 입력해 주세요.")
+    if payload.media_type == "video" and payload.media_duration_seconds is None:
+        raise HTTPException(status_code=422, detail="영상 길이 확인이 필요합니다. 영상을 다시 선택해 주세요.")
+    if payload.media_type == "image" and payload.media_duration_seconds is not None:
+        raise HTTPException(status_code=422, detail="사진 게시물에는 영상 길이를 입력할 수 없습니다.")
     if _DATABASE_URL:
         with _db() as conn:
-            row = conn.execute("""INSERT INTO posts(author_username,content,title,media_type,media_data,hashtags,weight,sets_count,exercise_name,reps,duration_minutes,workout_notes)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
-                (user["username"], content, payload.title.strip(), payload.media_type, payload.media_data,
+            row = conn.execute("""INSERT INTO posts(author_username,content,title,media_type,media_data,media_duration_seconds,hashtags,weight,sets_count,exercise_name,reps,duration_minutes,workout_notes)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                (user["username"], content, payload.title.strip(), payload.media_type, payload.media_data, payload.media_duration_seconds,
                 _collect_post_hashtags(content, payload.title, payload.hashtags), payload.weight, payload.sets_count,
                 payload.exercise_name.strip(), payload.reps.strip(), payload.duration_minutes, payload.workout_notes.strip())).fetchone()
             return {"post": _post_dict(dict(row), user["username"], [])}
     with _lock:
         _post_seq += 1
-        post = {"id": _post_seq, "author_username": user["username"], "title": payload.title.strip(), "content": content, "media_type": payload.media_type, "media_data": payload.media_data,
+        post = {"id": _post_seq, "author_username": user["username"], "title": payload.title.strip(), "content": content, "media_type": payload.media_type, "media_data": payload.media_data, "media_duration_seconds": payload.media_duration_seconds,
                 "hashtags": _collect_post_hashtags(content, payload.title, payload.hashtags), "weight": payload.weight, "sets_count": payload.sets_count,
                 "exercise_name": payload.exercise_name.strip(), "reps": payload.reps.strip(), "duration_minutes": payload.duration_minutes,
                 "workout_notes": payload.workout_notes.strip(), "created_at": datetime.now(timezone.utc).isoformat(), "like_count": 0, "liked_by_me": False}
@@ -915,7 +922,7 @@ def update_account_settings(payload: SettingsIn,user: dict = Depends(_current_us
 def request_password_change_code(request: Request,user: dict = Depends(_current_user)):
     _rate_limit("password-change:"+user["username"],5)
     code=f"{secrets.randbelow(1_000_000):06d}"
-    _send_code(user["email"],code); _save_account_code(user["username"],"password",user["email"],code)
+    _send_code(user["email"],code,"비밀번호 변경"); _save_account_code(user["username"],"password",user["email"],code)
     return {"message":"비밀번호 변경 보안 코드를 이메일로 발송했습니다."}
 
 @app.post("/api/account/password/confirm")
@@ -934,7 +941,7 @@ def request_email_change_code(payload: EmailRequestIn,request: Request,user: dic
     if _find_email(email): raise HTTPException(status_code=409,detail="이미 사용 중인 이메일입니다.")
     _rate_limit("email-change:"+user["username"],5)
     code=f"{secrets.randbelow(1_000_000):06d}"
-    _send_code(email,code); _save_account_code(user["username"],"email",email,code)
+    _send_code(email,code,"이메일 변경"); _save_account_code(user["username"],"email",email,code)
     return {"message":"새 이메일로 인증 코드를 발송했습니다."}
 
 @app.post("/api/account/email/confirm")
