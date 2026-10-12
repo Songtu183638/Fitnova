@@ -52,7 +52,7 @@ class LoginIn(BaseModel):
 
 class LoginVerifyIn(BaseModel):
     email: EmailStr
-    code: str = Field(pattern=r"^\\d{6}$")
+    code: str = Field(pattern=r"^\d{6}$")
 
 class PostIn(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
