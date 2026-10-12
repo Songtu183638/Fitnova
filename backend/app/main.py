@@ -55,7 +55,17 @@ class LoginVerifyIn(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
 
 class PostIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
     content: str = Field(min_length=1, max_length=2000)
+    media_type: str = Field(pattern=r"^(image|video)$")
+    media_data: str = Field(min_length=20, max_length=16_000_000)
+    hashtags: list[str] = Field(default_factory=list, max_length=20)
+    weight: float | None = Field(default=None, ge=1, le=500)
+    sets_count: int | None = Field(default=None, ge=0, le=500)
+    exercise_name: str = Field(default="", max_length=100)
+    reps: str = Field(default="", max_length=100)
+    duration_minutes: int | None = Field(default=None, ge=0, le=1440)
+    workout_notes: str = Field(default="", max_length=1000)
 
 class CommentIn(BaseModel):
     content: str = Field(min_length=1, max_length=500)
@@ -96,8 +106,30 @@ def _init_db():
                 id BIGSERIAL PRIMARY KEY,
                 author_username TEXT NOT NULL,
                 content TEXT NOT NULL,
+                title TEXT NOT NULL DEFAULT '',
+                media_type TEXT NOT NULL DEFAULT 'text',
+                media_data TEXT NOT NULL DEFAULT '',
+                hashtags TEXT[] NOT NULL DEFAULT '{}',
+                weight DOUBLE PRECISION,
+                sets_count INTEGER,
+                exercise_name TEXT NOT NULL DEFAULT '',
+                reps TEXT NOT NULL DEFAULT '',
+                duration_minutes INTEGER,
+                workout_notes TEXT NOT NULL DEFAULT '',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
+        """)
+        conn.execute("""
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'text';
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_data TEXT NOT NULL DEFAULT '';
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS hashtags TEXT[] NOT NULL DEFAULT '{}';
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS weight DOUBLE PRECISION;
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS sets_count INTEGER;
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS exercise_name TEXT NOT NULL DEFAULT '';
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS reps TEXT NOT NULL DEFAULT '';
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS duration_minutes INTEGER;
+            ALTER TABLE posts ADD COLUMN IF NOT EXISTS workout_notes TEXT NOT NULL DEFAULT '';
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_likes (
@@ -383,16 +415,21 @@ def me(user: dict = Depends(_current_user)):
 
 def _post_dict(row: dict, username: str, comments=None):
     created = row["created_at"]
-    return {"id": row["id"], "author_username": row["author_username"], "content": row["content"],
+    hashtags = row.get("hashtags") or []
+    if isinstance(hashtags, str): hashtags = [x for x in hashtags.split(",") if x]
+    return {"id": row["id"], "author_username": row["author_username"], "title": row.get("title", ""),
+            "content": row["content"], "media_type": row.get("media_type", "text"), "media_data": row.get("media_data", ""),
+            "hashtags": hashtags, "weight": row.get("weight"), "sets_count": row.get("sets_count"),
+            "exercise_name": row.get("exercise_name", ""), "reps": row.get("reps", ""),
+            "duration_minutes": row.get("duration_minutes"), "workout_notes": row.get("workout_notes", ""),
             "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
-            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)),
-            "comments": comments or []}
+            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": comments or []}
 
 @app.get("/api/posts")
 def list_posts(user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
-            rows = conn.execute("""SELECT p.id,p.author_username,p.content,p.created_at,
+            rows = conn.execute("""SELECT p.*,
                 COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
                 FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
@@ -419,12 +456,18 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
         raise HTTPException(status_code=422, detail="게시물 내용을 입력해 주세요.")
     if _DATABASE_URL:
         with _db() as conn:
-            row = conn.execute("""INSERT INTO posts(author_username,content) VALUES (%s,%s)
-                RETURNING id,author_username,content,created_at""", (user["username"], content)).fetchone()
+            row = conn.execute("""INSERT INTO posts(author_username,content,title,media_type,media_data,hashtags,weight,sets_count,exercise_name,reps,duration_minutes,workout_notes)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                (user["username"], content, payload.title.strip(), payload.media_type, payload.media_data,
+                [x.lstrip("#")[:50] for x in payload.hashtags if x.strip()][:20], payload.weight, payload.sets_count,
+                payload.exercise_name.strip(), payload.reps.strip(), payload.duration_minutes, payload.workout_notes.strip())).fetchone()
             return {"post": _post_dict(dict(row), user["username"], [])}
     with _lock:
         _post_seq += 1
-        post = {"id": _post_seq, "author_username": user["username"], "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "like_count": 0, "liked_by_me": False}
+        post = {"id": _post_seq, "author_username": user["username"], "title": payload.title.strip(), "content": content, "media_type": payload.media_type, "media_data": payload.media_data,
+                "hashtags": [x.lstrip("#")[:50] for x in payload.hashtags if x.strip()][:20], "weight": payload.weight, "sets_count": payload.sets_count,
+                "exercise_name": payload.exercise_name.strip(), "reps": payload.reps.strip(), "duration_minutes": payload.duration_minutes,
+                "workout_notes": payload.workout_notes.strip(), "created_at": datetime.now(timezone.utc).isoformat(), "like_count": 0, "liked_by_me": False}
         _posts[post["id"]] = post
         _post_comments[post["id"]] = []
     return {"post": _post_dict(post, user["username"], [])}
