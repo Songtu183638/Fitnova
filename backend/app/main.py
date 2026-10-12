@@ -62,7 +62,7 @@ def _validate_community_text(*values: str) -> None:
         raise HTTPException(status_code=422, detail="욕설이나 성적으로 부적절한 표현은 사용할 수 없습니다. 내용을 수정해 주세요.")
 
 class RegisterIn(BaseModel):
-    name: str = Field(default="", max_length=40)
+    name: str | None = Field(default=None, max_length=40)
     username: str = Field(min_length=3, max_length=24, pattern=r"^[a-zA-Z0-9_]+$")
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
@@ -466,7 +466,9 @@ def health():
 def register(payload: RegisterIn, request: Request):
     email = str(payload.email).lower()
     _rate_limit("register:" + (request.client.host if request.client else "unknown"), 5)
-    display_name = payload.name.strip() or payload.username
+    display_name = payload.name.strip() if payload.name is not None else payload.username
+    if not display_name:
+        raise HTTPException(status_code=422, detail="이름을 입력해 주세요.")
     if len(display_name) > 40:
         raise HTTPException(status_code=422, detail="이름은 40자 이하로 입력해 주세요.")
     if _find_username(payload.username) or _find_email(email):
