@@ -1,7 +1,7 @@
 import os, secrets, hashlib, hmac, time, json, urllib.request, urllib.error
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
-from threading import Lock
+from threading import Lock, Thread
 from email.message import EmailMessage
 import smtplib
 
@@ -209,9 +209,18 @@ def _init_db():
             )
         """)
 
+def _deletion_purge_worker():
+    while True:
+        time.sleep(3600)
+        try:
+            _purge_expired_accounts()
+        except Exception as exc:
+            print(f"Account deletion cleanup failed: {type(exc).__name__}")
+
 @app.on_event("startup")
 def startup():
     _init_db()
+    Thread(target=_deletion_purge_worker, daemon=True, name="fitnova-account-purge").start()
 
 def _hash_code(email: str, code: str) -> str:
     return hmac.new(_CODE_SECRET.encode(), f"{email.lower()}:{code}".encode(), hashlib.sha256).hexdigest()
@@ -484,7 +493,9 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
                 FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
                 WHERE (%s = '' OR EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(tag)=%s))
-                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""", (user["username"], normalized_tag, normalized_tag)).fetchall()
+                  AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
+                       OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
+                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""", (user["username"], normalized_tag, normalized_tag, user["username"], user["username"])).fetchall()
             result = []
             for row in rows:
                 comments = conn.execute("""SELECT id,author_username,content,created_at FROM post_comments
@@ -493,6 +504,8 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), user: d
             return {"posts": result}
     result = []
     for p in sorted(_posts.values(), key=lambda x: x["created_at"], reverse=True):
+        if p["author_username"] != user["username"] and _get_user_settings(p["author_username"])["private_account"] and (user["username"],p["author_username"]) not in _follows:
+            continue
         if normalized_tag and not any(str(tag).lstrip("#").lower() == normalized_tag for tag in p.get("hashtags", [])):
             continue
         row = dict(p)
