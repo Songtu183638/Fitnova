@@ -27,6 +27,9 @@ _post_comments = {}
 _post_likes = set()
 _follows = set()
 _messages = []
+_saved_posts = set()
+_user_settings = {}
+_account_codes = {}
 _message_seq = 0
 _post_seq = 0
 _comment_seq = 0
@@ -141,6 +144,28 @@ def _init_db():
                 username TEXT NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 PRIMARY KEY(post_id, username)
+            )
+        """)
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_settings (
+                username TEXT PRIMARY KEY, private_account BOOLEAN NOT NULL DEFAULT FALSE,
+                allow_messages_from TEXT NOT NULL DEFAULT 'everyone',
+                show_activity BOOLEAN NOT NULL DEFAULT TRUE, show_workout_details BOOLEAN NOT NULL DEFAULT TRUE,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_posts (
+                username TEXT NOT NULL, post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(username, post_id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS account_security_codes (
+                username TEXT NOT NULL, purpose TEXT NOT NULL, target_email TEXT NOT NULL,
+                code_hash TEXT NOT NULL, expires_at DOUBLE PRECISION NOT NULL, tries INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(username, purpose)
             )
         """)
         conn.execute("""
@@ -258,8 +283,8 @@ def _find_email(email: str):
 def _find_username(username: str):
     if _DATABASE_URL:
         with _db() as conn:
-            return conn.execute("SELECT username, email, password_hash, verified FROM users WHERE username_key=%s LIMIT 1", (username.lower(),)).fetchone()
-    return next((u for u in _users.values() if u["username"].lower() == username.lower()), None)
+            return conn.execute("SELECT username,email,password_hash,verified,deletion_requested_at FROM users WHERE username_key=%s AND deletion_requested_at IS NULL LIMIT 1", (username.lower(),)).fetchone()
+    return next((u for u in _users.values() if u["username"].lower() == username.lower() and not u.get("deletion_requested_at")), None)
 
 def _get_pending(email: str):
     if _DATABASE_URL:
@@ -573,9 +598,15 @@ def _profile_summary(username: str, viewer: str):
         following = sum(1 for follower, followed in _follows if follower == target["username"])
         is_following = (viewer, target["username"]) in _follows
         post_count = sum(1 for p in _posts.values() if p["author_username"] == target["username"])
+    if _DATABASE_URL:
+        with _db() as conn:
+            is_followed_by = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (target["username"], viewer)).fetchone())
+    else:
+        is_followed_by = (target["username"], viewer) in _follows
     return {"username": target["username"], "email": target["email"] if target["username"] == viewer else None,
             "verified": bool(target["verified"]), "follower_count": followers, "following_count": following,
-            "post_count": post_count, "following_by_me": is_following, "is_me": target["username"] == viewer}
+            "post_count": post_count, "following_by_me": is_following, "followed_by_me": is_followed_by,
+            "is_mutual": is_following and is_followed_by, "is_me": target["username"] == viewer}
 
 @app.get("/api/users/{username}")
 def get_user_profile(username: str, user: dict = Depends(_current_user)):
@@ -662,6 +693,15 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
     content = payload.content.strip()
     if not content: raise HTTPException(status_code=422, detail="메시지를 입력해 주세요.")
     if target["username"] == user["username"]: raise HTTPException(status_code=400, detail="자기 자신에게 메시지를 보낼 수 없습니다.")
+    prefs = _get_user_settings(target["username"])
+    if prefs["allow_messages_from"] == "following":
+        if _DATABASE_URL:
+            with _db() as conn:
+                allowed = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (target["username"], user["username"])).fetchone())
+        else:
+            allowed = (target["username"], user["username"]) in _follows
+        if not allowed:
+            raise HTTPException(status_code=403, detail="이 사용자는 팔로우한 계정에게서만 메시지를 받습니다.")
     if _DATABASE_URL:
         with _db() as conn:
             row = conn.execute("""INSERT INTO direct_messages(sender_username,recipient_username,content)
@@ -674,3 +714,206 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
                    "content": content, "created_at": datetime.now(timezone.utc).isoformat()}
         _messages.append(message)
     return {"message": _message_dict(message)}
+
+
+def _get_user_settings(username: str):
+    defaults = {"private_account": False, "allow_messages_from": "everyone", "show_activity": True, "show_workout_details": True}
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT private_account,allow_messages_from,show_activity,show_workout_details FROM user_settings WHERE username=%s", (username,)).fetchone()
+            if row: return dict(row)
+            conn.execute("INSERT INTO user_settings(username) VALUES (%s) ON CONFLICT DO NOTHING", (username,))
+        return defaults
+    return defaults | _user_settings.get(username, {})
+
+class SettingsIn(BaseModel):
+    private_account: bool = False
+    allow_messages_from: str = Field(default="everyone", pattern=r"^(everyone|following)$")
+    show_activity: bool = True
+    show_workout_details: bool = True
+class SecurityCodeIn(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+class PasswordChangeIn(SecurityCodeIn):
+    new_password: str = Field(min_length=10, max_length=128)
+class EmailRequestIn(BaseModel):
+    email: EmailStr
+class EmailConfirmIn(SecurityCodeIn):
+    email: EmailStr
+
+def _save_account_code(username: str, purpose: str, target_email: str, code: str):
+    digest = _hash_code(username + ":" + purpose, code)
+    expires = time.time() + 600
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("""INSERT INTO account_security_codes(username,purpose,target_email,code_hash,expires_at,tries)
+                VALUES (%s,%s,%s,%s,%s,0) ON CONFLICT(username,purpose) DO UPDATE SET
+                target_email=EXCLUDED.target_email,code_hash=EXCLUDED.code_hash,expires_at=EXCLUDED.expires_at,tries=0""",
+                (username,purpose,target_email.lower(),digest,expires))
+    else:
+        _account_codes[(username,purpose)] = {"target_email":target_email.lower(),"code_hash":digest,"expires_at":expires,"tries":0}
+
+def _consume_account_code(username: str, purpose: str, code: str):
+    if _DATABASE_URL:
+        with _db() as conn:
+            row=conn.execute("SELECT target_email,code_hash,expires_at,tries FROM account_security_codes WHERE username=%s AND purpose=%s",(username,purpose)).fetchone()
+            if not row: return None
+            conn.execute("UPDATE account_security_codes SET tries=tries+1 WHERE username=%s AND purpose=%s",(username,purpose))
+            if row["tries"] >= 5 or row["expires_at"] < time.time() or not hmac.compare_digest(row["code_hash"],_hash_code(username+":"+purpose,code)):
+                if row["tries"] >= 4 or row["expires_at"] < time.time(): conn.execute("DELETE FROM account_security_codes WHERE username=%s AND purpose=%s",(username,purpose))
+                return None
+            conn.execute("DELETE FROM account_security_codes WHERE username=%s AND purpose=%s",(username,purpose))
+            return row["target_email"]
+    row=_account_codes.get((username,purpose))
+    if not row: return None
+    row["tries"]+=1
+    if row["tries"]>5 or row["expires_at"]<time.time(): _account_codes.pop((username,purpose),None); return None
+    if not hmac.compare_digest(row["code_hash"],_hash_code(username+":"+purpose,code)): return None
+    _account_codes.pop((username,purpose),None)
+    return row["target_email"]
+
+def _purge_expired_accounts():
+    cutoff=datetime.now(timezone.utc)-timedelta(days=30)
+    if _DATABASE_URL:
+        with _db() as conn:
+            expired=conn.execute("SELECT username FROM users WHERE deletion_requested_at IS NOT NULL AND deletion_requested_at<=%s",(cutoff,)).fetchall()
+            for row in expired:
+                name=row["username"]
+                conn.execute("DELETE FROM posts WHERE author_username=%s",(name,))
+                conn.execute("DELETE FROM user_follows WHERE follower_username=%s OR followed_username=%s",(name,name))
+                conn.execute("DELETE FROM direct_messages WHERE sender_username=%s OR recipient_username=%s",(name,name))
+                conn.execute("DELETE FROM post_comments WHERE author_username=%s",(name,))
+                conn.execute("DELETE FROM post_likes WHERE username=%s",(name,))
+                conn.execute("DELETE FROM saved_posts WHERE username=%s",(name,))
+                conn.execute("DELETE FROM user_settings WHERE username=%s",(name,))
+                conn.execute("DELETE FROM account_security_codes WHERE username=%s",(name,))
+                conn.execute("DELETE FROM users WHERE username_key=%s",(name.lower(),))
+    else:
+        for name, account in list(_users.items()):
+            requested=account.get("deletion_requested_at")
+            if requested and datetime.fromisoformat(requested)<=cutoff:
+                _users.pop(name,None); _user_settings.pop(name,None)
+                _follows.difference_update([x for x in _follows if name in x])
+                _saved_posts.difference_update([x for x in _saved_posts if x[0]==name])
+                _messages[:]=[m for m in _messages if name not in (m["sender_username"],m["recipient_username"])]
+                for pid,p in list(_posts.items()):
+                    if p["author_username"]==name: _posts.pop(pid,None); _post_comments.pop(pid,None)
+                _post_likes.difference_update([x for x in _post_likes if x[1]==name])
+
+@app.get("/api/account/settings")
+def get_account_settings(user: dict = Depends(_current_user)):
+    _purge_expired_accounts()
+    return {"settings":_get_user_settings(user["username"]),"email":user["email"],"username":user["username"]}
+
+@app.patch("/api/account/settings")
+def update_account_settings(payload: SettingsIn,user: dict = Depends(_current_user)):
+    settings=payload.model_dump()
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("""INSERT INTO user_settings(username,private_account,allow_messages_from,show_activity,show_workout_details)
+                VALUES (%s,%s,%s,%s,%s) ON CONFLICT(username) DO UPDATE SET private_account=EXCLUDED.private_account,
+                allow_messages_from=EXCLUDED.allow_messages_from,show_activity=EXCLUDED.show_activity,
+                show_workout_details=EXCLUDED.show_workout_details,updated_at=NOW()""",
+                (user["username"],settings["private_account"],settings["allow_messages_from"],settings["show_activity"],settings["show_workout_details"]))
+    else: _user_settings[user["username"]]=settings
+    return {"settings":settings}
+
+@app.post("/api/account/password/request-code",status_code=202)
+def request_password_change_code(request: Request,user: dict = Depends(_current_user)):
+    _rate_limit("password-change:"+user["username"],5)
+    code=f"{secrets.randbelow(1_000_000):06d}"
+    _send_code(user["email"],code); _save_account_code(user["username"],"password",user["email"],code)
+    return {"message":"비밀번호 변경 보안 코드를 이메일로 발송했습니다."}
+
+@app.post("/api/account/password/confirm")
+def confirm_password_change(payload: PasswordChangeIn,user: dict = Depends(_current_user)):
+    if not _consume_account_code(user["username"],"password",payload.code): raise HTTPException(status_code=400,detail="보안 코드가 올바르지 않거나 만료되었습니다.")
+    hashed=_password_hash.hash(payload.new_password)
+    if _DATABASE_URL:
+        with _db() as conn: conn.execute("UPDATE users SET password_hash=%s WHERE username_key=%s",(hashed,user["username"].lower()))
+    else: _users[user["username"]]["password_hash"]=hashed
+    return {"changed":True,"message":"비밀번호를 변경했습니다."}
+
+@app.post("/api/account/email/request-code",status_code=202)
+def request_email_change_code(payload: EmailRequestIn,request: Request,user: dict = Depends(_current_user)):
+    email=str(payload.email).lower()
+    if email==user["email"].lower(): raise HTTPException(status_code=400,detail="현재 이메일과 같습니다.")
+    if _find_email(email): raise HTTPException(status_code=409,detail="이미 사용 중인 이메일입니다.")
+    _rate_limit("email-change:"+user["username"],5)
+    code=f"{secrets.randbelow(1_000_000):06d}"
+    _send_code(email,code); _save_account_code(user["username"],"email",email,code)
+    return {"message":"새 이메일로 인증 코드를 발송했습니다."}
+
+@app.post("/api/account/email/confirm")
+def confirm_email_change(payload: EmailConfirmIn,user: dict = Depends(_current_user)):
+    email=str(payload.email).lower()
+    target=_consume_account_code(user["username"],"email",payload.code)
+    if not target or target!=email: raise HTTPException(status_code=400,detail="보안 코드가 올바르지 않거나 이메일과 일치하지 않습니다.")
+    if _find_email(email): raise HTTPException(status_code=409,detail="이미 사용 중인 이메일입니다.")
+    if _DATABASE_URL:
+        with _db() as conn: conn.execute("UPDATE users SET email=%s,verified=TRUE WHERE username_key=%s",(email,user["username"].lower()))
+    else: _users[user["username"]]["email"]=email
+    return {"email":email,"message":"이메일을 변경했습니다."}
+
+@app.delete("/api/account")
+def request_account_deletion(user: dict = Depends(_current_user)):
+    requested=datetime.now(timezone.utc)
+    if _DATABASE_URL:
+        with _db() as conn: conn.execute("UPDATE users SET deletion_requested_at=%s WHERE username_key=%s",(requested,user["username"].lower()))
+    else: _users[user["username"]]["deletion_requested_at"]=requested.isoformat()
+    return {"deleted":False,"scheduled_for":(requested+timedelta(days=30)).isoformat(),"message":"계정이 비활성화되었습니다. 30일 후 영구 삭제됩니다."}
+
+@app.get("/api/users/{username}/posts")
+def get_user_posts(username: str,user: dict = Depends(_current_user)):
+    target=_find_username(username)
+    if not target: raise HTTPException(status_code=404,detail="사용자를 찾을 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            rows=conn.execute("""SELECT p.*,COUNT(DISTINCT l.username)::int AS like_count,
+                COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
+                WHERE p.author_username=%s GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""",(user["username"],target["username"])).fetchall()
+            result=[]
+            for row in rows:
+                comments=conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC",(row["id"],)).fetchall()
+                result.append(_post_dict(dict(row),user["username"],[dict(c) for c in comments]))
+            return {"posts":result}
+    result=[]
+    for post in sorted(_posts.values(),key=lambda p:p["created_at"],reverse=True):
+        if post["author_username"]!=target["username"]: continue
+        row=dict(post);row["like_count"]=sum(1 for pid,_ in _post_likes if pid==row["id"]);row["liked_by_me"]=(row["id"],user["username"]) in _post_likes
+        result.append(_post_dict(row,user["username"],_post_comments.get(row["id"],[])))
+    return {"posts":result[:100]}
+
+@app.post("/api/posts/{post_id}/save")
+def toggle_saved_post(post_id: int,user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            if not conn.execute("SELECT id FROM posts WHERE id=%s",(post_id,)).fetchone(): raise HTTPException(status_code=404,detail="게시물을 찾을 수 없습니다.")
+            exists=conn.execute("SELECT 1 FROM saved_posts WHERE username=%s AND post_id=%s",(user["username"],post_id)).fetchone()
+            if exists: conn.execute("DELETE FROM saved_posts WHERE username=%s AND post_id=%s",(user["username"],post_id)); saved=False
+            else: conn.execute("INSERT INTO saved_posts(username,post_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",(user["username"],post_id)); saved=True
+    else:
+        if post_id not in _posts: raise HTTPException(status_code=404,detail="게시물을 찾을 수 없습니다.")
+        key=(user["username"],post_id)
+        if key in _saved_posts: _saved_posts.discard(key); saved=False
+        else: _saved_posts.add(key); saved=True
+    return {"saved":saved}
+
+@app.get("/api/saved-posts")
+def list_saved_posts(user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            rows=conn.execute("""SELECT p.*,COUNT(DISTINCT l.username)::int AS like_count,
+                COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me FROM saved_posts s JOIN posts p ON p.id=s.post_id
+                LEFT JOIN post_likes l ON l.post_id=p.id WHERE s.username=%s GROUP BY p.id,s.created_at ORDER BY s.created_at DESC LIMIT 100""",
+                (user["username"],user["username"])).fetchall()
+            result=[]
+            for row in rows:
+                comments=conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC",(row["id"],)).fetchall()
+                result.append(_post_dict(dict(row),user["username"],[dict(c) for c in comments]))
+            return {"posts":result}
+    result=[]
+    for _,pid in [x for x in _saved_posts if x[0]==user["username"]]:
+        if pid not in _posts: continue
+        row=dict(_posts[pid]);row["like_count"]=sum(1 for post_id,_ in _post_likes if post_id==pid);row["liked_by_me"]=(pid,user["username"]) in _post_likes
+        result.append(_post_dict(row,user["username"],_post_comments.get(pid,[])))
+    return {"posts":result}
