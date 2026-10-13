@@ -105,6 +105,11 @@ class PostIn(BaseModel):
 class CommentIn(BaseModel):
     content: str = Field(min_length=1, max_length=500)
 
+class PostEditIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1, max_length=2000)
+    hashtags: list[str] = Field(default_factory=list, max_length=20)
+
 class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
 
@@ -1543,3 +1548,27 @@ def create_report(payload: ReportIn, user: dict = Depends(_current_user)):
             _report_seq += 1
             _reports.append({"id":_report_seq,"reporter_username":user["username"],"target_type":payload.target_type,"target_id":payload.target_id,"reason":payload.reason,"details":payload.details,"status":"open"})
     return {"reported": True, "message": "신고가 접수되었습니다. 검토하겠습니다."}
+
+
+@app.patch("/api/posts/{post_id}")
+def edit_post(post_id: int, payload: PostEditIn, user: dict = Depends(_current_user)):
+    title, content = payload.title.strip(), payload.content.strip()
+    if not title or not content: raise HTTPException(status_code=422, detail="제목과 내용을 입력해 주세요.")
+    _validate_community_text(title, content)
+    hashtags = []
+    for item in payload.hashtags:
+        tag = str(item).strip().lstrip("#")
+        if tag and len(tag) <= 50 and tag not in hashtags: hashtags.append("#" + tag)
+    hashtags = hashtags[:20]
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not row: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            if row["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인이 작성한 게시물만 수정할 수 있습니다.")
+            conn.execute("UPDATE posts SET title=%s,content=%s,hashtags=%s WHERE id=%s", (title,content,hashtags,post_id))
+    else:
+        post = _posts.get(post_id)
+        if not post: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+        if post["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인이 작성한 게시물만 수정할 수 있습니다.")
+        post.update({"title":title,"content":content,"hashtags":hashtags})
+    return {"updated": True, "id": post_id, "title": title, "content": content, "hashtags": hashtags}
