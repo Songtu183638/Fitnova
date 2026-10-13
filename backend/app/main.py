@@ -1051,6 +1051,13 @@ def toggle_follow(username: str, user: dict = Depends(_current_user)):
         raise HTTPException(status_code=400, detail="자신을 팔로우할 수 없습니다.")
     if _DATABASE_URL:
         with _db() as conn:
+            blocked = conn.execute("SELECT 1 FROM user_blocks WHERE (blocker_username=%s AND blocked_username=%s) OR (blocker_username=%s AND blocked_username=%s) LIMIT 1",
+                (me,target["username"],target["username"],me)).fetchone()
+        if blocked: raise HTTPException(status_code=403, detail="차단한 계정과는 팔로우할 수 없습니다.")
+    elif (me,target["username"]) in _blocks or (target["username"],me) in _blocks:
+        raise HTTPException(status_code=403, detail="차단한 계정과는 팔로우할 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
             exists = conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (me, target["username"])).fetchone()
             if exists:
                 conn.execute("DELETE FROM user_follows WHERE follower_username=%s AND followed_username=%s", (me, target["username"]))
@@ -1124,6 +1131,13 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
     if not content: raise HTTPException(status_code=422, detail="메시지를 입력해 주세요.")
     _validate_community_text(content)
     if target["username"] == user["username"]: raise HTTPException(status_code=400, detail="자기 자신에게 메시지를 보낼 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            blocked = conn.execute("SELECT 1 FROM user_blocks WHERE (blocker_username=%s AND blocked_username=%s) OR (blocker_username=%s AND blocked_username=%s) LIMIT 1",
+                (user["username"],target["username"],target["username"],user["username"])).fetchone()
+        if blocked: raise HTTPException(status_code=403, detail="이 계정과는 메시지를 주고받을 수 없습니다.")
+    elif (user["username"],target["username"]) in _blocks or (target["username"],user["username"]) in _blocks:
+        raise HTTPException(status_code=403, detail="이 계정과는 메시지를 주고받을 수 없습니다.")
     prefs = _get_user_settings(target["username"])
     if prefs["allow_messages_from"] == "following":
         if _DATABASE_URL:
