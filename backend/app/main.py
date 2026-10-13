@@ -1257,13 +1257,17 @@ def get_user_posts(username: str,user: dict = Depends(_current_user)):
             result=[]
             for row in rows:
                 comments=conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC",(row["id"],)).fetchall()
-                result.append(_post_dict(dict(row),user["username"],[dict(c) for c in comments]))
+                post_data = _post_dict(dict(row),user["username"],[dict(c) for c in comments])
+                post_data.pop("media_data", None)
+                result.append(post_data)
             return {"posts":result}
     result=[]
     for post in sorted(_posts.values(),key=lambda p:p["created_at"],reverse=True):
         if post["author_username"]!=target["username"]: continue
         row=dict(post);row["like_count"]=sum(1 for pid,_ in _post_likes if pid==row["id"]);row["liked_by_me"]=(row["id"],user["username"]) in _post_likes
-        result.append(_post_dict(row,user["username"],_post_comments.get(row["id"],[])))
+        post_data = _post_dict(row,user["username"],_post_comments.get(row["id"],[]))
+        post_data.pop("media_data", None)
+        result.append(post_data)
     return {"posts":result[:100]}
 
 @app.post("/api/posts/{post_id}/save")
@@ -1292,11 +1296,15 @@ def list_saved_posts(user: dict = Depends(_current_user)):
             result=[]
             for row in rows:
                 comments=conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC",(row["id"],)).fetchall()
-                result.append(_post_dict(dict(row),user["username"],[dict(c) for c in comments]))
+                post_data = _post_dict(dict(row),user["username"],[dict(c) for c in comments])
+                post_data.pop("media_data", None)
+                result.append(post_data)
             return {"posts":result}
     result=[]
     for _,pid in [x for x in _saved_posts if x[0]==user["username"]]:
         if pid not in _posts: continue
         row=dict(_posts[pid]);row["like_count"]=sum(1 for post_id,_ in _post_likes if post_id==pid);row["liked_by_me"]=(pid,user["username"]) in _post_likes
-        result.append(_post_dict(row,user["username"],_post_comments.get(pid,[])))
+        post_data = _post_dict(row,user["username"],_post_comments.get(pid,[]))
+        post_data.pop("media_data", None)
+        result.append(post_data)
     return {"posts":result}
