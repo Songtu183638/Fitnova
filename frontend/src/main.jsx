@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
 import { createRoot } from 'react-dom/client';
 import {
   Activity, ArrowRight, Bell, CheckCircle2, Compass, Eye, EyeOff, Flame,
@@ -241,6 +242,9 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const tabHistoryRef = useRef([]);
+  const previousTabRef = useRef(tab);
+  const ignoreNextTabHistoryRef = useRef(false);
   const [postFormOpen, setPostFormOpen] = useState(false);
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
@@ -440,6 +444,71 @@ function Dashboard({ user, tab, setTab, logout }) {
     } finally { setMessageBusy(false); }
   };
   useEffect(() => { if (tab === 'feed' || tab === 'home') loadPosts(); if (tab === 'profile') {loadProfile(); loadOwnPosts(selectedProfile || user.username);} if (tab === 'messages') loadThreads(); if(tab==='saved')loadSavedPosts(); if(tab==='settings')loadSettings(); }, [tab, selectedProfile]);
+  useEffect(() => {
+    if (previousTabRef.current !== tab) {
+      if (ignoreNextTabHistoryRef.current) {
+        ignoreNextTabHistoryRef.current = false;
+      } else {
+        tabHistoryRef.current.push(previousTabRef.current);
+        if (tabHistoryRef.current.length > 30) tabHistoryRef.current.shift();
+      }
+      previousTabRef.current = tab;
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    let listener;
+    let mounted = true;
+    const registerBackButton = async () => {
+      try {
+        listener = await CapacitorApp.addListener('backButton', () => {
+          // Close the top-most overlay before navigating away from the screen.
+          if (searchOpen) { setSearchOpen(false); return; }
+          if (notificationsOpen) { setNotificationsOpen(false); return; }
+          if (profileOpen) { setProfileOpen(false); return; }
+          if (postFormOpen) { setPostFormOpen(false); return; }
+          if (tab === 'messages' && activeChat) {
+            setActiveChat('');
+            setChatMessages([]);
+            setError('');
+            return;
+          }
+          if (tab === 'profile' && selectedProfile && selectedProfile !== user?.username) {
+            const previousTab = tabHistoryRef.current[tabHistoryRef.current.length - 1];
+            if (previousTab && previousTab !== 'profile') {
+              tabHistoryRef.current.pop();
+              ignoreNextTabHistoryRef.current = true;
+              setSelectedProfile(null);
+              setProfileData(null);
+              setTab(previousTab);
+            } else {
+              setSelectedProfile(null);
+              setProfileData(null);
+            }
+            return;
+          }
+          const previousTab = tabHistoryRef.current.pop();
+          if (previousTab) {
+            ignoreNextTabHistoryRef.current = true;
+            if (previousTab !== 'profile') setSelectedProfile(null);
+            setTab(previousTab);
+            setError('');
+            return;
+          }
+          // No in-app screen remains in the history: let Android close the app.
+          CapacitorApp.exitApp();
+        });
+      } catch (err) {
+        // The App plugin is available in the native Android build; ignore on web.
+      }
+    };
+    registerBackButton();
+    return () => {
+      mounted = false;
+      if (listener) listener.remove();
+    };
+  }, [searchOpen, notificationsOpen, profileOpen, postFormOpen, tab, activeChat, selectedProfile, user?.username]);
+
   useEffect(() => { loadSavedPosts(); }, []);
   useEffect(() => { if (tab === 'messages' && activeChat) loadConversation(activeChat); }, [tab, activeChat]);
   useEffect(() => { const panel=chatMessagesRef.current; if(panel) panel.scrollTop=panel.scrollHeight; }, [chatMessages, activeChat]);
