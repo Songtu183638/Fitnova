@@ -1048,6 +1048,32 @@ def _profile_summary(username: str, viewer: str):
 def get_user_profile(username: str, user: dict = Depends(_current_user)):
     return {"profile": _profile_summary(username, user["username"])}
 
+@app.get("/api/users/{username}/relationships")
+def get_user_relationships(username: str, type: str = "followers", user: dict = Depends(_current_user)):
+    target = _find_username(username)
+    if not target:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    if type not in ("followers", "following"):
+        raise HTTPException(status_code=400, detail="목록 유형이 올바르지 않습니다.")
+    target_name = target["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            if type == "followers":
+                rows = conn.execute("SELECT follower_username AS username FROM user_follows WHERE followed_username=%s ORDER BY created_at DESC", (target_name,)).fetchall()
+            else:
+                rows = conn.execute("SELECT followed_username AS username FROM user_follows WHERE follower_username=%s ORDER BY created_at DESC", (target_name,)).fetchall()
+        names = [row["username"] for row in rows]
+    else:
+        if type == "followers":
+            names = [follower for follower, followed in _follows if followed == target_name]
+        else:
+            names = [followed for follower, followed in _follows if follower == target_name]
+    users = []
+    for name in names:
+        person = _find_username(name)
+        if person:
+            users.append({"username": person["username"], "name": person.get("name") or person["username"]})
+    return {"username": target_name, "type": type, "users": users}
 @app.post("/api/users/{username}/follow")
 def toggle_follow(username: str, user: dict = Depends(_current_user)):
     target = _find_username(username)
