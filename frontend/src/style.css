@@ -613,7 +613,7 @@ input,textarea,select{accent-color:var(--green)}
  .conversation-screen .message-compose-field{padding-left:11px}
  .conversation-screen .message-send-button{width:34px;height:34px;flex-basis:34px}
 }
-.post-media video{width:100%;object-fit:contain;content-visibility:auto}
+.post-media video{width:100%;object-fit:contain;will-change:transform}
 
 
 /* Make the DM composer use every available horizontal pixel on each device */
@@ -645,3 +645,9 @@ input,textarea,select{accent-color:var(--green)}
   .conversation-screen .message-compose{padding-left:8px;padding-right:8px}
   .conversation-screen .message-compose-field{flex:1 1 0%;width:100%;}
 }
+
+
+/* Keep feed rendering lightweight without deferring video playback itself. */
+.post-card{min-width:0}
+.post-media img{height:auto;content-visibility:auto}
+.post-media video{height:auto;max-width:100%;background:#050705}
