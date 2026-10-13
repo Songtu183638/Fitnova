@@ -888,3 +888,26 @@ input,textarea,select{accent-color:var(--green)}
   .home-feed-layout .photo-feed .comments-list{margin:0 14px}
   .home-feed-layout .photo-feed .comment-form{margin:0 14px;padding-bottom:14px}
 }
+
+
+/* Follow/follower lists opened from any user's profile */
+.profile-stat-button{appearance:none;display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;background:transparent;border:0;border-radius:10px;color:inherit;cursor:pointer;padding:3px 6px;min-width:0}
+.profile-stat-button:hover{background:#b7ff360c}
+.profile-stat-button b{font-size:23px;color:#f2f5ef}
+.profile-stat-button span{font-size:12px;color:#929a90}
+.relationship-backdrop{z-index:80}
+.relationship-modal{width:min(100%,460px);max-height:min(78vh,680px);overflow:hidden;display:flex;flex-direction:column;border:1px solid #303a30;border-radius:18px;background:#101410;box-shadow:0 24px 80px #000b}
+.relationship-modal-head{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:20px 22px;border-bottom:1px solid #293129}
+.relationship-modal-head h2{margin:0;font-size:20px;letter-spacing:-.4px}
+.relationship-modal-head p{margin:5px 0 0;color:#8f9a8d;font-size:11px}
+.relationship-users{overflow-y:auto;padding:7px 12px 12px}
+.relationship-user{display:flex;align-items:center;gap:12px;width:100%;padding:12px 10px;border:0;border-bottom:1px solid #242b24;background:transparent;color:#f2f5ef;text-align:left;cursor:pointer}
+.relationship-user:last-child{border-bottom:0}
+.relationship-user:hover{background:#b7ff360b}
+.relationship-avatar{width:42px;height:42px;flex-shrink:0;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#b7ff36,#547a22);color:#11170b;font-size:16px;font-weight:850}
+.relationship-user-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.relationship-user-copy b{font-size:13px;overflow:hidden;text-overflow:ellipsis}
+.relationship-user-copy small{font-size:11px;color:#8d988b}
+.relationship-user>svg{color:#8d988b}
+.relationship-state{display:flex;align-items:center;justify-content:center;gap:10px;min-height:130px;padding:25px;color:#9ca79a;font-size:12px;text-align:center}
+@media(max-width:650px){.relationship-modal{width:calc(100% - 28px);max-height:75vh}.relationship-modal-head{padding:17px}.relationship-users{padding:5px 9px 9px}}
