@@ -675,6 +675,8 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
     result = []
     visible_posts = []
     for p in _posts.values():
+        if p["author_username"] != user["username"] and ((user["username"],p["author_username"]) in _blocks or (p["author_username"],user["username"]) in _blocks or (user["username"],p["author_username"]) in _mutes):
+            continue
         if p["author_username"] != user["username"] and _get_user_settings(p["author_username"])["private_account"] and (user["username"],p["author_username"]) not in _follows:
             continue
         tags = [str(tag).lstrip("#").strip().lower() for tag in p.get("hashtags", [])]
