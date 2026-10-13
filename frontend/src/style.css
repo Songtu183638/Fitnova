@@ -614,3 +614,34 @@ input,textarea,select{accent-color:var(--green)}
  .conversation-screen .message-send-button{width:34px;height:34px;flex-basis:34px}
 }
 .post-media video{width:100%;object-fit:contain;content-visibility:auto}
+
+
+/* Make the DM composer use every available horizontal pixel on each device */
+.conversation-screen .message-compose{
+  display:flex;
+  width:100%;
+  max-width:none;
+  min-width:0;
+  box-sizing:border-box;
+}
+.conversation-screen .message-compose-field{
+  flex:1 1 0%;
+  width:100%;
+  max-width:none;
+  min-width:0;
+  box-sizing:border-box;
+}
+.conversation-screen .message-compose-field input{
+  flex:1 1 0%;
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+@media(max-width:760px){
+  .conversation-screen .message-compose{width:100%;padding-left:12px;padding-right:12px}
+  .conversation-screen .message-compose-field{flex:1 1 0%;width:100%;}
+}
+@media(max-width:390px){
+  .conversation-screen .message-compose{padding-left:8px;padding-right:8px}
+  .conversation-screen .message-compose-field{flex:1 1 0%;width:100%;}
+}
