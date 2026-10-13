@@ -1059,21 +1059,34 @@ def get_user_relationships(username: str, type: str = "followers", user: dict = 
     if _DATABASE_URL:
         with _db() as conn:
             if type == "followers":
-                rows = conn.execute("SELECT follower_username AS username FROM user_follows WHERE followed_username=%s ORDER BY created_at DESC", (target_name,)).fetchall()
+                rows = conn.execute("""
+                    SELECT u.username, COALESCE(NULLIF(u.name, ''), u.username) AS name
+                    FROM user_follows f
+                    JOIN users u ON LOWER(u.username) = LOWER(f.follower_username)
+                    WHERE f.followed_username=%s AND u.deletion_requested_at IS NULL
+                    ORDER BY f.created_at DESC
+                """, (target_name,)).fetchall()
             else:
-                rows = conn.execute("SELECT followed_username AS username FROM user_follows WHERE follower_username=%s ORDER BY created_at DESC", (target_name,)).fetchall()
-        names = [row["username"] for row in rows]
+                rows = conn.execute("""
+                    SELECT u.username, COALESCE(NULLIF(u.name, ''), u.username) AS name
+                    FROM user_follows f
+                    JOIN users u ON LOWER(u.username) = LOWER(f.followed_username)
+                    WHERE f.follower_username=%s AND u.deletion_requested_at IS NULL
+                    ORDER BY f.created_at DESC
+                """, (target_name,)).fetchall()
+        users = [{"username": row["username"], "name": row["name"]} for row in rows]
     else:
         if type == "followers":
             names = [follower for follower, followed in _follows if followed == target_name]
         else:
             names = [followed for follower, followed in _follows if follower == target_name]
-    users = []
-    for name in names:
-        person = _find_username(name)
-        if person:
-            users.append({"username": person["username"], "name": person.get("name") or person["username"]})
+        users = []
+        for name in names:
+            person = _find_username(name)
+            if person:
+                users.append({"username": person["username"], "name": person.get("name") or person["username"]})
     return {"username": target_name, "type": type, "users": users}
+
 @app.post("/api/users/{username}/follow")
 def toggle_follow(username: str, user: dict = Depends(_current_user)):
     target = _find_username(username)
