@@ -1,6 +1,6 @@
 import os, secrets, hashlib, hmac, time, json, re, base64, mimetypes, urllib.request, urllib.error
 from datetime import datetime, timedelta, timezone
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from threading import Lock, Thread
 from email.message import EmailMessage
 import smtplib
@@ -33,6 +33,9 @@ _account_codes = {}
 _message_seq = 0
 _post_seq = 0
 _comment_seq = 0
+_video_cache = OrderedDict()  # decoded media bytes for recent video Range requests
+_video_cache_lock = Lock()
+_VIDEO_CACHE_MAX_ITEMS = 2
 _attempts = defaultdict(list)
 _DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 _SECRET = os.getenv("JWT_SECRET")
@@ -162,6 +165,7 @@ def _init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS duration_minutes INTEGER")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS workout_notes TEXT NOT NULL DEFAULT ''")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_created_at_idx ON posts(created_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS posts_author_created_idx ON posts(author_username, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_hashtags_gin_idx ON posts USING GIN (hashtags)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_likes (
@@ -204,6 +208,7 @@ def _init_db():
                 CHECK(follower_username <> followed_username)
             )
         """)
+        conn.execute("CREATE INDEX IF NOT EXISTS user_follows_followed_idx ON user_follows(followed_username, created_at DESC)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS direct_messages (
                 id BIGSERIAL PRIMARY KEY,
@@ -214,6 +219,7 @@ def _init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS direct_messages_pair_idx ON direct_messages(sender_username, recipient_username, created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS direct_messages_recipient_idx ON direct_messages(recipient_username, created_at DESC)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_comments (
                 id BIGSERIAL PRIMARY KEY,
@@ -223,6 +229,7 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("CREATE INDEX IF NOT EXISTS post_comments_post_created_idx ON post_comments(post_id, created_at)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS pending_registrations (
                 email TEXT PRIMARY KEY,
@@ -806,28 +813,45 @@ def stream_post_media(post_id: int, request: Request, expires: int, signature: s
     expected = hmac.new(_SECRET.encode(), f"{post_id}:{expires}".encode(), hashlib.sha256).hexdigest()
     if expires < now or expires > now + 180 or not hmac.compare_digest(expected, signature):
         raise HTTPException(status_code=403, detail="영상 재생 링크가 만료되었습니다. 다시 불러와 주세요.")
-    if _DATABASE_URL:
-        with _db() as conn:
-            row = conn.execute("SELECT media_data FROM posts WHERE id=%s", (post_id,)).fetchone()
+    cached_media = None
+    with _video_cache_lock:
+        cached_media = _video_cache.get(post_id)
+        if cached_media is not None:
+            _video_cache.move_to_end(post_id)
+    if cached_media is not None:
+        media_type, contents = cached_media
+    else:
+        if _DATABASE_URL:
+            with _db() as conn:
+                row = conn.execute("SELECT media_data FROM posts WHERE id=%s", (post_id,)).fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
+                media_data = row["media_data"] or ""
+        else:
+            row = _posts.get(post_id)
             if not row:
                 raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
-            media_data = row["media_data"] or ""
-    else:
-        row = _posts.get(post_id)
-        if not row:
+            media_data = row.get("media_data", "")
+        match = re.match(r"^data:([^;,]+);base64,(.*)$", media_data, flags=re.DOTALL)
+        if not match:
             raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
-        media_data = row.get("media_data", "")
-    match = re.match(r"^data:([^;,]+);base64,(.*)$", media_data, flags=re.DOTALL)
-    if not match:
-        raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
-    try:
-        contents = base64.b64decode(match.group(2), validate=False)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=500, detail="미디어 파일을 읽지 못했습니다.")
+        try:
+            media_type = match.group(1)
+            contents = base64.b64decode(match.group(2), validate=False)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=500, detail="미디어 파일을 읽지 못했습니다.")
+        if not contents:
+            raise HTTPException(status_code=404, detail="빈 미디어 파일입니다.")
+        # Video players request multiple byte ranges; decode the base64 payload only once per cached video.
+        with _video_cache_lock:
+            _video_cache[post_id] = (media_type, contents)
+            _video_cache.move_to_end(post_id)
+            while len(_video_cache) > _VIDEO_CACHE_MAX_ITEMS:
+                _video_cache.popitem(last=False)
     total = len(contents)
     if total == 0:
         raise HTTPException(status_code=404, detail="빈 미디어 파일입니다.")
-    headers = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=120", "X-Content-Type-Options": "nosniff"}
+    headers = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=120, immutable", "X-Content-Type-Options": "nosniff"}
     range_header = request.headers.get("range", "")
     if range_header:
         found = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
@@ -940,21 +964,27 @@ def _profile_summary(username: str, viewer: str):
     if not target:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     if _DATABASE_URL:
+        # Fetch all profile counters/relationship flags in one database round trip.
         with _db() as conn:
-            followers = conn.execute("SELECT COUNT(*)::int AS n FROM user_follows WHERE followed_username=%s", (target["username"],)).fetchone()["n"]
-            following = conn.execute("SELECT COUNT(*)::int AS n FROM user_follows WHERE follower_username=%s", (target["username"],)).fetchone()["n"]
-            is_following = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (viewer, target["username"])).fetchone())
-            post_count = conn.execute("SELECT COUNT(*)::int AS n FROM posts WHERE author_username=%s", (target["username"],)).fetchone()["n"]
+            stats = conn.execute("""
+                SELECT
+                    (SELECT COUNT(*)::int FROM user_follows WHERE followed_username=%s) AS followers,
+                    (SELECT COUNT(*)::int FROM user_follows WHERE follower_username=%s) AS following,
+                    EXISTS(SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s) AS is_following,
+                    EXISTS(SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s) AS is_followed_by,
+                    (SELECT COUNT(*)::int FROM posts WHERE author_username=%s) AS post_count
+            """, (target["username"], target["username"], viewer, target["username"], target["username"], viewer, target["username"])).fetchone()
+        followers = stats["followers"]
+        following = stats["following"]
+        is_following = bool(stats["is_following"])
+        is_followed_by = bool(stats["is_followed_by"])
+        post_count = stats["post_count"]
     else:
         followers = sum(1 for follower, followed in _follows if followed == target["username"])
         following = sum(1 for follower, followed in _follows if follower == target["username"])
         is_following = (viewer, target["username"]) in _follows
-        post_count = sum(1 for p in _posts.values() if p["author_username"] == target["username"])
-    if _DATABASE_URL:
-        with _db() as conn:
-            is_followed_by = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (target["username"], viewer)).fetchone())
-    else:
         is_followed_by = (target["username"], viewer) in _follows
+        post_count = sum(1 for p in _posts.values() if p["author_username"] == target["username"])
     return {"name": target.get("name") or target["username"], "username": target["username"], "email": target["email"] if target["username"] == viewer else None,
             "verified": bool(target["verified"]), "follower_count": followers, "following_count": following,
             "post_count": post_count, "following_by_me": is_following, "followed_by_me": is_followed_by,
