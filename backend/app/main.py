@@ -754,7 +754,7 @@ def get_post_media_file(post_id: int, user: dict = Depends(_current_user)):
         contents = base64.b64decode(match.group(2), validate=False)
     except (ValueError, TypeError):
         raise HTTPException(status_code=500, detail="미디어 파일을 읽지 못했습니다.")
-    return Response(content=contents, media_type=media_type, headers={"Cache-Control": "private, max-age=120", "X-Content-Type-Options": "nosniff"})
+    return Response(content=contents, media_type=match.group(1), headers={"Cache-Control": "private, max-age=120", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/api/posts/{post_id}/media")
