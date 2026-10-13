@@ -28,6 +28,12 @@ _post_likes = set()
 _follows = set()
 _messages = []
 _saved_posts = set()
+_notifications = []
+_blocks = set()
+_mutes = set()
+_reports = []
+_notification_seq = 0
+_report_seq = 0
 _user_settings = {}
 _account_codes = {}
 _message_seq = 0
@@ -209,6 +215,41 @@ def _init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS user_follows_followed_idx ON user_follows(followed_username, created_at DESC)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_blocks (
+                blocker_username TEXT NOT NULL, blocked_username TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY(blocker_username, blocked_username),
+                CHECK(blocker_username <> blocked_username)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_mutes (
+                muter_username TEXT NOT NULL, muted_username TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY(muter_username, muted_username),
+                CHECK(muter_username <> muted_username)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS content_reports (
+                id BIGSERIAL PRIMARY KEY, reporter_username TEXT NOT NULL,
+                target_type TEXT NOT NULL, target_id TEXT NOT NULL,
+                reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'open', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS content_reports_status_idx ON content_reports(status, created_at DESC)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id BIGSERIAL PRIMARY KEY, recipient_username TEXT NOT NULL,
+                actor_username TEXT NOT NULL, kind TEXT NOT NULL, message TEXT NOT NULL,
+                post_id BIGINT, read BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS notifications_recipient_idx ON notifications(recipient_username, created_at DESC)")
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS direct_messages (
                 id BIGSERIAL PRIMARY KEY,
@@ -1308,3 +1349,174 @@ def list_saved_posts(user: dict = Depends(_current_user)):
         post_data.pop("media_data", None)
         result.append(post_data)
     return {"posts":result}
+
+
+def _notify(recipient: str, actor: str, kind: str, message: str, post_id: int | None = None):
+    global _notification_seq
+    if not recipient or recipient == actor:
+        return
+    try:
+        if _DATABASE_URL:
+            with _db() as conn:
+                conn.execute("INSERT INTO notifications(recipient_username,actor_username,kind,message,post_id) VALUES (%s,%s,%s,%s,%s)",
+                    (recipient, actor, kind, message[:180], post_id))
+        else:
+            _notification_seq += 1
+            _notifications.insert(0, {"id": _notification_seq, "recipient_username": recipient,
+                "actor_username": actor, "kind": kind, "message": message[:180], "post_id": post_id,
+                "read": False, "created_at": datetime.now(timezone.utc).isoformat()})
+            del _notifications[200:]
+    except Exception as exc:
+        print(f"Notification write failed: {type(exc).__name__}")
+
+
+class ReportIn(BaseModel):
+    target_type: str = Field(pattern=r"^(post|comment|user|message)$")
+    target_id: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=2, max_length=80)
+    details: str = Field(default="", max_length=1000)
+
+
+@app.get("/api/search")
+def search_social(q: str = Query(default="", max_length=80), user: dict = Depends(_current_user)):
+    term = q.strip().lstrip("#").strip()
+    if len(term) < 1:
+        return {"query": q, "users": [], "posts": [], "hashtags": []}
+    users, posts = [], []
+    pattern = "%" + term.lower().replace("%", "\\%").replace("_", "\\_") + "%"
+    if _DATABASE_URL:
+        with _db() as conn:
+            user_rows = conn.execute("SELECT username,name FROM users WHERE deletion_requested_at IS NULL AND (LOWER(username) LIKE %s OR LOWER(name) LIKE %s) ORDER BY username LIMIT 12",
+                (pattern, pattern)).fetchall()
+            users = [{"username": r["username"], "name": r.get("name") or r["username"]} for r in user_rows if r["username"].lower() != user["username"].lower()]
+            rows = conn.execute("""SELECT p.*, COUNT(DISTINCT l.username)::int AS like_count,
+                COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
+                FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
+                WHERE (LOWER(p.title) LIKE %s OR LOWER(p.content) LIKE %s OR EXISTS
+                    (SELECT 1 FROM unnest(p.hashtags) tag WHERE LOWER(REPLACE(tag,'#','')) LIKE %s))
+                AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE
+                    (b.blocker_username=%s AND b.blocked_username=p.author_username) OR
+                    (b.blocker_username=p.author_username AND b.blocked_username=%s))
+                AND NOT EXISTS (SELECT 1 FROM user_mutes m WHERE m.muter_username=%s AND m.muted_username=p.author_username)
+                GROUP BY p.id ORDER BY p.created_at DESC LIMIT 20""",
+                (user["username"], pattern, pattern, pattern, user["username"], user["username"], user["username"])).fetchall()
+            for row in rows:
+                comments = conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC LIMIT 20", (row["id"],)).fetchall()
+                item = _post_dict(dict(row), user["username"], [dict(c) for c in comments])
+                item.pop("media_data", None)
+                posts.append(item)
+    else:
+        users = [{"username": u["username"], "name": u.get("name") or u["username"]} for u in _users.values()
+                 if u["username"].lower() != user["username"].lower() and
+                 (term.lower() in u["username"].lower() or term.lower() in (u.get("name") or "").lower())][:12]
+        for post in sorted(_posts.values(), key=lambda p: p["created_at"], reverse=True):
+            author = post["author_username"]
+            if (user["username"], author) in _blocks or (author, user["username"]) in _blocks or (user["username"], author) in _mutes:
+                continue
+            haystack = " ".join([str(post.get("title", "")), str(post.get("content", "")), " ".join(post.get("hashtags") or [])]).lower()
+            if term.lower() not in haystack: continue
+            row = dict(post)
+            row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
+            row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
+            item = _post_dict(row, user["username"], _post_comments.get(row["id"], []))
+            item.pop("media_data", None)
+            posts.append(item)
+            if len(posts) >= 20: break
+    tags = []
+    for post in posts:
+        for tag in post.get("hashtags") or []:
+            tag_text = tag if str(tag).startswith("#") else "#" + str(tag)
+            if term.lower() in tag_text.lower().lstrip("#") and tag_text not in tags: tags.append(tag_text)
+    return {"query": q, "users": users, "posts": posts, "hashtags": tags[:12]}
+
+
+@app.get("/api/notifications")
+def list_notifications(user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            rows = conn.execute("SELECT id,actor_username,kind,message,post_id,read,created_at FROM notifications WHERE recipient_username=%s ORDER BY created_at DESC LIMIT 100",
+                (user["username"],)).fetchall()
+            unread = conn.execute("SELECT COUNT(*)::int AS n FROM notifications WHERE recipient_username=%s AND read=FALSE",
+                (user["username"],)).fetchone()["n"]
+            return {"notifications": [dict(r) for r in rows], "unread_count": unread}
+    rows = [dict(n) for n in _notifications if n["recipient_username"] == user["username"]][:100]
+    return {"notifications": rows, "unread_count": sum(1 for n in rows if not n["read"])}
+
+
+@app.post("/api/notifications/read")
+def mark_notifications_read(user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("UPDATE notifications SET read=TRUE WHERE recipient_username=%s AND read=FALSE", (user["username"],))
+    else:
+        for item in _notifications:
+            if item["recipient_username"] == user["username"]: item["read"] = True
+    return {"read": True}
+
+
+@app.post("/api/users/{username}/block")
+def toggle_user_block(username: str, user: dict = Depends(_current_user)):
+    target = _find_username(username)
+    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    if target["username"].lower() == user["username"].lower(): raise HTTPException(status_code=400, detail="자기 자신은 차단할 수 없습니다.")
+    actor, blocked = user["username"], target["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            exists = conn.execute("SELECT 1 FROM user_blocks WHERE blocker_username=%s AND blocked_username=%s", (actor, blocked)).fetchone()
+            if exists:
+                conn.execute("DELETE FROM user_blocks WHERE blocker_username=%s AND blocked_username=%s", (actor, blocked)); is_blocked = False
+            else:
+                conn.execute("INSERT INTO user_blocks(blocker_username,blocked_username) VALUES (%s,%s) ON CONFLICT DO NOTHING", (actor, blocked))
+                conn.execute("DELETE FROM user_follows WHERE (follower_username=%s AND followed_username=%s) OR (follower_username=%s AND followed_username=%s)", (actor, blocked, blocked, actor))
+                is_blocked = True
+    else:
+        key = (actor, blocked)
+        if key in _blocks: _blocks.discard(key); is_blocked = False
+        else:
+            _blocks.add(key); _follows.discard((actor, blocked)); _follows.discard((blocked, actor)); is_blocked = True
+    return {"blocked": is_blocked, "username": blocked}
+
+
+@app.post("/api/users/{username}/mute")
+def toggle_user_mute(username: str, user: dict = Depends(_current_user)):
+    target = _find_username(username)
+    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    if target["username"].lower() == user["username"].lower(): raise HTTPException(status_code=400, detail="자기 자신은 숨길 수 없습니다.")
+    key = (user["username"], target["username"])
+    if _DATABASE_URL:
+        with _db() as conn:
+            exists = conn.execute("SELECT 1 FROM user_mutes WHERE muter_username=%s AND muted_username=%s", key).fetchone()
+            if exists: conn.execute("DELETE FROM user_mutes WHERE muter_username=%s AND muted_username=%s", key); muted = False
+            else: conn.execute("INSERT INTO user_mutes(muter_username,muted_username) VALUES (%s,%s) ON CONFLICT DO NOTHING", key); muted = True
+    else:
+        if key in _mutes: _mutes.discard(key); muted = False
+        else: _mutes.add(key); muted = True
+    return {"muted": muted, "username": target["username"]}
+
+
+@app.post("/api/reports", status_code=201)
+def create_report(payload: ReportIn, user: dict = Depends(_current_user)):
+    global _report_seq
+    if payload.target_type == "user" and not _find_username(payload.target_id):
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    if payload.target_type == "post":
+        try: post_id = int(payload.target_id)
+        except ValueError: raise HTTPException(status_code=422, detail="게시물 번호가 올바르지 않습니다.")
+        if _DATABASE_URL:
+            with _db() as conn:
+                if not conn.execute("SELECT id FROM posts WHERE id=%s", (post_id,)).fetchone(): raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+                conn.execute("INSERT INTO content_reports(reporter_username,target_type,target_id,reason,details) VALUES (%s,%s,%s,%s,%s)",
+                    (user["username"],payload.target_type,payload.target_id,payload.reason,payload.details))
+        else:
+            if post_id not in _posts: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            _report_seq += 1
+            _reports.append({"id":_report_seq,"reporter_username":user["username"],"target_type":payload.target_type,"target_id":payload.target_id,"reason":payload.reason,"details":payload.details,"status":"open"})
+    else:
+        if _DATABASE_URL:
+            with _db() as conn:
+                conn.execute("INSERT INTO content_reports(reporter_username,target_type,target_id,reason,details) VALUES (%s,%s,%s,%s,%s)",
+                    (user["username"],payload.target_type,payload.target_id,payload.reason,payload.details))
+        else:
+            _report_seq += 1
+            _reports.append({"id":_report_seq,"reporter_username":user["username"],"target_type":payload.target_type,"target_id":payload.target_id,"reason":payload.reason,"details":payload.details,"status":"open"})
+    return {"reported": True, "message": "신고가 접수되었습니다. 검토하겠습니다."}
