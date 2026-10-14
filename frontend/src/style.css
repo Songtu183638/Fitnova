@@ -1084,3 +1084,40 @@ button:disabled{cursor:not-allowed}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
 
+/* Home should feel like a personal training journal, not a plain feed heading. */
+.home-feed-layout .feed-heading{align-items:stretch;gap:14px;margin-top:2px;margin-bottom:24px}
+.home-intro{position:relative;isolation:isolate;display:flex;flex:1;min-width:0;min-height:244px;align-items:center;overflow:hidden;padding:30px 32px;border:1px solid #394633;border-radius:22px;background:radial-gradient(ellipse at 82% 52%,rgba(185,225,113,.1),transparent 35%),linear-gradient(120deg,#192119 0%,#121813 67%,#171f16 100%)}
+.home-intro::before{position:absolute;z-index:-1;inset:0;content:"";background:linear-gradient(105deg,transparent 34%,rgba(255,255,255,.018),transparent 74%);pointer-events:none}
+.home-intro-copy{position:relative;z-index:1;max-width:520px}
+.home-intro-kicker{display:inline-flex;align-items:center;gap:8px;color:#c4f36a;font:600 10px 'DM Mono',monospace;letter-spacing:1.45px}
+.home-intro-copy h2{margin:18px 0 10px;color:#f4f6ef;font-size:clamp(27px,3.3vw,38px);font-weight:800;line-height:1.25;letter-spacing:-1.5px}
+.home-intro-copy h2 em{color:#c4f36a;font-style:normal}
+.home-intro-copy p{max-width:390px;margin:0;color:#adb7a9;font-size:12px;line-height:1.75}
+.home-intro-tags{display:flex;align-items:center;gap:10px;margin-top:20px;color:#c7d0c0;font:500 8px 'DM Mono',monospace;letter-spacing:1.3px}
+.home-intro-tags i{width:3px;height:3px;border-radius:50%;background:#c4f36a;opacity:.8}
+.home-intro-art{position:absolute;top:50%;right:31px;width:174px;height:174px;transform:translateY(-50%);display:grid;place-items:center;color:#c4f36a}
+.home-intro-orbit{position:absolute;border:1px solid rgba(196,243,106,.2);border-radius:50%}
+.home-intro-orbit-one{width:164px;height:164px}
+.home-intro-orbit-two{width:124px;height:160px;transform:rotate(48deg);border-color:rgba(196,243,106,.3)}
+.home-intro-emblem{width:68px;height:68px;display:grid;place-items:center;border:1px solid rgba(196,243,106,.38);border-radius:23px;background:linear-gradient(145deg,#29351f,#192119);box-shadow:0 0 45px rgba(196,243,106,.1)}
+.home-intro-index{position:absolute;right:0;bottom:8px;display:grid;gap:3px;color:#e3edda;font:700 16px 'DM Mono',monospace;letter-spacing:.4px}
+.home-intro-index small{color:#99a88e;font-size:7px;font-weight:500;letter-spacing:1.5px}
+.home-feed-layout .feed-heading>.refresh-button{align-self:flex-end;flex:0 0 auto}
+@media(max-width:650px){
+  .home-feed-layout .feed-heading{align-items:flex-start;gap:10px;margin-bottom:19px}
+  .home-intro{min-height:211px;padding:23px 20px;border-radius:18px}
+  .home-intro-copy h2{max-width:300px;margin:14px 0 8px;font-size:27px;letter-spacing:-1.1px}
+  .home-intro-copy p{max-width:240px;font-size:10px}
+  .home-intro-tags{margin-top:15px;font-size:7px}
+  .home-intro-art{right:-31px;opacity:.43;transform:translateY(-50%) scale(.82)}
+  .home-feed-layout .feed-heading>.refresh-button{position:absolute;right:10px;bottom:10px;padding:8px 9px;font-size:9px}
+  .home-feed-layout .feed-heading{position:relative;padding-bottom:0}
+  .home-feed-layout .home-intro{width:100%;padding-right:38px}
+}
+@media(max-width:380px){
+  .home-intro{min-height:203px;padding:21px 17px}
+  .home-intro-copy h2{font-size:24px}
+  .home-intro-copy p{max-width:215px}
+  .home-intro-art{right:-46px;opacity:.35}
+}
+
