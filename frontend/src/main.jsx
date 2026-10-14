@@ -5,7 +5,7 @@ import {
   Activity, ArrowRight, Bell, CheckCircle2, Compass, Eye, EyeOff, Flame,
   Heart, Home, LockKeyhole, LogOut, Mail, MessageCircle, Send, ShieldCheck,
   Sparkles, Trash2, TrendingUp, UserRound, Users, X, Zap, Plus, Image as ImageIcon, Video, Hash, Dumbbell, Weight, Clock3, Upload, FileVideo, FileImage,
-  UserPlus, UserCheck, MessageSquare, ChevronLeft, Settings, Bookmark, KeyRound, UserX, MailCheck, Search, Flag, Ban, VolumeX, Pencil, Share2
+  UserPlus, UserCheck, MessageSquare, ChevronLeft, ChevronRight, Settings, Bookmark, KeyRound, UserX, MailCheck, Search, Flag, Ban, VolumeX, Pencil, Share2
 } from 'lucide-react';
 import './style.css';
 
