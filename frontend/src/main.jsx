@@ -300,7 +300,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   const openRelationshipList = async (type, username) => {
     setRelationshipList({open:true,type,username,users:[],loading:true});
     try {
-      const data = await api('/api/users/' + encodeURIComponent(username) + '/relationships?type=' + type + '&refresh=' + Date.now());
+      const data = await api('/api/users/' + encodeURIComponent(username) + '/relationships?type=' + type);
       setRelationshipList({open:true,type,username,users:Array.isArray(data.users)?data.users:[],loading:false});
     } catch (e) {
       setRelationshipList({open:true,type,username,users:[],loading:false,error:e.message||'목록을 불러오지 못했습니다.'});
