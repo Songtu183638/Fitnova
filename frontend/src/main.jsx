@@ -467,12 +467,13 @@ function Dashboard({ user, tab, setTab, logout }) {
   }, [tab]);
 
   useEffect(() => {
-    let listener;
-    let mounted = true;
+    let listener = null;
+    let cancelled = false;
     const registerBackButton = async () => {
       try {
-        listener = await CapacitorApp.addListener('backButton', () => {
-          // Close the top-most overlay before navigating away from the screen.
+        const registeredListener = await CapacitorApp.addListener('backButton', () => {
+          // Close the top-most dialog/overlay before navigating between screens.
+          if (relationshipList.open) { setRelationshipList(v => ({ ...v, open: false })); return; }
           if (searchOpen) { setSearchOpen(false); return; }
           if (notificationsOpen) { setNotificationsOpen(false); return; }
           if (profileOpen) { setProfileOpen(false); return; }
@@ -480,6 +481,14 @@ function Dashboard({ user, tab, setTab, logout }) {
           if (tab === 'messages' && activeChat) {
             setActiveChat('');
             setChatMessages([]);
+            setError('');
+            return;
+          }
+          if (settingsPasswordCodeSent || settingsEmailCodeSent) {
+            setSettingsPasswordCodeSent(false);
+            setSettingsEmailCodeSent(false);
+            setSettingsPasswordCode('');
+            setSettingsEmailCode('');
             setError('');
             return;
           }
@@ -505,19 +514,32 @@ function Dashboard({ user, tab, setTab, logout }) {
             setError('');
             return;
           }
-          // No in-app screen remains in the history: let Android close the app.
+          // If history is empty but we're not on a root tab, return to the feed.
+          // Only let Android exit when the user is already at the root screen.
+          if (tab !== 'feed' && tab !== 'home') {
+            setSelectedProfile(null);
+            setProfileData(null);
+            setTab('feed');
+            setError('');
+            return;
+          }
           CapacitorApp.exitApp();
         });
+        if (cancelled) {
+          await registeredListener.remove();
+        } else {
+          listener = registeredListener;
+        }
       } catch (err) {
-        // The App plugin is available in the native Android build; ignore on web.
+        // The native App plugin is only available in the Android app; ignore on web.
       }
     };
     registerBackButton();
     return () => {
-      mounted = false;
+      cancelled = true;
       if (listener) listener.remove();
     };
-  }, [searchOpen, notificationsOpen, profileOpen, postFormOpen, tab, activeChat, selectedProfile, user?.username]);
+  }, [relationshipList.open, searchOpen, notificationsOpen, profileOpen, postFormOpen, settingsPasswordCodeSent, settingsEmailCodeSent, tab, activeChat, selectedProfile, user?.username]);
 
   useEffect(() => { loadSavedPosts(); }, []);
   useEffect(() => { if (tab === 'messages' && activeChat) loadConversation(activeChat); }, [tab, activeChat]);
