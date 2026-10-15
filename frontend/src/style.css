@@ -1615,3 +1615,192 @@ body{background:#0b0d0b}
  .dashboard-main{padding-top:15px}
  .mobile-nav{backdrop-filter:blur(12px)}
 }
+
+
+
+/* FITNOVA UI redesign — inspired by the supplied dark social + lime fitness references.
+   Presentation only: preserve React components, handlers, routes, and API behavior. */
+:root{
+  --green:#a9ef3b;
+  --muted:#92978f;
+  --line:#292c2a;
+  --fit-surface:#151716;
+  --fit-surface-soft:#1b1e1c;
+}
+html{background:#090a0a}
+body{background:#090a0a;color:#f4f5f1}
+button,input,textarea,select{font-family:inherit}
+.app-shell{background:#090a0a;grid-template-columns:224px minmax(0,1fr);background-image:radial-gradient(ellipse at 65% -8%,rgba(169,239,59,.055),transparent 38%)}
+.side-rail{background:#0d0f0e;border-color:#242725;padding:25px 15px}
+.side-rail .brand{padding:0 12px 34px}
+.brand-icon,.rail-brand span,.brand>span:last-child{color:var(--green)}
+.rail-nav{gap:6px}
+.rail-nav button,.mobile-nav button{border-radius:14px;font-size:13px;font-weight:650;transition:background .18s,border-color .18s,color .18s}
+.rail-nav button{padding:13px 14px}
+.rail-nav button.selected,.mobile-nav button.selected{background:#a9ef3b;color:#171d10;border-color:#a9ef3b;box-shadow:0 5px 16px #a9ef3b18}
+.rail-nav button:hover:not(.selected){background:#ffffff08;color:#f4f5f1}
+.rail-bottom{border-color:#242725}
+.avatar,.composer-avatar,.thread-avatar,.relationship-avatar{background:linear-gradient(145deg,#b8f56c,#78b92b);color:#14200c}
+.dashboard-main{padding:30px clamp(18px,3.6vw,56px) 0;max-width:1500px}
+.dash-top{margin-bottom:25px;gap:14px}
+.dash-top .eyebrow{color:#a9c78c;letter-spacing:1.1px}
+.dash-top h1{font-size:clamp(23px,2.7vw,32px);font-weight:800;letter-spacing:-1.15px}
+.top-actions{gap:10px}
+.icon-surface{width:42px;height:42px;border-radius:50%;background:#171918;border:1px solid #303431;color:#e4e7e0;transition:background .16s,border-color .16s}
+.icon-surface:hover{background:#222622;border-color:#4b5544}
+.user-chip{background:#141615;border:1px solid #292d2a;border-radius:15px;padding:6px 11px 6px 7px}
+.user-chip .avatar{width:34px;height:34px;border-radius:50%}
+.user-chip>span:last-child small{color:#939990}
+.home-intro{position:relative;overflow:hidden;min-height:220px;display:flex;align-items:center;justify-content:space-between;gap:20px;width:100%;padding:29px 30px;border-radius:25px;border:1px solid #b6ed7540;background:linear-gradient(115deg,#b0ef4c 0%,#9fe43b 55%,#c0f477 100%);color:#17200f}
+.home-intro:before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 86% 18%,#ffffff55,transparent 35%);pointer-events:none}
+.home-intro-copy{position:relative;z-index:1;max-width:560px}
+.home-intro-kicker{display:inline-flex;align-items:center;gap:7px;color:#324b20;font-size:10px;font-weight:850;letter-spacing:1.1px}
+.home-intro-copy h2{font-size:clamp(25px,3vw,37px);line-height:1.22;letter-spacing:-1.35px;color:#18210f;font-weight:900;margin:13px 0 10px}
+.home-intro-copy h2 em{color:#344e21;font-style:normal}
+.home-intro-copy p{max-width:410px;margin:0;color:#35482a;font-size:12px;line-height:1.8}
+.home-intro-tags{display:flex;align-items:center;gap:10px;margin-top:18px;font-size:9px;font-weight:900;letter-spacing:1.1px;color:#314923}
+.home-intro-tags i{width:3px;height:3px;border-radius:50%;background:#50683b}
+.home-intro-art{position:relative;flex:0 0 155px;height:155px;border:1px solid #2b4a1d22;border-radius:50%;display:grid;place-items:center;background:#ffffff1a}
+.home-intro-orbit{position:absolute;border:1px solid #2b4a1d36;border-radius:50%;inset:12px}
+.home-intro-orbit-two{inset:29px}
+.home-intro-emblem{width:82px;height:82px;border-radius:27px;display:grid;place-items:center;background:#17220f;color:#b5f56a;box-shadow:0 12px 26px #425b2533;transform:rotate(-8deg)}
+.home-intro-index{position:absolute;right:-3px;bottom:9px;display:flex;flex-direction:column;gap:3px;font-size:19px;font-weight:900;color:#314b20}
+.home-intro-index small{font-size:8px;letter-spacing:1px}
+.feed-heading{align-items:flex-end;gap:14px;margin:0 0 18px}
+.feed-heading h2,.messages-heading h2,.settings-heading h2{font-weight:800;letter-spacing:-.9px}
+.feed-heading p,.messages-heading p{color:#939990;font-size:12px}
+.refresh-button{border-radius:13px;border:1px solid #303530;background:#171a18;color:#e5e8e1;padding:10px 13px;font-weight:700}
+.refresh-button:hover{border-color:#526344;background:#1d221b}
+.feed-list{gap:18px}
+.post-card{overflow:hidden;padding:0;background:#111312;border:1px solid #292d2a;border-radius:21px;box-shadow:none;transition:border-color .18s,transform .18s}
+.post-card:hover{border-color:#454e40;transform:translateY(-1px)}
+.post-top{padding:17px 18px 0}
+.post-author{gap:10px}
+.post-author .composer-avatar{width:39px;height:39px;border-radius:50%;border:2px solid #2b3426}
+.post-author b{font-size:12px;font-weight:800}
+.post-author small{color:#8d948b;font-size:10px}
+.post-title{padding:0 18px;margin:14px 0 8px;font-size:16px;font-weight:800;letter-spacing:-.25px}
+.post-content{padding:0 18px;color:#d0d4cd;font-size:13px;line-height:1.75}
+.post-media{margin:12px 0 0;background:#181b19;overflow:hidden;border-radius:0;max-height:640px}
+.post-media img,.post-media video{display:block;width:100%;max-height:640px;object-fit:cover}
+.post-hashtags{padding:0 18px;gap:7px}
+.post-hashtags span{background:#1a2115;border:1px solid #303c27;color:#b6e887;border-radius:999px;padding:5px 9px;font-size:10px}
+.workout-details{margin:12px 18px 0;padding:12px;border-radius:14px;background:#191c19;border:1px solid #282d28}
+.workout-details span{border-radius:9px;background:#222720;color:#c9d8bd;padding:7px 9px;font-size:10px}
+.workout-details span svg{color:var(--green)}
+.post-actions{margin:15px 18px 0;padding:12px 0;border-top:1px solid #272b28;gap:14px}
+.post-actions button,.comment-count,.share-post-button{font-size:11px;color:#9ea49b}
+.post-actions button:hover,.post-actions button.liked{color:var(--green)}
+.post-actions button.liked{color:#ff655f}
+.post-actions .saved-post-button.active{color:var(--green)}
+.comments-list{margin:0 18px;padding:9px 0;border-top:1px solid #242825}
+.comment{font-size:11px}
+.comment-form{margin:0 18px 17px;padding:5px 6px 5px 13px;background:#1a1d1b;border:1px solid #2d322e;border-radius:14px}
+.comment-form input{font-size:12px;color:#f1f2ee}
+.comment-form button{background:var(--green);color:#18200f;border-radius:10px;width:34px;height:34px}
+.empty-feed,.module-card,.profile-card{background:#111312;border:1px solid #292d2a;border-radius:20px;box-shadow:none}
+.empty-feed{padding:35px 20px}
+.empty-art{background:#1d2718;border:1px solid #35462a;color:var(--green);border-radius:20px}
+.primary{background:var(--green);color:#17200e;border-radius:13px;font-weight:850;box-shadow:none}
+.primary:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.secondary-action,.quick-action{background:#171a18;border:1px solid #303530;border-radius:13px;color:#e5e8e1}
+.secondary-action:hover,.quick-action:hover{background:#20251e;border-color:#4c5b40}
+.stat-card,.panel{background:#141715;border:1px solid #292e2a;border-radius:18px;box-shadow:none}
+.stat-icon,.panel-icon,.quick-icon{background:#20291a;border:1px solid #34462a;color:var(--green);border-radius:13px}
+.stat-value{font-weight:850;letter-spacing:-.7px}
+.settings-card,.settings-account-banner{background:#121513;border:1px solid #2a2f2b;border-radius:17px;box-shadow:none}
+.settings-card-title{background:#171a18}
+.settings-card-title>svg{background:#20291a;border-color:#34462a;color:var(--green);border-radius:12px}
+.settings-card:hover{background:#171b18;border-color:#3e4839}
+.thread-list{background:#111312;border:1px solid #292d2a;border-radius:20px;box-shadow:none;overflow:hidden}
+.thread-list-head{background:#151816;border-color:#292d2a}
+.thread-item{padding:15px 18px;border-color:#262a27}
+.thread-list>button.thread-item:hover,.search-user-result:hover,.notification-item:hover,.relationship-user:hover{background:#1b201a}
+.thread-avatar{border-radius:50%}
+.conversation-screen{background:#0d0f0e;border:1px solid #292d2a;border-radius:22px;box-shadow:none}
+.conversation-screen .conversation-head,.conversation-screen .message-compose{background:#121513;border-color:#292d2a}
+.conversation-screen .chat-bubble{background:#202420;border-color:#333a32;border-radius:17px}
+.conversation-screen .chat-bubble.mine{background:#b0ee4d;color:#17200e;border-color:#b0ee4d;border-bottom-right-radius:5px}
+.conversation-screen .chat-bubble.mine p,.conversation-screen .chat-bubble.mine small{color:#27351c}
+.conversation-screen .message-compose-field{background:#1a1e1b;border-color:#303631;border-radius:16px}
+.conversation-screen .message-send-button{background:var(--green);color:#17200e;border-radius:12px}
+.social-overlay{background:#000b;backdrop-filter:blur(10px)}
+.social-overlay-panel,.post-modal,.relationship-modal{background:#121513;border:1px solid #303530;border-radius:22px;box-shadow:0 20px 70px #0008}
+.social-search-form,.post-modal input,.post-modal textarea,.settings-form input{background:#0d100e;border-color:#303530;border-radius:12px;color:#f2f4ef}
+.input-wrap:focus-within,.post-modal input:focus,.post-modal textarea:focus,.social-search-form:focus-within{border-color:#92d94a;box-shadow:0 0 0 3px #a9ef3b14}
+.mobile-nav{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));padding:8px;gap:4px;background:#171a18f2;border:1px solid #343934;border-radius:22px;box-shadow:0 10px 35px #0008;backdrop-filter:blur(18px)}
+.mobile-nav button{flex:1;justify-content:center;flex-direction:column;gap:4px;padding:9px 3px;border-radius:15px;font-size:9px}
+.mobile-nav button svg{width:20px;height:20px}
+.mobile-nav button.selected{background:#a9ef3b;color:#17200e}
+.mobile-nav .mobile-create{width:48px;max-width:48px;flex:0 0 48px;border-radius:16px;background:var(--green);color:#17200e;box-shadow:0 5px 18px #a9ef3b22}
+.mobile-nav .mobile-create svg{width:22px;height:22px}
+.dash-footer{border-color:#252a26;color:#747c73}
+.alert.success{background:#192317;border-color:#35472b;color:#d6edb9}
+@media(max-width:900px){
+ .app-shell{grid-template-columns:1fr}
+ .side-rail{display:none}
+ .dashboard-main{padding:18px 15px 96px}
+ .dash-top{margin-bottom:19px;align-items:center}
+ .dash-top .eyebrow{font-size:8px;margin-bottom:5px}
+ .dash-top h1{font-size:22px}
+ .top-actions{gap:6px}
+ .top-actions .icon-surface{width:38px;height:38px}
+ .user-chip{padding:4px;border-radius:50%;border:0;background:transparent}
+ .user-chip>span:last-child{display:none}
+ .user-chip .avatar{width:34px;height:34px}
+ .home-intro{min-height:195px;padding:23px 21px;border-radius:23px}
+ .home-intro-art{flex-basis:112px;width:112px;height:112px}
+ .home-intro-emblem{width:62px;height:62px;border-radius:22px}
+ .home-intro-emblem svg{width:25px;height:25px}
+ .home-intro-index{font-size:14px}
+ .feed-heading{align-items:center}
+ .post-card{border-radius:19px}
+ .post-top{padding:15px 15px 0}
+ .post-title{padding:0 15px;font-size:15px}
+ .post-content{padding:0 15px;font-size:12px}
+ .post-hashtags{padding:0 15px}
+ .post-actions{margin:13px 15px 0}
+ .comments-list{margin:0 15px}
+ .comment-form{margin:0 15px 15px}
+ .workout-details{margin:11px 15px 0}
+ .mobile-nav{display:flex}
+}
+@media(max-width:520px){
+ .dashboard-main{padding:12px 12px 94px}
+ .dash-top{gap:8px;margin-bottom:17px}
+ .dash-top h1{font-size:20px;letter-spacing:-.6px}
+ .dash-top .eyebrow{display:none}
+ .top-actions{gap:3px}
+ .top-actions .icon-surface{width:35px;height:35px}
+ .home-intro{min-height:178px;padding:20px 17px;border-radius:20px;gap:6px}
+ .home-intro-copy h2{font-size:24px;letter-spacing:-.8px;margin:10px 0 8px}
+ .home-intro-copy p{font-size:10px;line-height:1.65;max-width:245px}
+ .home-intro-tags{margin-top:13px;font-size:8px;gap:7px}
+ .home-intro-art{flex:0 0 78px;width:78px;height:78px;border:0;background:#ffffff27}
+ .home-intro-orbit-one{inset:5px}.home-intro-orbit-two{inset:15px}
+ .home-intro-emblem{width:43px;height:43px;border-radius:15px}
+ .home-intro-emblem svg{width:20px;height:20px}
+ .home-intro-index{right:-2px;bottom:-11px;font-size:10px}
+ .home-intro-index small{font-size:6px}
+ .feed-heading{margin-bottom:14px}
+ .feed-heading h2{font-size:20px}
+ .feed-heading p{font-size:10px;line-height:1.6}
+ .refresh-button{padding:9px;font-size:10px;white-space:nowrap}
+ .feed-list{gap:14px}
+ .post-card{border-radius:17px}
+ .post-media{margin-top:11px}
+ .post-media img,.post-media video{max-height:62vh;object-fit:cover}
+ .post-actions{gap:10px;flex-wrap:wrap}
+ .post-actions button,.comment-count,.share-post-button{font-size:10px;gap:5px}
+ .post-actions svg{width:15px;height:15px}
+ .mobile-nav{left:9px;right:9px;bottom:calc(7px + env(safe-area-inset-bottom));padding:6px;border-radius:19px}
+ .mobile-nav button{padding:8px 2px;font-size:8px}
+ .mobile-nav button svg{width:19px;height:19px}
+ .mobile-nav .mobile-create{flex-basis:43px;max-width:43px}
+ .social-overlay-panel{padding:19px 15px}
+ .post-modal{max-height:calc(100dvh - 18px);padding:17px 14px;border-radius:18px}
+ .conversation-screen{border:0;border-radius:0}
+ .app-shell.chat-active{padding:0}
+ .app-shell.chat-active .dashboard-main{padding:0}
+}
+@media(prefers-reduced-motion:reduce){.post-card,.rail-nav button,.mobile-nav button{transition:none}}
