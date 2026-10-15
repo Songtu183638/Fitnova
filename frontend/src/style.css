@@ -1542,3 +1542,76 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+
+/* FITNOVA natural visual refinement — styling only */
+:root{
+  --green:#b8ed67;
+  --muted:#a0a69e;
+  --line:#2c302c;
+  --fit-surface:#111411;
+  --fit-surface-soft:#151915;
+}
+body{background:#0b0d0b}
+.app-shell{background:#0b0d0b}
+.side-rail{background:#0d100d;border-color:#252a25}
+.dashboard-main{color:#f0f2ed}
+.brand,.rail-brand{letter-spacing:-.6px}
+.rail-nav{gap:5px}
+.rail-nav button,.mobile-nav button{transition:background-color .16s ease,color .16s ease,border-color .16s ease}
+.rail-nav button.selected,.mobile-nav button.selected{background:#b8ed6714;border-color:#b8ed6724;color:#c5ef8b}
+.dash-top{margin-bottom:26px}
+.dash-top h1,.feed-heading h2,.messages-heading h2,.settings-heading h2{letter-spacing:-.55px;font-weight:750}
+.welcome-banner{background:linear-gradient(115deg,#171d15 0%,#131713 68%,#171b14 100%);border-color:#30382d;border-radius:16px;box-shadow:none}
+.welcome-banner:after{background:linear-gradient(100deg,transparent 48%,#b8ed6705)}
+.welcome-copy h2{letter-spacing:-.8px;font-weight:750}
+.pill{border-color:#3b4930;color:#c5e99a;background:#b8ed6708;letter-spacing:.4px}
+.primary{background:#b8ed67;color:#18200f;border-radius:10px;box-shadow:none;font-weight:750}
+.primary:hover{filter:brightness(1.035);transform:translateY(-1px)}
+.stat-card,.panel{background:#111411;border-color:#292e29;border-radius:13px;box-shadow:none}
+.stat-icon,.panel-icon,.quick-icon{background:#1a2117;border-color:#303a2b;color:#c0e78b}
+.stat-value{font-weight:750;letter-spacing:-.6px}
+.quick-action{background:#0e110e;border-color:#292f29;border-radius:10px;transition:background .16s,border-color .16s}
+.quick-action:hover{background:#151a14;border-color:#3b4637}
+.module-card,.profile-card,.empty-feed{background:#101310;border-color:#292e29;border-radius:14px;box-shadow:none}
+.post-card{background:#101210;border-color:#292e29;border-radius:12px;box-shadow:none;transition:border-color .16s ease}
+.post-card:hover{border-color:#3a4238}
+.post-title{font-weight:700;letter-spacing:-.15px}
+.post-content{color:#d2d7cf}
+.post-hashtags span{background:#171d13;border-color:#30392b;color:#c4e99a}
+.workout-details{background:#0c0f0c}
+.post-actions{border-color:#292e29}
+.post-actions button,.comment-count,.share-post-button{transition:color .14s ease}
+.profile-card .profile-avatar{background:#20251e;border-color:#3a4335;border-radius:22px}
+.profile-stats{border-color:#292e29}
+.settings-card,.settings-account-banner,.thread-list,.conversation-screen,.post-modal,.social-overlay-panel,.relationship-modal{box-shadow:none}
+.settings-card{background:#101310;border-color:#292e29;border-radius:12px}
+.settings-card:hover{background:#131713;border-color:#394136}
+.settings-card-title{background:#121612}
+.settings-card-title>svg{background:#1a2117;border-color:#303a2b;color:#c0e78b}
+.settings-account-banner{background:#101310;border-color:#292e29}
+.thread-list{background:#101210}
+.thread-item{transition:background-color .14s ease}
+.thread-list>button.thread-item:hover,.search-user-result:hover,.notification-item:hover,.relationship-user:hover{background:#171b16}
+.conversation-screen{background:#0d100d}
+.conversation-screen .conversation-head,.conversation-screen .message-compose{background:#111411}
+.conversation-screen .chat-bubble{background:#1a1e19;border-color:#303630}
+.conversation-screen .chat-bubble.mine{background:#27351e;border-color:#465d35}
+.conversation-screen .message-send-button{background:#b8ed67;border-color:#b8ed67}
+.post-modal,.social-overlay-panel,.relationship-modal{background:#111411;border-color:#303630;border-radius:14px}
+.modal-backdrop,.social-overlay{background:#000b;backdrop-filter:blur(7px)}
+.post-modal input,.post-modal textarea,.social-search-form,.comment-form input,.composer textarea,.settings-form input{background:#0b0e0b}
+.mobile-nav{background:#0d100df5;border-color:#292e29}
+.mobile-nav button.selected{background:#b8ed6710;color:#c5ef8b}
+.mobile-nav .mobile-create{background:#b8ed67;color:#18200f}
+.dash-footer{border-color:#252a25;color:#8c948a}
+.alert.success{background:#182015;border-color:#35432d;color:#d6edb7}
+.icon-surface,.user-chip{background:#111511;border-color:#2b312b}
+.icon-surface{border-radius:11px}
+.input-wrap:focus-within,.post-modal input:focus,.post-modal textarea:focus,.social-search-form:focus-within{border-color:#8ebc59;box-shadow:0 0 0 3px #b8ed670d}
+@media(max-width:650px){
+ .welcome-banner{border-radius:13px}
+ .post-card{border-radius:11px}
+ .dashboard-main{padding-top:15px}
+ .mobile-nav{backdrop-filter:blur(12px)}
+}
