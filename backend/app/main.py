@@ -30,6 +30,7 @@ _messages = []
 _saved_posts = set()
 _notifications = []
 _blocks = set()
+_suspended_users = set()
 _mutes = set()
 _reports = []
 _notification_seq = 0
@@ -136,6 +137,7 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS login_challenges (
                 email TEXT PRIMARY KEY,
@@ -175,6 +177,7 @@ def _init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS reps TEXT NOT NULL DEFAULT ''")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS duration_minutes INTEGER")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS workout_notes TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_created_at_idx ON posts(created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_author_created_idx ON posts(author_username, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_hashtags_gin_idx ON posts USING GIN (hashtags)")
@@ -425,7 +428,7 @@ def _find_user(identifier: str):
     if _DATABASE_URL:
         with _db() as conn:
             return conn.execute(
-                "SELECT name, username, email, password_hash, verified FROM users WHERE username_key=%s OR lower(email)=%s LIMIT 1",
+                "SELECT name, username, email, password_hash, verified, suspended FROM users WHERE username_key=%s OR lower(email)=%s LIMIT 1",
                 (key, key)
             ).fetchone()
     return next((u for u in _users.values() if u["username"].lower() == key or u["email"].lower() == key), None)
@@ -433,13 +436,13 @@ def _find_user(identifier: str):
 def _find_email(email: str):
     if _DATABASE_URL:
         with _db() as conn:
-            return conn.execute("SELECT username, email, password_hash, verified FROM users WHERE lower(email)=%s LIMIT 1", (email.lower(),)).fetchone()
+            return conn.execute("SELECT username, email, password_hash, verified, suspended FROM users WHERE lower(email)=%s LIMIT 1", (email.lower(),)).fetchone()
     return next((u for u in _users.values() if u["email"].lower() == email.lower()), None)
 
 def _find_username(username: str):
     if _DATABASE_URL:
         with _db() as conn:
-            return conn.execute("SELECT name,username,email,password_hash,verified,deletion_requested_at FROM users WHERE username_key=%s AND deletion_requested_at IS NULL LIMIT 1", (username.lower(),)).fetchone()
+            return conn.execute("SELECT name,username,email,password_hash,verified,deletion_requested_at,suspended FROM users WHERE username_key=%s AND deletion_requested_at IS NULL LIMIT 1", (username.lower(),)).fetchone()
     return next((u for u in _users.values() if u["username"].lower() == username.lower() and not u.get("deletion_requested_at")), None)
 
 def _get_pending(email: str):
@@ -495,7 +498,10 @@ def _token(user: dict) -> str:
     return jwt.encode({"sub": user["username"], "iat": now, "exp": now + timedelta(days=365)}, _SECRET, algorithm="HS256")
 
 def _public(user: dict) -> dict:
-    return {"name": user.get("name") or user["username"], "username": user["username"], "email": user["email"], "verified": user["verified"]}
+    return {"name": user.get("name") or user["username"], "username": user["username"], "email": user["email"], "verified": user["verified"], "is_master": _is_master(user)}
+
+def _is_master(user: dict) -> bool:
+    return bool(user.get("verified") and str(user.get("email") or "").strip().casefold() == "fitnova@naver.com")
 
 def _current_user(authorization: str | None = Header(default=None)) -> dict:
     _purge_expired_accounts()
@@ -506,7 +512,11 @@ def _current_user(authorization: str | None = Header(default=None)) -> dict:
         user = _find_username(data["sub"])
         if not user:
             raise ValueError()
+        if user.get("suspended") or user.get("username", "").lower() in _suspended_users:
+            raise HTTPException(status_code=403, detail="계정 이용이 정지되었습니다.")
         return dict(user)
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=401, detail="세션이 만료되었거나 유효하지 않습니다.")
 
@@ -587,6 +597,8 @@ def login(payload: LoginIn, request: Request):
     user = _find_user(payload.identifier.strip())
     if not user or not _password_hash.verify(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="아이디/이메일 또는 비밀번호를 확인해 주세요.")
+    if user.get("suspended") or user["username"].lower() in _suspended_users:
+        raise HTTPException(status_code=403, detail="계정 이용이 정지되었습니다.")
     if not user["verified"]:
         raise HTTPException(status_code=403, detail="이메일 인증을 완료해 주세요.")
     code = f"{secrets.randbelow(1_000_000):06d}"
@@ -617,6 +629,8 @@ def verify_login(payload: LoginVerifyIn, request: Request):
     user = _find_email(email)
     if not user or not user["verified"]:
         raise HTTPException(status_code=401, detail="계정을 확인할 수 없습니다. 다시 로그인해 주세요.")
+    if user.get("suspended") or user["username"].lower() in _suspended_users:
+        raise HTTPException(status_code=403, detail="계정 이용이 정지되었습니다.")
     return {"user": _public(user), "access_token": _token(user), "token_type": "bearer"}
 
 @app.get("/api/auth/me")
@@ -633,7 +647,7 @@ def _post_dict(row: dict, username: str, comments=None):
             "exercise_name": row.get("exercise_name", ""), "reps": row.get("reps", ""),
             "duration_minutes": row.get("duration_minutes"), "workout_notes": row.get("workout_notes", ""),
             "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
-            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": comments or []}
+            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": comments or [], "pinned": bool(row.get("pinned", False))}
 
 @app.get("/api/posts")
 def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: int = Query(default=15, ge=1, le=30), offset: int = Query(default=0, ge=0, le=10000), user: dict = Depends(_current_user)):
@@ -650,7 +664,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                     OR strpos(lower(COALESCE(p.title,'')), '#' || %s) > 0)
                   AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
                        OR EXISTS (SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=p.author_username))
-                ORDER BY p.created_at DESC LIMIT %s OFFSET %s""",
+                ORDER BY p.pinned DESC, p.created_at DESC LIMIT %s OFFSET %s""",
                 (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, normalized_tag, user["username"], user["username"], limit, offset)).fetchall()
             if not rows:
                 return {"posts": []}
@@ -674,7 +688,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
     # Filter before paginating so matches older than the first page remain searchable.
     result = []
     visible_posts = []
-    for p in _posts.values():
+    for p in sorted(_posts.values(), key=lambda p: (bool(p.get("pinned")), p["created_at"]), reverse=True):
         if p["author_username"] != user["username"] and ((user["username"],p["author_username"]) in _blocks or (p["author_username"],user["username"]) in _blocks or (user["username"],p["author_username"]) in _mutes):
             continue
         if p["author_username"] != user["username"] and _get_user_settings(p["author_username"])["private_account"] and (user["username"],p["author_username"]) not in _follows:
@@ -684,7 +698,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
         if normalized_tag and normalized_tag not in tags and ("#" + normalized_tag) not in visible_text:
             continue
         visible_posts.append(p)
-    visible_posts.sort(key=lambda p: p["created_at"], reverse=True)
+    visible_posts.sort(key=lambda p: (bool(p.get("pinned")), p["created_at"]), reverse=True)
     for p in visible_posts[offset:offset + limit]:
         row = dict(p)
         row.pop("media_data", None)
@@ -978,8 +992,9 @@ def delete_comment(post_id: int, comment_id: int, user: dict = Depends(_current_
             row = conn.execute("SELECT author_username FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id)).fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
-            if row["author_username"] != user["username"]:
-                raise HTTPException(status_code=403, detail="본인이 작성한 댓글만 삭제할 수 있습니다.")
+            post = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if row["author_username"] != user["username"] and (not post or post["author_username"] != user["username"]):
+                raise HTTPException(status_code=403, detail="게시물 작성자 또는 댓글 작성자만 삭제할 수 있습니다.")
             conn.execute("DELETE FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id))
     else:
         if post_id not in _posts:
@@ -988,8 +1003,8 @@ def delete_comment(post_id: int, comment_id: int, user: dict = Depends(_current_
         target = next((item for item in comments if str(item["id"]) == str(comment_id)), None)
         if not target:
             raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
-        if target["author_username"] != user["username"]:
-            raise HTTPException(status_code=403, detail="본인이 작성한 댓글만 삭제할 수 있습니다.")
+        if target["author_username"] != user["username"] and _posts[post_id]["author_username"] != user["username"]:
+            raise HTTPException(status_code=403, detail="게시물 작성자 또는 댓글 작성자만 삭제할 수 있습니다.")
         _post_comments[post_id] = [item for item in comments if str(item["id"]) != str(comment_id)]
     return {"deleted": True}
 
@@ -1000,17 +1015,50 @@ def delete_post(post_id: int, user: dict = Depends(_current_user)):
         with _db() as conn:
             row = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
             if not row: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-            if row["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인의 게시물만 삭제할 수 있습니다.")
+            if row["author_username"] != user["username"] and not _is_master(user): raise HTTPException(status_code=403, detail="본인의 게시물만 삭제할 수 있습니다.")
             conn.execute("DELETE FROM posts WHERE id=%s", (post_id,))
     else:
         row = _posts.get(post_id)
         if not row: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-        if row["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인의 게시물만 삭제할 수 있습니다.")
+        if row["author_username"] != user["username"] and not _is_master(user): raise HTTPException(status_code=403, detail="본인의 게시물만 삭제할 수 있습니다.")
         _posts.pop(post_id, None)
         _post_comments.pop(post_id, None)
         for key in list(_post_likes):
             if key[0] == post_id: _post_likes.remove(key)
     return {"deleted": True}
+
+@app.post("/api/posts/{post_id}/pin")
+def toggle_post_pin(post_id: int, user: dict = Depends(_current_user)):
+    if not _is_master(user): raise HTTPException(status_code=403, detail="마스터 계정만 게시물을 고정할 수 있습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT pinned FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not row: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            pinned = not bool(row["pinned"])
+            conn.execute("UPDATE posts SET pinned=%s WHERE id=%s", (pinned, post_id))
+    else:
+        post = _posts.get(post_id)
+        if not post: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+        pinned = not bool(post.get("pinned"))
+        post["pinned"] = pinned
+    return {"pinned": pinned}
+
+@app.post("/api/users/{username}/suspend")
+def toggle_account_suspension(username: str, user: dict = Depends(_current_user)):
+    if not _is_master(user): raise HTTPException(status_code=403, detail="마스터 계정만 계정을 정지할 수 있습니다.")
+    target = _find_username(username)
+    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    if target["username"].lower() == user["username"].lower(): raise HTTPException(status_code=400, detail="마스터 계정은 스스로 정지할 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("UPDATE users SET suspended=NOT suspended WHERE username_key=%s RETURNING suspended", (target["username"].lower(),)).fetchone()
+            suspended = bool(row["suspended"])
+    else:
+        key = target["username"].lower()
+        suspended = key not in _suspended_users
+        if suspended: _suspended_users.add(key)
+        else: _suspended_users.discard(key)
+    return {"suspended": suspended, "username": target["username"]}
 
 
 def _profile_summary(username: str, viewer: str):

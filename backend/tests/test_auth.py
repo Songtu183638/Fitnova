@@ -97,6 +97,33 @@ def _verified_user(username, email, sent):
     assert verified.status_code == 200
     return verified.json()["access_token"]
 
+def test_post_owner_comment_moderation_and_verified_master_actions(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    owner = _verified_user("owner_user", "owner@example.com", sent)
+    commenter = _verified_user("comment_user", "commenter@example.com", sent)
+    master = _verified_user("master_user", "FITNOVA@NAVER.COM", sent)
+    owner_headers = {"Authorization": f"Bearer {owner}"}
+    commenter_headers = {"Authorization": f"Bearer {commenter}"}
+    master_headers = {"Authorization": f"Bearer {master}"}
+    post = client.post("/api/posts", headers=owner_headers, json={
+        "title": "Owner post", "content": "Workout", "media_type": "image",
+        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+    }).json()["post"]
+    comment = client.post(f"/api/posts/{post['id']}/comments", headers=commenter_headers, json={"content": "Nice work"}).json()["comment"]
+    assert client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=owner_headers).status_code == 200
+
+    assert client.get("/api/auth/me", headers=master_headers).json()["user"]["is_master"] is True
+    assert client.post(f"/api/posts/{post['id']}/pin", headers=owner_headers).status_code == 403
+    assert client.post(f"/api/posts/{post['id']}/pin", headers=master_headers).json()["pinned"] is True
+    feed = client.get("/api/posts", headers=owner_headers).json()["posts"]
+    assert feed[0]["id"] == post["id"] and feed[0]["pinned"] is True
+    assert client.delete(f"/api/posts/{post['id']}", headers=master_headers).json()["deleted"] is True
+
+    assert client.post("/api/users/comment_user/suspend", headers=master_headers).json()["suspended"] is True
+    assert client.get("/api/auth/me", headers=commenter_headers).status_code == 403
+    assert client.post("/api/users/comment_user/suspend", headers=master_headers).json()["suspended"] is False
+
 def test_hashtag_search_follow_profile_and_direct_messages(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
