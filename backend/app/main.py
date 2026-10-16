@@ -114,6 +114,10 @@ class PostEditIn(BaseModel):
 class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
 
+class PushDeviceIn(BaseModel):
+    token: str = Field(min_length=20, max_length=4096)
+    platform: str = Field(default="android", pattern=r"^android$")
+
 def _db():
     if not _DATABASE_URL:
         raise RuntimeError("DATABASE_URL is not configured")
@@ -264,11 +268,20 @@ def _init_db():
                 sender_username TEXT NOT NULL,
                 recipient_username TEXT NOT NULL,
                 content TEXT NOT NULL,
+                read_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ")
         conn.execute("CREATE INDEX IF NOT EXISTS direct_messages_pair_idx ON direct_messages(sender_username, recipient_username, created_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS direct_messages_recipient_idx ON direct_messages(recipient_username, created_at DESC)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS push_devices (
+                token TEXT PRIMARY KEY, username TEXT NOT NULL,
+                platform TEXT NOT NULL DEFAULT 'android', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS push_devices_username_idx ON push_devices(username)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_comments (
                 id BIGSERIAL PRIMARY KEY,
@@ -1170,8 +1183,73 @@ def toggle_follow(username: str, user: dict = Depends(_current_user)):
 
 def _message_dict(row):
     created = row["created_at"]
+    read_at = row.get("read_at")
     return {"id": row["id"], "sender_username": row["sender_username"], "recipient_username": row["recipient_username"],
-            "content": row["content"], "created_at": created.isoformat() if hasattr(created, "isoformat") else created}
+            "content": row["content"], "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
+            "read_at": read_at.isoformat() if hasattr(read_at, "isoformat") else read_at}
+
+_firebase_app = None
+_firebase_init_lock = Lock()
+
+def _send_push(username: str, title: str, body: str, data: dict | None = None):
+    """Send best-effort FCM notifications when production credentials are configured."""
+    try:
+        credential_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+        if not credential_json:
+            return
+        global _firebase_app
+        with _firebase_init_lock:
+            if _firebase_app is None:
+                import firebase_admin
+                from firebase_admin import credentials
+                _firebase_app = firebase_admin.initialize_app(credentials.Certificate(json.loads(credential_json)))
+        from firebase_admin import messaging
+        if _DATABASE_URL:
+            with _db() as conn:
+                rows = conn.execute("SELECT token FROM push_devices WHERE username=%s", (username,)).fetchall()
+            tokens = [row["token"] for row in rows]
+        else:
+            tokens = [token for token, owner in _push_devices.items() if owner == username]
+        for token in tokens:
+            try:
+                messaging.send(messaging.Message(
+                    token=token,
+                    notification=messaging.Notification(title=title, body=body),
+                    data={key: str(value) for key, value in (data or {}).items()},
+                    android=messaging.AndroidConfig(priority="high", notification=messaging.AndroidNotification(channel_id="fitnova_messages")),
+                ), app=_firebase_app)
+            except Exception as exc:
+                # Expired tokens are removed; other FCM errors do not prevent DM delivery.
+                if "registration-token-not-registered" in str(exc).lower() or "invalid-registration-token" in str(exc).lower():
+                    if _DATABASE_URL:
+                        with _db() as conn: conn.execute("DELETE FROM push_devices WHERE token=%s", (token,))
+                    else:
+                        _push_devices.pop(token, None)
+                else:
+                    print(f"Push delivery failed: {type(exc).__name__}")
+    except Exception as exc:
+        print(f"Push service unavailable: {type(exc).__name__}")
+
+_push_devices = {}  # token -> authenticated username, development adapter only
+
+@app.post("/api/push/devices", status_code=201)
+def register_push_device(payload: PushDeviceIn, user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("INSERT INTO push_devices(token,username,platform) VALUES (%s,%s,%s) ON CONFLICT(token) DO UPDATE SET username=EXCLUDED.username, platform=EXCLUDED.platform, created_at=NOW()",
+                         (payload.token, user["username"], payload.platform))
+    else:
+        _push_devices[payload.token] = user["username"]
+    return {"registered": True}
+
+@app.delete("/api/push/devices/{token}")
+def unregister_push_device(token: str, user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("DELETE FROM push_devices WHERE token=%s AND username=%s", (token, user["username"]))
+    elif _push_devices.get(token) == user["username"]:
+        _push_devices.pop(token, None)
+    return {"removed": True}
 
 @app.get("/api/messages")
 def list_message_threads(user: dict = Depends(_current_user)):
@@ -1179,15 +1257,17 @@ def list_message_threads(user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
             rows = conn.execute("""
-                SELECT DISTINCT ON (other_user) other_user, id, sender_username, recipient_username, content, created_at
+                SELECT DISTINCT ON (other_user) other_user, id, sender_username, recipient_username, content, created_at, read_at,
+                       (SELECT COUNT(*)::int FROM direct_messages unread WHERE unread.sender_username = other_user
+                        AND unread.recipient_username = %s AND unread.read_at IS NULL) AS unread_count
                 FROM (
                     SELECT CASE WHEN sender_username=%s THEN recipient_username ELSE sender_username END AS other_user,
-                           id, sender_username, recipient_username, content, created_at
+                           id, sender_username, recipient_username, content, created_at, read_at
                     FROM direct_messages WHERE sender_username=%s OR recipient_username=%s
                 ) dm
                 ORDER BY other_user, created_at DESC
-            """, (me, me, me)).fetchall()
-        threads = [_message_dict(dict(row)) | {"username": row["other_user"]} for row in rows]
+            """, (me, me, me, me)).fetchall()
+        threads = [_message_dict(dict(row)) | {"username": row["other_user"], "unread_count": row["unread_count"]} for row in rows]
     else:
         latest = {}
         for msg in _messages:
@@ -1195,7 +1275,7 @@ def list_message_threads(user: dict = Depends(_current_user)):
             other = msg["recipient_username"] if msg["sender_username"] == me else msg["sender_username"]
             if other not in latest or msg["created_at"] > latest[other]["created_at"]:
                 latest[other] = msg
-        threads = [_message_dict(msg) | {"username": name} for name, msg in latest.items()]
+        threads = [_message_dict(msg) | {"username": name, "unread_count": sum(1 for item in _messages if item["sender_username"] == name and item["recipient_username"] == me and not item.get("read_at"))} for name, msg in latest.items()]
         threads.sort(key=lambda item: item["created_at"], reverse=True)
     return {"threads": threads}
 
@@ -1206,14 +1286,20 @@ def get_conversation(username: str, user: dict = Depends(_current_user)):
     me = user["username"]
     if _DATABASE_URL:
         with _db() as conn:
-            rows = conn.execute("""SELECT id,sender_username,recipient_username,content,created_at FROM direct_messages
+            conn.execute("UPDATE direct_messages SET read_at=NOW() WHERE sender_username=%s AND recipient_username=%s AND read_at IS NULL", (target["username"], me))
+            rows = conn.execute("""SELECT id,sender_username,recipient_username,content,created_at,read_at FROM direct_messages
                 WHERE (sender_username=%s AND recipient_username=%s) OR (sender_username=%s AND recipient_username=%s)
                 ORDER BY created_at ASC LIMIT 500""", (me,target["username"],target["username"],me)).fetchall()
         messages = [_message_dict(dict(row)) for row in rows]
     else:
-        messages = [_message_dict(m) for m in _messages if
-                    (m["sender_username"] == me and m["recipient_username"] == target["username"]) or
-                    (m["sender_username"] == target["username"] and m["recipient_username"] == me)]
+        now = datetime.now(timezone.utc).isoformat()
+        with _lock:
+            for item in _messages:
+                if item["sender_username"] == target["username"] and item["recipient_username"] == me and not item.get("read_at"):
+                    item["read_at"] = now
+            messages = [_message_dict(m) for m in _messages if
+                        (m["sender_username"] == me and m["recipient_username"] == target["username"]) or
+                        (m["sender_username"] == target["username"] and m["recipient_username"] == me)]
     return {"username": target["username"], "messages": messages}
 
 @app.post("/api/messages/{username}", status_code=201)
@@ -1244,16 +1330,18 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
     if _DATABASE_URL:
         with _db() as conn:
             row = conn.execute("""INSERT INTO direct_messages(sender_username,recipient_username,content)
-                VALUES (%s,%s,%s) RETURNING id,sender_username,recipient_username,content,created_at""",
+                VALUES (%s,%s,%s) RETURNING id,sender_username,recipient_username,content,created_at,read_at""",
                 (user["username"],target["username"],content)).fetchone()
         _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
+        _send_push(target["username"], "새 메시지", f"@{user['username']}님이 메시지를 보냈습니다.", {"kind":"message", "username":user["username"]})
         return {"message": _message_dict(dict(row))}
     with _lock:
         _message_seq += 1
         message = {"id": _message_seq, "sender_username": user["username"], "recipient_username": target["username"],
-                   "content": content, "created_at": datetime.now(timezone.utc).isoformat()}
+                   "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "read_at": None}
         _messages.append(message)
     _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
+    _send_push(target["username"], "새 메시지", f"@{user['username']}님이 메시지를 보냈습니다.", {"kind":"message", "username":user["username"]})
     return {"message": _message_dict(message)}
 
 
@@ -1322,6 +1410,7 @@ def _purge_expired_accounts():
                 conn.execute("DELETE FROM posts WHERE author_username=%s",(name,))
                 conn.execute("DELETE FROM user_follows WHERE follower_username=%s OR followed_username=%s",(name,name))
                 conn.execute("DELETE FROM direct_messages WHERE sender_username=%s OR recipient_username=%s",(name,name))
+                conn.execute("DELETE FROM push_devices WHERE username=%s", (name,))
                 conn.execute("DELETE FROM post_comments WHERE author_username=%s",(name,))
                 conn.execute("DELETE FROM post_likes WHERE username=%s",(name,))
                 conn.execute("DELETE FROM saved_posts WHERE username=%s",(name,))
@@ -1336,6 +1425,8 @@ def _purge_expired_accounts():
                 _follows.difference_update([x for x in _follows if name in x])
                 _saved_posts.difference_update([x for x in _saved_posts if x[0]==name])
                 _messages[:]=[m for m in _messages if name not in (m["sender_username"],m["recipient_username"])]
+                for token, owner in list(_push_devices.items()):
+                    if owner == name: _push_devices.pop(token, None)
                 for pid,p in list(_posts.items()):
                     if p["author_username"]==name: _posts.pop(pid,None); _post_comments.pop(pid,None)
                 _post_likes.difference_update([x for x in _post_likes if x[1]==name])
@@ -1661,3 +1752,4 @@ def edit_post(post_id: int, payload: PostEditIn, user: dict = Depends(_current_u
         if post["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인이 작성한 게시물만 수정할 수 있습니다.")
         post.update({"title":title,"content":content,"hashtags":hashtags})
     return {"updated": True, "id": post_id, "title": title, "content": content, "hashtags": hashtags}
+
