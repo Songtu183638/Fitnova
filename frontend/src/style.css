@@ -1851,7 +1851,6 @@ button,input,textarea,select{font-family:inherit}
  .home-intro-tags{margin-top:11px !important}
 }
 
-
 /* Refined profile layout */
 .module-view:has(.profile-card){width:min(100%,920px);margin:0 auto;padding:0 0 32px}
 .profile-card,
@@ -1897,3 +1896,8 @@ button,input,textarea,select{font-family:inherit}
  .profile-actions button{width:100%;min-width:0;padding:0 9px;font-size:11px}
  .profile-posts{margin-top:22px}
 }
+/* DM read state and unread thread count */
+.message-read-receipt{color:#94e85e;font-weight:600}
+.thread-unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#9df15e;color:#111;font-size:11px;font-weight:800}
+.setting-help{display:block;margin-top:9px;color:#8c9890;font-size:11px;line-height:1.5}
+
