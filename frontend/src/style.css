@@ -1804,3 +1804,49 @@ button,input,textarea,select{font-family:inherit}
  .app-shell.chat-active .dashboard-main{padding:0}
 }
 @media(prefers-reduced-motion:reduce){.post-card,.rail-nav button,.mobile-nav button{transition:none}}
+
+
+/* Minimal home screen: remove the large fluorescent banner and decorative block. */
+.home-intro{
+  min-height:0 !important;
+  padding:8px 2px 16px !important;
+  display:block !important;
+  overflow:visible !important;
+  color:#f2f3ef !important;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+.home-intro:before{display:none !important}
+.home-intro-art{display:none !important}
+.home-intro-copy{max-width:100% !important}
+.home-intro-kicker{
+  color:#a6ad9f !important;
+  font-size:10px !important;
+  font-weight:650 !important;
+  letter-spacing:1px !important;
+}
+.home-intro-copy h2{
+  color:#f2f3ef !important;
+  font-size:clamp(24px,3vw,32px) !important;
+  font-weight:750 !important;
+  line-height:1.35 !important;
+  letter-spacing:-.9px !important;
+  margin:11px 0 8px !important;
+}
+.home-intro-copy h2 em{color:#b4e879 !important;font-style:normal !important}
+.home-intro-copy p{color:#969c93 !important;font-size:12px !important;line-height:1.8 !important}
+.home-intro-tags{margin-top:13px !important;color:#858c82 !important;font-size:9px !important}
+.home-intro-tags i{background:#4b5148 !important}
+@media(max-width:900px){
+ .home-intro{padding:4px 1px 14px !important;min-height:0 !important}
+ .home-intro-copy h2{font-size:26px !important}
+ .home-intro-copy p{font-size:11px !important;max-width:330px !important}
+}
+@media(max-width:520px){
+ .home-intro{padding:2px 1px 12px !important;min-height:0 !important;gap:0 !important}
+ .home-intro-copy h2{font-size:24px !important;margin:9px 0 7px !important}
+ .home-intro-copy p{font-size:11px !important}
+ .home-intro-tags{margin-top:11px !important}
+}
