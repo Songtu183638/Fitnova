@@ -16,9 +16,12 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "lucide-react": "^0.468.0",
-    "@capacitor/app": "^7.1.0"
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/push-notifications": "^7.0.2",
+    "@capacitor/local-notifications": "^7.0.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3"
   }
 }
+
