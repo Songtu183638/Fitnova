@@ -12,7 +12,7 @@ import './style.css';
 
 // Keep localhost as a development convenience only. Production builds should use
 // an explicit API origin or a same-origin reverse proxy, never the developer's host.
-const API = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '')).replace(/\/$/, '');
+const API = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://fitnova-api-v2.onrender.com')).replace(/\/$/, '');
 const TOKEN_KEY = 'fitnova_access_token';
 const PushNotifications = registerPlugin('PushNotifications');
 const LocalNotifications = registerPlugin('LocalNotifications');
