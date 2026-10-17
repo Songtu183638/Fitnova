@@ -1,167 +1,192 @@
 import React, { useMemo, useState } from 'react';
-import { Activity, ArrowDownRight, ArrowUpRight, CalendarDays, ChevronDown, Clock3, Dumbbell, Flame, RefreshCw, Sparkles, Target, TrendingUp, Trophy, Waves } from 'lucide-react';
+import { Activity, CalendarDays, Check, ChevronDown, Clock3, Dumbbell, Plus, Save, Target, Trash2, TrendingUp, Trophy, Weight, X } from 'lucide-react';
 
-const number = value => {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : 0;
+const CATEGORIES = {
+  '가슴': ['벤치프레스', '인클라인 벤치프레스', '덤벨 프레스', '체스트 프레스', '케이블 플라이', '푸시업'],
+  '등': ['데드리프트', '랫풀다운', '시티드 로우', '바벨 로우', '풀업', '원암 덤벨 로우'],
+  '어깨': ['숄더 프레스', '사이드 레터럴 레이즈', '프론트 레이즈', '리어 델트 플라이', '페이스 풀'],
+  '팔': ['바벨 컬', '덤벨 컬', '해머 컬', '트라이셉스 푸시다운', '오버헤드 익스텐션', '딥스'],
+  '하체': ['스쿼트', '레그 프레스', '레그 익스텐션', '레그 컬', '루마니안 데드리프트', '런지', '카프 레이즈'],
+  '복근': ['크런치', '레그 레이즈', '플랭크', '케이블 크런치', '행잉 니 레이즈'],
+  '유산소': ['러닝머신', '실외 달리기', '사이클', '일립티컬', '줄넘기', '로잉머신'],
 };
+const CATEGORY_LIST = Object.keys(CATEGORIES);
 const asDate = value => {
-  const d = value ? new Date(value) : null;
-  return d && !Number.isNaN(d.getTime()) ? d : null;
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
 };
+const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+const formatNum = value => number(value).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
 const formatDate = value => {
-  const d = asDate(value);
-  return d ? d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : '날짜 미상';
+  const date = asDate(value);
+  return date ? date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' }) : '날짜 미상';
 };
-const formatMinutes = value => {
-  const mins = Math.round(number(value));
-  return mins >= 60 ? `${Math.floor(mins / 60)}시간 ${mins % 60}분` : `${mins}분`;
-};
-const hasWorkoutData = post => Boolean(
-  String(post?.exercise_name || '').trim() ||
-  number(post?.duration_minutes) ||
-  number(post?.sets_count) ||
-  String(post?.reps || '').trim() ||
-  String(post?.workout_notes || '').trim()
-);
-const muscleFor = value => {
-  const name = String(value || '').toLowerCase();
-  if (/하체|스쿼트|런지|레그|허벅지|종아리|squat|leg|lunge|calf/.test(name)) return '하체';
-  if (/가슴|벤치|푸시업|푸쉬업|체스트|chest|bench|push.?up/.test(name)) return '가슴';
-  if (/등|랫풀|풀업|로우|데드리프트|back|lat|pull.?up|row|deadlift/.test(name)) return '등';
-  if (/어깨|숄더|레터럴|shoulder|lateral|overhead/.test(name)) return '어깨';
-  if (/팔|이두|삼두|컬|tricep|bicep|curl|arm/.test(name)) return '팔';
-  if (/달리기|러닝|걷기|사이클|수영|run|walk|cycle|swim|cardio/.test(name)) return '유산소';
-  return '기타';
-};
+const createExercise = (category, id) => ({ id, category, exercise_name: CATEGORIES[category][0], weight_kg: '0', sets: '3', reps: '10' });
 
-export default function WorkoutAnalysisPanel({ posts = [], onCreatePost, onRefresh }) {
+export default function WorkoutAnalysisPanel({ records = [], onSaveRecord, onRefresh }) {
   const [period, setPeriod] = useState('30');
-  const [view, setView] = useState('overview');
-  const [expanded, setExpanded] = useState(false);
-  const records = useMemo(() => posts
-    .filter(hasWorkoutData)
-    .map(post => ({ ...post, _date: asDate(post.created_at), _exercise: String(post.exercise_name || post.title || '운동 기록').trim() || '운동 기록' }))
-    .sort((a, b) => (b._date?.getTime() || 0) - (a._date?.getTime() || 0)), [posts]);
+  const [view, setView] = useState('record');
+  const [exercises, setExercises] = useState([createExercise('가슴', 'ex-1')]);
+  const [nextId, setNextId] = useState(2);
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
   const filtered = useMemo(() => {
     if (period === 'all') return records;
     const cutoff = Date.now() - Number(period) * 86400000;
-    return records.filter(item => item._date && item._date.getTime() >= cutoff);
-  }, [records, period]);
-  const stats = useMemo(() => {
-    const sessions = filtered.length;
-    const minutes = filtered.reduce((sum, item) => sum + number(item.duration_minutes), 0);
-    const sets = filtered.reduce((sum, item) => sum + number(item.sets_count), 0);
-    const exerciseCounts = {};
-    const muscleCounts = {};
-    filtered.forEach(item => {
-      exerciseCounts[item._exercise] = (exerciseCounts[item._exercise] || 0) + 1;
-      const group = muscleFor(item._exercise);
-      muscleCounts[group] = (muscleCounts[group] || 0) + 1;
+    return records.filter(record => {
+      const date = asDate(record.created_at);
+      return date && date.getTime() >= cutoff;
     });
-    const topExercise = Object.entries(exerciseCounts).sort((a, b) => b[1] - a[1])[0];
-    const activeDays = new Set(filtered.map(item => item._date?.toLocaleDateString('en-CA')).filter(Boolean)).size;
-    return { sessions, minutes, sets, activeDays, topExercise, muscleCounts };
+  }, [records, period]);
+  const totals = useMemo(() => {
+    const result = { sessions: filtered.length, volume: 0, sets: 0, reps: 0, exerciseCount: 0, categories: {} };
+    filtered.forEach(record => {
+      result.volume += number(record.total_volume_kg);
+      result.sets += number(record.total_sets);
+      result.reps += number(record.total_reps);
+      (record.exercises || []).forEach(exercise => {
+        result.exerciseCount += 1;
+        const key = exercise.category || '기타';
+        if (!result.categories[key]) result.categories[key] = { volume: 0, sets: 0, reps: 0, count: 0 };
+        const item = result.categories[key];
+        item.volume += number(exercise.volume_kg ?? (number(exercise.weight_kg) * number(exercise.sets) * number(exercise.reps)));
+        item.sets += number(exercise.sets);
+        item.reps += number(exercise.sets) * number(exercise.reps);
+        item.count += 1;
+      });
+    });
+    result.volume = Math.round(result.volume * 100) / 100;
+    return result;
   }, [filtered]);
-  const week = useMemo(() => {
-    const today = new Date();
-    const start = new Date(today);
+  const weekly = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - 6);
-    const days = Array.from({ length: 7 }, (_, index) => {
+    return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(start);
-      date.setDate(start.getDate() + index);
-      return { date, key: date.toLocaleDateString('en-CA'), label: date.toLocaleDateString('ko-KR', { weekday: 'short' }), count: 0, minutes: 0, today: index === 6 };
+      date.setDate(start.getDate() + i);
+      const key = date.toLocaleDateString('en-CA');
+      const count = records.filter(record => {
+        const d = asDate(record.created_at);
+        return d && d.toLocaleDateString('en-CA') === key;
+      }).length;
+      return { key, label: date.toLocaleDateString('ko-KR', { weekday: 'short' }), day: date.getDate(), count, today: i === 6 };
     });
-    const byKey = new Map(days.map(day => [day.key, day]));
-    records.forEach(item => {
-      if (!item._date) return;
-      const key = item._date.toLocaleDateString('en-CA');
-      const day = byKey.get(key);
-      if (day) { day.count += 1; day.minutes += number(item.duration_minutes); }
-    });
-    return days;
   }, [records]);
-  const maxSessions = Math.max(1, ...week.map(day => day.count));
-  const recent = filtered.slice(0, expanded ? filtered.length : 5);
-  const bestMuscle = Object.entries(stats.muscleCounts).sort((a, b) => b[1] - a[1])[0];
-  const previous = period === 'all' ? [] : records.filter(item => item._date && item._date.getTime() >= previousCutoff && item._date.getTime() < Date.now() - Number(period) * 86400000);
-  const change = previous.length ? Math.round(((stats.sessions - previous.length) / previous.length) * 100) : null;
+  const maxWeekly = Math.max(1, ...weekly.map(day => day.count));
+  const rankedCategories = Object.entries(totals.categories).sort((a, b) => b[1].volume - a[1].volume);
+  const topCategory = rankedCategories[0];
+
+  const addCategory = category => {
+    setExercises(items => [...items, createExercise(category, `ex-${nextId}`)]);
+    setNextId(id => id + 1);
+    setView('record');
+    setMessage('');
+    setError('');
+  };
+  const updateExercise = (id, key, value) => setExercises(items => items.map(item => {
+    if (item.id !== id) return item;
+    const updated = { ...item, [key]: value };
+    if (key === 'category') updated.exercise_name = CATEGORIES[value][0];
+    return updated;
+  }));
+  const removeExercise = id => setExercises(items => items.length > 1 ? items.filter(item => item.id !== id) : items);
+  const submit = async event => {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    const payloadExercises = exercises.map(item => ({
+      category: item.category,
+      exercise_name: item.exercise_name,
+      weight_kg: Number(item.weight_kg),
+      sets: Number(item.sets),
+      reps: Number(item.reps),
+    }));
+    if (payloadExercises.some(item => !item.exercise_name || !Number.isFinite(item.weight_kg) || item.weight_kg < 0 || item.weight_kg > 1000 || !Number.isInteger(item.sets) || item.sets < 1 || !Number.isInteger(item.reps) || item.reps < 1)) {
+      setError('각 운동의 중량(kg), 세트, 반복 횟수를 올바르게 입력해 주세요.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSaveRecord({ exercises: payloadExercises, note });
+      setMessage('운동 기록을 저장했어요. 종합 분석에 합산했습니다.');
+      setNote('');
+      setExercises([createExercise('가슴', `ex-${nextId}`)]);
+      setNextId(id => id + 1);
+      setView('overview');
+    } catch (e) {
+      setError(e.message || '운동 기록을 저장하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return <section className="workout-analysis-page">
     <div className="wa-hero">
       <div className="wa-hero-copy">
         <span className="wa-kicker"><span className="wa-live-dot"/> FITNOVA PERFORMANCE LAB</span>
-        <h2>숫자로 확인하고,<br/><em>더 강하게 성장하세요.</em></h2>
-        <p>내 운동 기록을 한곳에 모아 흐름과 습관을 읽어보세요.</p>
-        <div className="wa-hero-meta"><span><Activity size={14}/> 기록 기반 분석</span><i/><span><Target size={14}/> 개인 성장 리포트</span></div>
+        <h2>오늘의 운동을 기록하고,<br/><em>전체 성과를 한눈에.</em></h2>
+        <p>종목별 중량·세트·횟수를 기록하면 카테고리별 합계와 전체 운동량이 자동으로 계산됩니다.</p>
+        <div className="wa-hero-meta"><span><Activity size={14}/> 종목별 기록</span><i/><span><Target size={14}/> 자동 종합 계산</span></div>
       </div>
-      <div className="wa-orbit-art" aria-hidden="true"><div className="wa-orbit wa-orbit-a"/><div className="wa-orbit wa-orbit-b"/><div className="wa-orbit-core"><TrendingUp size={34}/></div><span className="wa-orbit-label">YOUR<br/>NEXT LEVEL</span></div>
+      <div className="wa-orbit-art" aria-hidden="true"><div className="wa-orbit wa-orbit-a"/><div className="wa-orbit wa-orbit-b"/><div className="wa-orbit-core"><TrendingUp size={34}/></div><span className="wa-orbit-label">TRACK<br/>YOUR LIFTS</span></div>
     </div>
 
     <div className="wa-toolbar">
-      <div className="wa-view-switch" role="tablist" aria-label="분석 보기">
-        <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')} role="tab" aria-selected={view === 'overview'}>개요</button>
-        <button className={view === 'records' ? 'active' : ''} onClick={() => setView('records')} role="tab" aria-selected={view === 'records'}>운동 기록</button>
+      <div className="wa-view-switch" role="tablist" aria-label="운동 분석 화면">
+        <button className={view === 'record' ? 'active' : ''} onClick={() => setView('record')} role="tab" aria-selected={view === 'record'}>운동 기록</button>
+        <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')} role="tab" aria-selected={view === 'overview'}>종합 분석</button>
       </div>
       <label className="wa-period-select"><CalendarDays size={15}/><select value={period} onChange={e => setPeriod(e.target.value)} aria-label="분석 기간"><option value="7">최근 7일</option><option value="30">최근 30일</option><option value="90">최근 90일</option><option value="all">전체 기간</option></select><ChevronDown size={14}/></label>
-      <button className="wa-refresh" onClick={onRefresh} type="button"><RefreshCw size={15}/> 새로고침</button>
+      <button className="wa-refresh" onClick={onRefresh} type="button"><Activity size={15}/> 새로고침</button>
     </div>
 
-    {records.length === 0 ? <div className="wa-empty">
-      <div className="wa-empty-symbol"><Dumbbell size={28}/><span>+</span></div>
-      <span className="wa-eyebrow">YOUR DATA STARTS HERE</span>
-      <h3>첫 번째 운동 데이터를 만들어 볼까요?</h3>
-      <p>게시물을 작성할 때 운동 종류, 세트 수, 운동 시간 또는 횟수 정보를 입력하면 이곳에서 분석할 수 있어요. 데이터가 없는 항목은 임의로 채우지 않습니다.</p>
-      <button className="wa-primary" onClick={onCreatePost}><Dumbbell size={16}/> 운동 정보가 포함된 게시물 작성</button>
-    </div> : <>
-      <div className="wa-stats-grid">
-        <article className="wa-stat-card wa-stat-featured"><div className="wa-stat-top"><span>운동 세션</span><span className="wa-stat-icon"><Activity size={17}/></span></div><strong>{stats.sessions}<small>회</small></strong><div className="wa-stat-foot"><span>{period === 'all' ? '전체 기록' : `최근 ${period}일 기준`}</span>{change !== null && <span className={change >= 0 ? 'wa-trend-up' : 'wa-trend-down'}>{change >= 0 ? <ArrowUpRight size={13}/> : <ArrowDownRight size={13}/>} {Math.abs(change)}%</span>}</div></article>
-        <article className="wa-stat-card"><div className="wa-stat-top"><span>운동 시간</span><span className="wa-stat-icon"><Clock3 size={17}/></span></div><strong>{Math.floor(stats.minutes / 60) > 0 && <><span>{Math.floor(stats.minutes / 60)}</span><i>h</i> </>}{stats.minutes % 60}<small>분</small></strong><div className="wa-stat-foot"><span>시간 정보가 입력된 기록 기준</span></div></article>
-        <article className="wa-stat-card"><div className="wa-stat-top"><span>총 세트</span><span className="wa-stat-icon"><Dumbbell size={17}/></span></div><strong>{stats.sets.toLocaleString('ko-KR')}<small>세트</small></strong><div className="wa-stat-foot"><span>세트 수가 입력된 기록 기준</span></div></article>
-        <article className="wa-stat-card"><div className="wa-stat-top"><span>활동한 날짜</span><span className="wa-stat-icon"><CalendarDays size={17}/></span></div><strong>{stats.activeDays}<small>일</small></strong><div className="wa-stat-foot"><span>중복 날짜는 한 번만 계산</span></div></article>
-      </div>
-
-      {view === 'overview' ? <>
-        <div className="wa-main-grid">
-          <article className="wa-panel wa-week-panel">
-            <div className="wa-panel-head"><div><span className="wa-eyebrow">CONSISTENCY TRACKER</span><h3>최근 7일 활동 리듬</h3><p>운동 기록을 남긴 날을 기준으로 집계합니다.</p></div><span className="wa-panel-badge"><Waves size={14}/> 7 DAYS</span></div>
-            <div className="wa-chart" role="img" aria-label="최근 7일 운동 기록 횟수 그래프">{week.map(day => <div className={'wa-chart-day ' + (day.today ? 'today' : '')} key={day.key}><span className="wa-chart-value">{day.count || '—'}</span><div className="wa-chart-track"><i style={{ height: day.count ? `${Math.max(12, day.count / maxSessions * 100)}%` : '3px' }}/></div><b>{day.label}</b><small>{day.date.getDate()}일</small></div>)}</div>
-            <div className="wa-chart-summary"><span><i/> 운동 기록이 있는 날</span><strong>{week.reduce((sum, day) => sum + day.count, 0)}회 기록</strong></div>
-          </article>
-          <article className="wa-panel wa-insight-panel">
-            <div className="wa-panel-head"><div><span className="wa-eyebrow">PERSONAL INSIGHT</span><h3>나의 운동 패턴</h3></div><span className="wa-insight-spark"><Sparkles size={17}/></span></div>
-            {stats.topExercise ? <div className="wa-insight-main"><div className="wa-insight-icon"><Trophy size={20}/></div><div><small>가장 자주 기록한 운동</small><strong>{stats.topExercise[0]}</strong><span>{stats.topExercise[1]}회 기록됨</span></div></div> : <div className="wa-insight-main"><div className="wa-insight-icon"><Target size={20}/></div><div><small>다음 분석 목표</small><strong>운동 종류 입력하기</strong><span>운동 이름을 기록하면 패턴을 찾을 수 있어요.</span></div></div>}
-            <div className="wa-insight-divider"/>
-            <div className="wa-insight-row"><span>가장 많이 기록된 분류</span><b>{bestMuscle ? bestMuscle[0] : '데이터 수집 중'}</b></div>
-            <div className="wa-insight-row"><span>기록당 평균 운동 시간</span><b>{filtered.filter(item => number(item.duration_minutes)).length ? `${Math.round(stats.minutes / filtered.filter(item => number(item.duration_minutes)).length)}분` : '미입력'}</b></div>
-            <p className="wa-insight-note">분류는 운동 이름에 포함된 단어를 바탕으로 자동 추정하며, 의료적 평가나 운동 처방이 아닙니다.</p>
-          </article>
+    {view === 'record' && <form className="wa-record-form" onSubmit={submit}>
+      <div className="wa-section-heading"><div><span className="wa-eyebrow">BUILD YOUR SESSION</span><h3>오늘 어떤 운동을 했나요?</h3><p>카테고리를 눌러 여러 종목을 추가한 다음 실제 운동 수치를 입력하세요.</p></div><span className="wa-section-count">{exercises.length}개 종목</span></div>
+      <div className="wa-category-grid">{CATEGORY_LIST.map(category => <button type="button" key={category} className={'wa-category-chip ' + (exercises.some(item => item.category === category) ? 'selected' : '')} onClick={() => addCategory(category)}><span className="wa-category-check">{exercises.some(item => item.category === category) ? <Check size={13}/> : <Plus size={13}/>}</span>{category}</button>)}</div>
+      <div className="wa-exercise-list">{exercises.map((item, index) => <article className="wa-exercise-card" key={item.id}>
+        <div className="wa-exercise-card-head"><span className="wa-exercise-index">{String(index + 1).padStart(2, '0')}</span><div><small>{item.category}</small><strong>운동 종목 {index + 1}</strong></div>{exercises.length > 1 && <button type="button" className="wa-remove-exercise" onClick={() => removeExercise(item.id)} aria-label="종목 삭제"><X size={16}/></button>}</div>
+        <div className="wa-exercise-fields">
+          <label className="wa-field wa-field-exercise"><span>운동 종목</span><span className="wa-select-wrap"><select value={item.exercise_name} onChange={e => updateExercise(item.id, 'exercise_name', e.target.value)}>{CATEGORIES[item.category].map(name => <option key={name} value={name}>{name}</option>)}</select><ChevronDown size={14}/></span></label>
+          <label className="wa-field"><span>중량 <small>KG</small></span><span className="wa-number-wrap"><input type="number" min="0" max="1000" step="0.5" value={item.weight_kg} onChange={e => updateExercise(item.id, 'weight_kg', e.target.value)} required/><b>kg</b></span></label>
+          <label className="wa-field"><span>세트</span><span className="wa-number-wrap"><input type="number" min="1" max="100" step="1" value={item.sets} onChange={e => updateExercise(item.id, 'sets', e.target.value)} required/><b>set</b></span></label>
+          <label className="wa-field"><span>1세트 반복</span><span className="wa-number-wrap"><input type="number" min="1" max="1000" step="1" value={item.reps} onChange={e => updateExercise(item.id, 'reps', e.target.value)} required/><b>회</b></span></label>
         </div>
-        <article className="wa-panel wa-record-panel">
-          <div className="wa-panel-head"><div><span className="wa-eyebrow">LATEST SESSIONS</span><h3>최근 운동 기록</h3><p>입력한 실제 운동 정보만 표시합니다.</p></div><button className="wa-text-action" onClick={() => setView('records')}>전체 기록 보기 <ArrowUpRight size={15}/></button></div>
-          <div className="wa-record-list">{recent.slice(0, 4).map(item => <RecordRow key={item.id} item={item}/>)}</div>
+        <div className="wa-exercise-volume"><span>예상 운동량</span><strong>{formatNum(number(item.weight_kg) * number(item.sets) * number(item.reps))} <small>kg·회</small></strong></div>
+      </article>)}</div>
+      <button className="wa-add-exercise" type="button" onClick={() => addCategory(exercises[exercises.length - 1]?.category || '가슴')}><Plus size={16}/> 같은 카테고리 종목 추가</button>
+      <label className="wa-note-field"><span>운동 메모 <small>선택</small></span><textarea value={note} onChange={e => setNote(e.target.value)} maxLength={500} placeholder="예: 마지막 세트가 힘들었음, 자세에 집중함…"/></label>
+      <div className="wa-form-footer"><div><small>이번 세션 예상 운동량</small><strong>{formatNum(exercises.reduce((sum, item) => sum + number(item.weight_kg) * number(item.sets) * number(item.reps), 0))} <span>kg·회</span></strong></div><button className="wa-primary" type="submit" disabled={saving}><Save size={16}/>{saving ? '저장 중…' : '기록하기'}</button></div>
+      {error && <p className="wa-error" role="alert">{error}</p>}{message && <p className="wa-success" role="status">{message}</p>}
+    </form>}
+
+    {view === 'overview' && <>
+      <div className="wa-stats-grid">
+        <article className="wa-stat-card wa-stat-featured"><div className="wa-stat-top"><span>총 운동량</span><span className="wa-stat-icon"><Weight size={17}/></span></div><strong>{formatNum(totals.volume)}<small>kg·회</small></strong><div className="wa-stat-foot"><span>{period === 'all' ? '전체 누적 기록' : `최근 ${period}일 합계`}</span></div></article>
+        <article className="wa-stat-card"><div className="wa-stat-top"><span>총 세트</span><span className="wa-stat-icon"><Dumbbell size={17}/></span></div><strong>{formatNum(totals.sets)}<small>세트</small></strong><div className="wa-stat-foot"><span>기록된 세트 합계</span></div></article>
+        <article className="wa-stat-card"><div className="wa-stat-top"><span>총 반복 횟수</span><span className="wa-stat-icon"><Activity size={17}/></span></div><strong>{formatNum(totals.reps)}<small>회</small></strong><div className="wa-stat-foot"><span>세트 × 1세트 반복</span></div></article>
+        <article className="wa-stat-card"><div className="wa-stat-top"><span>운동 세션</span><span className="wa-stat-icon"><CalendarDays size={17}/></span></div><strong>{formatNum(totals.sessions)}<small>회</small></strong><div className="wa-stat-foot"><span>기록한 운동 날짜별 세션</span></div></article>
+      </div>
+      <div className="wa-main-grid">
+        <article className="wa-panel wa-week-panel">
+          <div className="wa-panel-head"><div><span className="wa-eyebrow">WEEKLY ACTIVITY</span><h3>최근 7일 기록</h3><p>운동 기록을 저장한 세션 수입니다.</p></div><span className="wa-panel-badge"><Activity size={14}/> 7 DAYS</span></div>
+          <div className="wa-chart" role="img" aria-label="최근 7일 운동 세션 수">{weekly.map(day => <div className={'wa-chart-day ' + (day.today ? 'today' : '')} key={day.key}><span className="wa-chart-value">{day.count || '—'}</span><div className="wa-chart-track"><i style={{ height: day.count ? `${Math.max(12, day.count / maxWeekly * 100)}%` : '3px' }}/></div><b>{day.label}</b><small>{day.day}일</small></div>)}</div>
+          <div className="wa-chart-summary"><span><i/> 기록한 세션</span><strong>{weekly.reduce((sum, day) => sum + day.count, 0)}회</strong></div>
         </article>
-      </> : <article className="wa-panel wa-record-panel wa-all-records">
-        <div className="wa-panel-head"><div><span className="wa-eyebrow">WORKOUT HISTORY</span><h3>운동 기록 타임라인</h3><p>{filtered.length}개의 기록이 기간에 포함됩니다.</p></div></div>
-        {recent.length ? <><div className="wa-record-list">{recent.map(item => <RecordRow key={item.id} item={item}/>)}</div>{filtered.length > 5 && <button className="wa-show-more" onClick={() => setExpanded(!expanded)}>{expanded ? '간단히 보기' : `기록 ${filtered.length - 5}개 더 보기`}</button>}</> : <div className="wa-no-results">선택한 기간에 운동 기록이 없어요. 기간을 바꾸면 이전 기록을 확인할 수 있습니다.</div>}
-      </article>}
-      <div className="wa-footnote"><span className="wa-footnote-dot"/> 분석 결과는 FITNOVA에 저장된 게시물의 운동 정보를 바탕으로 계산됩니다. 입력하지 않은 칼로리·심박수·중량은 추정하지 않습니다.</div>
+        <article className="wa-panel wa-insight-panel">
+          <div className="wa-panel-head"><div><span className="wa-eyebrow">CATEGORY BREAKDOWN</span><h3>카테고리별 종합</h3><p>선택한 기간 내 모든 종목을 합산했습니다.</p></div><span className="wa-insight-spark"><Trophy size={17}/></span></div>
+          {rankedCategories.length ? <div className="wa-category-totals">{rankedCategories.map(([category, value]) => <div className="wa-category-total" key={category}><div className="wa-category-total-top"><b>{category}</b><strong>{formatNum(value.volume)} <small>kg·회</small></strong></div><div className="wa-category-bar"><i style={{ width: `${Math.max(3, value.volume / Math.max(1, totals.volume) * 100)}%` }}/></div><span>{value.count}종목 · {value.sets}세트 · {formatNum(value.reps)}회</span></div>)}</div> : <div className="wa-no-results">아직 기록이 없습니다. 운동을 입력하고 ‘기록하기’를 눌러 보세요.</div>}
+          {topCategory && <div className="wa-insight-note">운동량 기준으로 가장 높은 카테고리는 <b>{topCategory[0]}</b>입니다. 중량 × 세트 × 반복 횟수로 계산하며, 체중 운동은 중량을 0kg으로 기록할 수 있어요.</div>}
+        </article>
+      </div>
+      <article className="wa-panel wa-record-panel">
+        <div className="wa-panel-head"><div><span className="wa-eyebrow">SESSION HISTORY</span><h3>운동 기록 내역</h3><p>{filtered.length}개 세션 · 종목별 상세 수치</p></div></div>
+        {filtered.length ? <div className="wa-session-list">{filtered.map(record => <article className="wa-session-card" key={record.id}><div className="wa-session-top"><div><span>{formatDate(record.created_at)}</span><strong>{(record.exercises || []).length}개 종목</strong></div><b>{formatNum(record.total_volume_kg)} <small>kg·회</small></b></div><div className="wa-session-exercises">{(record.exercises || []).map((exercise, index) => <div className="wa-session-exercise" key={index}><span className="wa-session-tag">{exercise.category}</span><div><strong>{exercise.exercise_name}</strong><small>{formatNum(exercise.weight_kg)}kg × {exercise.sets}세트 × {exercise.reps}회</small></div><b>{formatNum(exercise.volume_kg ?? number(exercise.weight_kg) * number(exercise.sets) * number(exercise.reps))}</b></div>)}</div>{record.note && <p className="wa-session-note">{record.note}</p>}</article>)}</div> : <div className="wa-no-results">선택한 기간에 기록이 없습니다.</div>}
+      </article>
+      <div className="wa-footnote"><span className="wa-footnote-dot"/> 총 운동량은 각 종목의 중량 × 세트 × 반복 횟수를 더한 값입니다. 실제 칼로리 소모량이나 의학적 평가는 포함하지 않습니다.</div>
     </>}
   </section>;
-}
-
-function RecordRow({ item }) {
-  const exercise = item._exercise;
-  const details = [
-    number(item.duration_minutes) ? formatMinutes(item.duration_minutes) : null,
-    number(item.sets_count) ? `${number(item.sets_count)}세트` : null,
-    String(item.reps || '').trim() || null
-  ].filter(Boolean);
-  return <article className="wa-record-row">
-    <div className="wa-record-date"><span>{item._date ? item._date.toLocaleDateString('ko-KR', { weekday: 'short' }) : '기록'}</span><b>{formatDate(item.created_at)}</b></div>
-    <div className="wa-record-symbol"><Dumbbell size={18}/></div>
-    <div className="wa-record-info"><strong>{exercise}</strong><span>{String(item.title || item.content || '운동 기록').slice(0, 84)}</span><div className="wa-record-tags">{details.length ? details.map((detail, index) => <small key={index}>{detail}</small>) : <small>세부 정보 없음</small>}</div></div>
-    <span className="wa-record-arrow"><ArrowUpRight size={16}/></span>
-  </article>;
 }
