@@ -292,6 +292,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [profileData, setProfileData] = useState(null);
   const [relationshipList, setRelationshipList] = useState({open:false,type:'followers',username:'',users:[],loading:false});
   const [ownPosts, setOwnPosts] = useState([]);
+  const [workoutRecords, setWorkoutRecords] = useState([]);
   const [savedPosts, setSavedPosts] = useState([]);
   const [savedPostIds, setSavedPostIds] = useState(new Set());
   const [accountSettings, setAccountSettings] = useState({private_account:false,allow_messages_from:'everyone',show_activity:true,show_workout_details:true});
@@ -399,6 +400,8 @@ function Dashboard({ user, tab, setTab, logout }) {
     catch (e) { setError(e.message || '프로필을 불러오지 못했습니다.'); }
   };
   const loadOwnPosts = async (username=user.username) => { try { const d=await api('/api/users/'+encodeURIComponent(username)+'/posts'); setOwnPosts(d.posts||[]); } catch(e){setError(e.message||'게시물을 불러오지 못했습니다.');} };
+  const loadWorkoutRecords = async () => { try { const d=await api('/api/workout-records'); setWorkoutRecords(d.records||[]); } catch(e) { setError(e.message||'운동 기록을 불러오지 못했습니다.'); } };
+  const saveWorkoutRecord = async (payload) => { const d=await api('/api/workout-records',{method:'POST',body:JSON.stringify(payload)}); setWorkoutRecords(items=>[d.record,...items]); return d.record; };
   const loadSavedPosts = async () => { try { const d=await api('/api/saved-posts'); setSavedPosts(d.posts||[]); setSavedPostIds(new Set((d.posts||[]).map(p=>p.id))); } catch(e){setError(e.message||'저장한 게시물을 불러오지 못했습니다.');} };
   const loadSettings = async () => { try { const d=await api('/api/account/settings'); setAccountSettings(d.settings); setAccountEmail(d.email||user.email); setSettingsEmailInput(d.email||user.email); } catch(e){setError(e.message||'설정을 불러오지 못했습니다.');} };
   const saveSettings = async (next=accountSettings) => {
@@ -596,7 +599,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     }, 700);
     return () => window.clearTimeout(timer);
   }, [user.username]);
-  useEffect(() => { if (tab === 'feed' || tab === 'home') loadPosts(); if (tab === 'profile') {loadProfile(); loadOwnPosts(selectedProfile || user.username);} if (tab === 'analysis') loadOwnPosts(user.username); if (tab === 'messages') loadThreads(); if(tab==='saved')loadSavedPosts(); if(tab==='settings')loadSettings(); }, [tab, selectedProfile]);
+  useEffect(() => { if (tab === 'feed' || tab === 'home') loadPosts(); if (tab === 'profile') {loadProfile(); loadOwnPosts(selectedProfile || user.username);} if (tab === 'analysis') loadWorkoutRecords(); if (tab === 'messages') loadThreads(); if(tab==='saved')loadSavedPosts(); if(tab==='settings')loadSettings(); }, [tab, selectedProfile]);
   useEffect(() => {
     if (tab !== 'home' || !posts.length) return;
     const videos = posts.filter(post => post.media_type === 'video' && post.id).slice(0, 2);
@@ -844,7 +847,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     {error&&<div className="alert error feed-alert">{error}</div>}{notice&&<div className="alert success feed-alert">{notice}</div>}
     {tab==='moderation'&&user.is_master&&<ModerationPanel/>}
     {tab==='steps'&&<StepCounterPanel />}
-    {tab==='analysis'&&<WorkoutAnalysisPanel posts={ownPosts} onCreatePost={openComposer} onRefresh={()=>loadOwnPosts(user.username)} />}
+    {tab==='analysis'&&<WorkoutAnalysisPanel records={workoutRecords} onSaveRecord={saveWorkoutRecord} onRefresh={loadWorkoutRecords} />}
     {tab==='feed'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?'불러오는 중…':'게시물 더 불러오기'}</button>}
     {tab==='feed'&&<section className="feed-layout"><div className="feed-heading"><div><span className="eyebrow">FITNOVA VIDEO FEED</span><h2>운동의 순간을 영상으로.</h2><p>영상 게시물만 모아보는 피드입니다.</p></div><button className="refresh-button" onClick={()=>loadPosts()}><Activity size={16}/> 새로고침</button></div><div className="feed-list">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>게시물을 불러오는 중…</b></div>:posts.filter(p=>p.media_type==='video').length===0?<div className="empty-feed"><div className="empty-art"><Video size={34}/></div><h3>아직 영상 게시물이 없어요</h3><p>옆의 + 버튼으로 운동 영상을 공유해 보세요.</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> 영상 게시물 작성</button></div>:posts.filter(p=>p.media_type==='video').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} editPost={editPost} sharePost={sharePost} priority={index<2}/>)}</div></section>}
     {tab==='home'&&<section className="feed-layout home-feed-layout"><div className="feed-heading"><div className="home-intro"><div className="home-intro-copy"><span className="home-intro-kicker"><Sparkles size={14}/> YOUR DAILY MOMENT</span><h2>오늘의 움직임이<br/><em>내일의 나를 만들어요.</em></h2><p>작은 기록도 충분히 멋져요. 오늘의 순간을 사진으로 남겨보세요.</p><div className="home-intro-tags"><span>MOVE</span><i/><span>GROW</span><i/><span>REPEAT</span></div></div><div className="home-intro-art" aria-hidden="true"><div className="home-intro-orbit home-intro-orbit-one"/><div className="home-intro-orbit home-intro-orbit-two"/><div className="home-intro-emblem"><Activity size={31}/></div><span className="home-intro-index">01 <small>SHOW UP</small></span></div></div><button className="refresh-button" onClick={()=>loadPosts()}><Activity size={16}/> 새로고침</button></div><div className="feed-list photo-feed">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>게시물을 불러오는 중…</b></div>:posts.filter(p=>p.media_type==='image').length===0?<div className="empty-feed"><div className="empty-art"><ImageIcon size={34}/></div><h3>아직 사진 게시물이 없어요</h3><p>운동 기록 사진이나 오늘의 변화를 공유해 보세요.</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> 사진 게시물 작성</button></div>:posts.filter(p=>p.media_type==='image').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} priority={index<2}/>)}</div></section>}
