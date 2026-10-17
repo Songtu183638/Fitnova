@@ -1,14 +1,125 @@
-/* FITNOVA UI parity layer */
-:root{--fitnova-lime:#b7ff36}
-html,body,#root{background:#080808}
-.app-shell{background:radial-gradient(ellipse at 50% 0%,#b7ff360b,transparent 42%),#080808!important}
-.side-rail{background:#090b09!important;border-right-color:#242724!important}
-.rail-nav button.selected,.mobile-nav button.selected{color:#b7ff36!important;background:#b7ff3614!important;border-color:#b7ff3633!important}
-.post-card,.settings-card,.steps-week-card,.steps-today-card,.empty-feed{border-color:#292d29!important;background-color:#111311!important}
-.post-card{border-radius:16px!important}
-.primary,.primary.compact,.post-modal-actions .primary{background:#b7ff36!important;color:#10140b!important}
-.icon-surface,.secondary-action,.refresh-button{border-color:#303630!important;background-color:#151815!important}
-.mobile-nav{border:1px solid #343a31!important;background:rgb(12 14 12 / 94%)!important;box-shadow:0 12px 42px #0009!important;backdrop-filter:blur(22px)}
-.mobile-nav button{min-height:44px;border-radius:12px}
-.post-actions button.liked,.saved-post-button.active{color:#b7ff36!important}
-@media(max-width:650px){.dashboard-main{padding-bottom:calc(100px + env(safe-area-inset-bottom))!important}.mobile-nav{left:10px!important;right:10px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;width:auto!important;justify-content:space-around;padding:7px 5px!important;border-radius:17px!important}.mobile-nav button{flex:1 1 0;min-width:0;gap:4px;padding:7px 2px;font-size:9px}}
+/* FITNOVA original UI port: visual system adapted to the existing Vite/React app.
+   Keep this stylesheet after style.css so the app's behavior and component tree stay intact. */
+:root {
+  --fitnova-lime: #a7ff3f;
+  --fitnova-lime-soft: #b7ff36;
+  --fitnova-bg: #080808;
+  --fitnova-panel: #101010;
+  --fitnova-panel-raised: #151515;
+  --fitnova-line: #292929;
+  --fitnova-muted: #858585;
+}
+html, body, #root { min-height: 100%; background: var(--fitnova-bg); color: #f5f5f5; }
+body { background: radial-gradient(circle at 50% -12%, #a7ff3f0c, transparent 36%), var(--fitnova-bg); }
+button, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+button { transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .12s ease, opacity .16s ease; }
+button:active:not(:disabled) { transform: scale(.98); }
+.app-shell { background: radial-gradient(ellipse at 65% 0%, #a7ff3f0d, transparent 36%), var(--fitnova-bg) !important; color: #f5f5f5; }
+.side-rail { background: rgb(9 9 9 / 96%) !important; border-right-color: #242424 !important; }
+.side-rail .brand, .rail-brand { letter-spacing: -1px; }
+.rail-brand span, .brand span, .eyebrow, .pill, .post-hashtags span { color: var(--fitnova-lime) !important; }
+.rail-nav button { border-radius: 11px !important; }
+.rail-nav button.selected, .mobile-nav button.selected { color: var(--fitnova-lime) !important; background: #a7ff3f12 !important; border-color: #a7ff3f32 !important; }
+.rail-nav button:hover { background: #ffffff08 !important; }
+.dashboard-main { color: #f5f5f5; }
+.dash-top { border-bottom: 1px solid #ffffff0b; }
+.dash-top h1, .feed-heading h2, .messages-heading h2, .settings-heading h2, .steps-heading h2 { letter-spacing: -1px; }
+.icon-surface, .refresh-button, .secondary-action { background: #121212 !important; border-color: #303030 !important; color: #bdbdbd !important; border-radius: 11px !important; }
+.icon-surface:hover, .refresh-button:hover, .secondary-action:hover { border-color: #a7ff3f66 !important; color: var(--fitnova-lime) !important; }
+.user-chip { background: #111 !important; border-color: #2c2c2c !important; }
+.welcome-banner { background: linear-gradient(110deg,#171717 0%,#101010 58%,#141414 100%) !important; border-color: #333 !important; border-radius: 20px !important; }
+.welcome-banner:after { background: linear-gradient(100deg,transparent 40%,#a7ff3f09) !important; }
+.welcome-copy h2 em, .welcome-copy h2 span { color: var(--fitnova-lime) !important; }
+.pill { border-color: #a7ff3f40 !important; background: #a7ff3f08 !important; }
+.stat-card, .panel, .module-card, .profile-card, .settings-card, .steps-week-card, .steps-today-card, .empty-feed {
+  background: linear-gradient(145deg,#131313,#0e0e0e) !important;
+  border-color: #292929 !important;
+  box-shadow: none !important;
+}
+.stat-card, .panel, .module-card, .settings-card, .steps-week-card, .steps-today-card { border-radius: 16px !important; }
+.stat-icon, .panel-icon, .quick-icon, .module-icon { background: #a7ff3f12 !important; color: var(--fitnova-lime) !important; border-color: #a7ff3f24 !important; }
+.stat-value small, .stat-label, .eyebrow { color: var(--fitnova-lime) !important; }
+.bar-track i, .week-bars i { background: linear-gradient(180deg,#c5ff70,#83cf25) !important; }
+.composer { background: linear-gradient(145deg,#141414,#0e0e0e) !important; border-color: #2b2b2b !important; border-radius: 16px !important; }
+.composer textarea, .comment-form input, .message-compose input, .settings-form input, .settings-form textarea, .settings-form select {
+  background: #090909 !important; border-color: #2d2d2d !important; color: #f5f5f5 !important;
+}
+.composer textarea:focus, .comment-form input:focus, .message-compose input:focus, .settings-form input:focus, .settings-form textarea:focus, .settings-form select:focus { border-color: #a7ff3f88 !important; box-shadow: 0 0 0 3px #a7ff3f0d !important; }
+.composer-avatar, .avatar, .profile-avatar { background: linear-gradient(135deg,#c5ff70,#a7ff3f 58%,#76b91f) !important; color: #080808 !important; }
+.post-card { background: linear-gradient(145deg,#121212,#0c0c0c) !important; border-color: #292929 !important; border-radius: 17px !important; padding: 20px !important; }
+.post-card:hover { border-color: #414141 !important; }
+.post-top { margin-bottom: 4px; }
+.post-title { font-size: 17px !important; letter-spacing: -.35px; }
+.post-content { color: #d0d0d0 !important; line-height: 1.8 !important; }
+.post-media { background: #050505 !important; border-color: #282828 !important; border-radius: 14px !important; }
+.post-hashtags span { background: #a7ff3f0c !important; border-color: #a7ff3f24 !important; border-radius: 8px !important; }
+.workout-details { background: #0a0a0a !important; border-color: #292929 !important; border-radius: 12px !important; }
+.post-actions { border-color: #292929 !important; }
+.post-actions button, .comment-count { min-height: 34px; }
+.post-actions button:hover { color: var(--fitnova-lime) !important; }
+.post-actions button.liked, .saved-post-button.active { color: var(--fitnova-lime) !important; }
+.comment-form { border-color: #292929 !important; }
+.comment-form button, .message-send-button { color: var(--fitnova-lime) !important; }
+.primary, .primary.compact, .post-modal-actions .primary, .follow-button, .followbtn {
+  background: var(--fitnova-lime) !important; color: #080808 !important; border-color: transparent !important;
+  border-radius: 11px !important; font-weight: 900 !important;
+}
+.primary:hover:not(:disabled) { background: #c5ff70 !important; filter: none !important; }
+.primary:focus-visible, button:focus-visible { outline: 2px solid #a7ff3f; outline-offset: 3px; }
+.input-wrap { background: #151515 !important; border-color: #303030 !important; }
+.input-wrap:focus-within { border-color: #a7ff3f88 !important; box-shadow: 0 0 0 3px #a7ff3f0d !important; }
+.input-wrap input { color: #f5f5f5 !important; }
+.auth-card { background: linear-gradient(145deg,#141414f7,#0c0c0cf7) !important; border-color: #2b2b2b !important; }
+.auth-card:before { background: linear-gradient(90deg,transparent,var(--fitnova-lime),transparent) !important; }
+.mini-mark { background: #a7ff3f12 !important; border-color: #a7ff3f40 !important; color: var(--fitnova-lime) !important; }
+.tabs { background: #090909 !important; border-color: #292929 !important; }
+.tabs button.active { background: #1b1b1b !important; color: var(--fitnova-lime) !important; }
+.alert.success { background: #14200d !important; border-color: #a7ff3f25 !important; color: #c4ff8a !important; }
+.messages-layout { gap: 12px !important; }
+.thread-list, .conversation-panel { background: #101010 !important; border-color: #292929 !important; border-radius: 16px !important; }
+.thread-list>button:hover, .thread-list>button.active { background: #1a1a1a !important; }
+.thread-item, .thread-open { border-radius: 11px !important; }
+.conversation-head { border-color: #292929 !important; }
+.chat-bubble { background: #1a1a1a !important; border: 1px solid #292929 !important; border-radius: 15px 15px 15px 5px !important; }
+.chat-bubble.mine { background: #243319 !important; border-color: #40552c !important; border-radius: 15px 15px 5px 15px !important; }
+.message-compose { background: #101010 !important; border-color: #292929 !important; }
+.notification-item, .notification-panel, .relationship-modal { background: #111 !important; border-color: #292929 !important; }
+.modal-backdrop, .social-overlay { backdrop-filter: blur(12px); }
+.post-modal, .relationship-modal, .notification-panel { background: #111 !important; border-color: #303030 !important; border-radius: 18px !important; }
+.mobile-nav { border: 1px solid #343434 !important; background: rgb(10 10 10 / 94%) !important; box-shadow: 0 12px 42px #000b, 0 0 24px #a7ff3f08 !important; backdrop-filter: blur(22px); }
+.mobile-nav button { min-height: 44px; border-radius: 12px !important; }
+.empty-feed, .empty-note { border-color: #333 !important; }
+::selection { background: #a7ff3f44; color: #fff; }
+@media (max-width: 950px) {
+  .welcome-banner { padding: 28px !important; }
+  .dashboard-main { padding-bottom: 20px; }
+}
+@media (max-width: 650px) {
+  body { background: #080808; }
+  .dashboard-main { padding: 20px 13px calc(104px + env(safe-area-inset-bottom)) !important; }
+  .dash-top { gap: 10px !important; margin-bottom: 22px !important; }
+  .dash-top h1 { font-size: 25px !important; }
+  .welcome-banner { min-height: 210px !important; padding: 23px 20px !important; border-radius: 17px !important; }
+  .welcome-copy h2 { font-size: 29px !important; }
+  .banner-orbit { opacity: .48; transform: scale(.82); transform-origin: center right; }
+  .stat-grid { gap: 9px !important; }
+  .stat-card { padding: 13px !important; }
+  .stat-value { font-size: 24px !important; }
+  .feed-heading { align-items: flex-start !important; margin-bottom: 16px !important; }
+  .feed-heading h2 { font-size: 25px !important; }
+  .composer { padding: 14px !important; gap: 10px !important; }
+  .post-card { padding: 15px !important; border-radius: 15px !important; }
+  .post-title { font-size: 16px !important; }
+  .post-actions { gap: 11px !important; flex-wrap: wrap; }
+  .post-actions button, .comment-count { gap: 5px !important; font-size: 10px !important; }
+  .messages-layout { display: flex !important; flex-direction: column !important; min-height: 0 !important; }
+  .thread-list { max-height: 40vh; overflow-y: auto; }
+  .conversation-panel { min-height: 55vh; }
+  .mobile-nav { left: max(9px,env(safe-area-inset-left)) !important; right: max(9px,env(safe-area-inset-right)) !important; bottom: calc(8px + env(safe-area-inset-bottom)) !important; width: auto !important; justify-content: space-around !important; padding: 7px 4px !important; border-radius: 17px !important; }
+  .mobile-nav button { flex: 1 1 0; min-width: 0; gap: 4px !important; padding: 7px 2px !important; font-size: 9px !important; }
+  .mobile-nav button svg { flex-shrink: 0; }
+  .post-modal { width: calc(100vw - 18px) !important; max-height: calc(100dvh - 26px) !important; overflow-y: auto !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; scroll-behavior: auto !important; }
+}
