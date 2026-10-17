@@ -309,21 +309,23 @@ def test_in_memory_hashtag_search_paginates_after_filtering(monkeypatch):
     assert any(post["id"] == matching_id for post in first_page.json()["posts"])
 
 
-def test_comment_delete_requires_author_and_removes_comment(monkeypatch):
+def test_post_owner_can_delete_comments_and_other_users_cannot(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token_a = _verified_user("comment_owner", "commentowner@example.com", sent)
     token_b = _verified_user("comment_other", "commentother@example.com", sent)
+    token_c = _verified_user("comment_outsider", "commentoutsider@example.com", sent)
     headers_a = {"Authorization": f"Bearer {token_a}"}
     headers_b = {"Authorization": f"Bearer {token_b}"}
+    headers_c = {"Authorization": f"Bearer {token_c}"}
     post = client.post("/api/posts", headers=headers_a, json={
         "title": "운동 기록", "content": "오늘 운동 완료", "media_type": "image",
         "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
     }).json()["post"]
     comment = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "좋은 기록!"}).json()["comment"]
-    forbidden = client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=headers_a)
+    forbidden = client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=headers_c)
     assert forbidden.status_code == 403
-    deleted = client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=headers_b)
+    deleted = client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=headers_a)
     assert deleted.status_code == 200
     assert deleted.json()["deleted"] is True
     comments = client.get("/api/posts", headers=headers_a).json()["posts"][0]["comments"]
