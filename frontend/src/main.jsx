@@ -203,7 +203,7 @@ function App() {
   };
 
   if (booting) return <main className="boot-screen"><div className="boot-logo"><Activity size={28}/></div><b>FIT<span>NOVA</span></b><div className="boot-track"><i/></div><small>세션을 확인하고 있어요</small></main>;
-  if (user) return <Dashboard user={user} tab={tab} setTab={setTab} logout={logout} />;
+  if (user) return <DashboardErrorBoundary><Dashboard user={user} tab={tab} setTab={setTab} logout={logout} /></DashboardErrorBoundary>;
 
   return <main className="auth-screen">
     <div className="auth-glow auth-glow-one" aria-hidden="true" />
@@ -255,6 +255,19 @@ function App() {
       </section>
     </section>
   </main>;
+}
+
+class DashboardErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error) {
+    // Preserve the error in the console for diagnosis instead of leaving a blank WebView.
+    console.error('FITNOVA dashboard render failed:', error);
+  }
+  render() {
+    if (this.state.failed) return <main className="app-shell"><section className="dashboard-main"><section className="steps-page"><div className="steps-permission-card" role="alert"><div className="steps-icon"><Activity size={25}/></div><h3>화면을 표시하는 중 문제가 발생했어요</h3><p>화면을 다시 열어 주세요. 문제가 반복되면 앱을 최신 버전으로 업데이트해 주세요.</p><button type="button" className="primary compact" onClick={() => window.location.reload()}>앱 화면 다시 열기</button></div></section></section></main>;
+    return this.props.children;
+  }
 }
 
 function Dashboard({ user, tab, setTab, logout }) {
