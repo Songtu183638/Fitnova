@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FITNOVA</string>
+    <string name="title_activity_main">FITNOVA</string>
+    <string name="package_name">com.fitnova.app</string>
+    <string name="custom_url_scheme">com.fitnova.app</string>
+</resources>
