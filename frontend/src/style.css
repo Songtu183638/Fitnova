@@ -1906,3 +1906,66 @@ button,input,textarea,select{font-family:inherit}
 .steps-page{max-width:920px;margin:0 auto;padding:4px 0 50px}.steps-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:20px}.steps-heading h2{margin:8px 0 5px;font-size:27px;letter-spacing:-.8px}.steps-heading p{margin:0;color:#98a197;font-size:13px}.steps-today-card,.steps-week-card,.steps-permission-card{border:1px solid #2a342b;border-radius:20px;background:linear-gradient(135deg,#151c16,#101310);padding:24px}.steps-today-card{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:15px;min-height:185px}.steps-today-label{display:flex;align-items:center;gap:8px;color:#b6c1b3;font-size:13px}.steps-today-label svg{color:#b6ff65}.steps-today-count{margin-top:15px;font-size:48px;font-weight:800;letter-spacing:-2px;line-height:1}.steps-today-count small{margin-left:8px;font-size:15px;font-weight:600;letter-spacing:0;color:#a4aea2}.steps-today-copy>p{margin:13px 0 0;color:#929d91;font-size:12px}.steps-today-copy>p b{color:#e2e9dd}.steps-goal-ring{width:112px;height:112px;flex:0 0 112px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#a8f05a var(--steps-progress),#303930 0);position:relative}.steps-goal-ring:before{content:"";position:absolute;inset:8px;border-radius:50%;background:#121713}.steps-goal-ring>div{position:relative;display:grid;gap:4px;text-align:center}.steps-goal-ring b{font-size:23px}.steps-goal-ring small{font-size:9px;color:#a1ab9e}.steps-week-card{padding:22px 24px 18px}.steps-week-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.steps-week-heading h3{margin:7px 0 0;font-size:16px}.steps-week-heading>span{color:#d3efbd;font-size:12px;font-weight:700}.steps-chart{height:200px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:11px;margin-top:26px}.steps-day{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}.steps-day-count{font-size:10px;color:#8d998b;white-space:nowrap}.steps-bar-track{height:142px;width:min(32px,70%);display:flex;align-items:flex-end;overflow:hidden;border-radius:9px;background:#1d241e}.steps-bar-track i{display:block;width:100%;border-radius:8px 8px 4px 4px;background:linear-gradient(180deg,#b8ff68,#5c9b3c);transition:height .3s ease}.steps-day b{font-size:11px;color:#a5aea2}.steps-day.today b,.steps-day.today .steps-day-count{color:#c0ff7a}.steps-day.today .steps-bar-track i{background:linear-gradient(180deg,#e1ff9e,#8acb4a)}.steps-privacy-note{display:flex;align-items:center;gap:8px;margin:14px 2px;color:#849082;font-size:11px;line-height:1.5}.steps-status-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#a8ef58;box-shadow:0 0 8px #a8ef5870}.steps-permission-card{display:flex;flex-direction:column;align-items:flex-start;max-width:620px;padding:27px}.steps-icon{display:grid;place-items:center;width:48px;height:48px;margin-bottom:8px;border-radius:15px;background:#24311f;color:#c1f77c}.steps-permission-card h3{margin:12px 0 5px;font-size:19px}.steps-permission-card p{margin:0 0 19px;color:#9ba599;font-size:13px;line-height:1.6}.steps-permission-card .primary{min-height:42px}@media(max-width:600px){.steps-page{padding:10px 0 30px}.steps-heading{align-items:flex-start}.steps-heading h2{font-size:23px}.steps-heading p{max-width:230px;font-size:11px;line-height:1.5}.steps-heading .refresh-button{padding:8px 10px;font-size:10px}.steps-today-card{padding:19px;min-height:155px;border-radius:16px}.steps-today-count{font-size:39px}.steps-goal-ring{width:88px;height:88px;flex-basis:88px}.steps-goal-ring b{font-size:19px}.steps-goal-ring small{font-size:8px}.steps-week-card{padding:19px 14px 15px;border-radius:16px}.steps-week-heading h3{font-size:14px}.steps-week-heading>span{font-size:10px}.steps-chart{height:180px;gap:4px;margin-top:22px}.steps-bar-track{height:125px;width:min(27px,72%)}.steps-day-count{font-size:9px}.steps-permission-card{padding:22px 18px}}
 
 .steps-privacy-note{justify-content:flex-start}.steps-privacy-note>span:nth-child(2){flex:1}.steps-privacy-note button{border:1px solid #394438;border-radius:8px;background:#141914;color:#b9c1b5;padding:7px 10px;font:inherit;font-size:10px;white-space:nowrap;cursor:pointer}.steps-status-dot.paused{background:#778174;box-shadow:none}
+
+
+/* Android WebView-safe authentication layout: never let the desktop two-column
+   sign-in layout overflow a narrow device viewport. */
+@media (max-width: 1100px) {
+  .auth-screen {
+    width: 100%;
+    min-width: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    overflow-x: clip;
+    overflow-y: auto;
+  }
+  .auth-layout {
+    width: 100%;
+    max-width: 520px;
+    min-width: 0;
+    margin: 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+    padding: 24px 0 calc(24px + env(safe-area-inset-bottom));
+    flex: 1 0 auto;
+    align-content: start;
+  }
+  .auth-welcome {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    text-align: center;
+  }
+  .auth-welcome h1 {
+    font-size: clamp(30px, 8vw, 42px);
+    line-height: 1.2;
+    letter-spacing: -1.5px;
+    overflow-wrap: anywhere;
+  }
+  .auth-welcome > p {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .auth-benefits {
+    justify-content: center;
+  }
+  .auth-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0 auto;
+    padding: 24px clamp(16px, 5vw, 26px) 20px;
+  }
+  .auth-card form,
+  .auth-card label,
+  .auth-card .input-wrap {
+    width: 100%;
+    min-width: 0;
+  }
+  .auth-card .input-wrap input {
+    min-width: 0;
+    width: 100%;
+  }
+}
