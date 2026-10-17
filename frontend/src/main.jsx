@@ -364,13 +364,41 @@ function Dashboard({ user, tab, setTab, logout }) {
     }
   };
   const refreshStepSnapshot = async () => {
-    const snapshot = await StepCounter.getWeeklySteps();
+    if (!Capacitor.isNativePlatform()) {
+      const snapshot = { supported: false, permissionGranted: false, tracking: false, todaySteps: 0, weekSteps: 0, days: [] };
+      setStepSnapshot(snapshot);
+      return snapshot;
+    }
+    if (typeof StepCounter?.getWeeklySteps !== 'function') {
+      throw new Error('만보기 모듈을 찾을 수 없습니다. 앱을 최신 APK로 다시 설치해 주세요.');
+    }
+    const raw = await StepCounter.getWeeklySteps();
+    const days = Array.isArray(raw?.days) ? raw.days.filter(day => day && typeof day === 'object') : [];
+    const snapshot = {
+      supported: raw?.supported === true,
+      permissionGranted: raw?.permissionGranted === true,
+      tracking: raw?.tracking === true,
+      todaySteps: Number.isFinite(Number(raw?.todaySteps)) ? Math.max(0, Number(raw.todaySteps)) : 0,
+      weekSteps: Number.isFinite(Number(raw?.weekSteps)) ? Math.max(0, Number(raw.weekSteps)) : 0,
+      days: days.map(day => ({
+        date: String(day.date || ''),
+        label: String(day.label || ''),
+        steps: Number.isFinite(Number(day.steps)) ? Math.max(0, Number(day.steps)) : 0,
+        isToday: day.isToday === true
+      }))
+    };
     setStepSnapshot(snapshot);
+    setStepError('');
     return snapshot;
   };
   const enableStepCounter = async () => {
     if (!Capacitor.isNativePlatform()) {
-      setStepError('걸음 수 측정은 Android 앱에서 사용할 수 있습니다.');
+      setStepSnapshot({ supported: false, permissionGranted: false, tracking: false, todaySteps: 0, weekSteps: 0, days: [] });
+      setStepError('걸음 수 측정은 센서가 지원되는 Android 앱에서 사용할 수 있습니다.');
+      return;
+    }
+    if (typeof StepCounter?.requestPermission !== 'function') {
+      setStepError('만보기 모듈을 찾을 수 없습니다. 수정된 APK를 빌드해 설치해 주세요.');
       return;
     }
     setStepBusy(true); setStepError('');
@@ -606,11 +634,20 @@ function Dashboard({ user, tab, setTab, logout }) {
   useEffect(() => { if (tab === 'feed' || tab === 'home') loadPosts(); if (tab === 'profile') {loadProfile(); loadOwnPosts(selectedProfile || user.username);} if (tab === 'messages') loadThreads(); if(tab==='saved')loadSavedPosts(); if(tab==='settings')loadSettings(); }, [tab, selectedProfile]);
   useEffect(() => {
     if (tab !== 'steps') return;
-    if (!Capacitor.isNativePlatform()) { setStepSnapshot({ supported: false, permissionGranted: false, tracking: false, days: [] }); return; }
+    if (!Capacitor.isNativePlatform()) {
+      setStepSnapshot({ supported: false, permissionGranted: false, tracking: false, todaySteps: 0, weekSteps: 0, days: [] });
+      setStepError('');
+      return;
+    }
     let active = true;
     const refresh = async () => {
-      try { const snapshot = await StepCounter.getWeeklySteps(); if (active) setStepSnapshot(snapshot); }
-      catch (e) { if (active) setStepError(e.message || '걸음 수 정보를 불러오지 못했습니다.'); }
+      try { await refreshStepSnapshot(); }
+      catch (e) {
+        if (active) {
+          setStepSnapshot(previous => previous || { supported: false, permissionGranted: false, tracking: false, todaySteps: 0, weekSteps: 0, days: [] });
+          setStepError(e?.message || '걸음 수 정보를 불러오지 못했습니다. 앱을 다시 실행해 주세요.');
+        }
+      }
     };
     refresh();
     const timer = window.setInterval(refresh, 15000);
@@ -1025,7 +1062,7 @@ class StepCounterPanelBoundary extends React.Component {
 }
 
 function StepCounterPanel({ snapshot, busy, error, onEnable, onStop, onRefresh }) {
-  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  const days = Array.isArray(snapshot?.days) ? snapshot.days.filter(day => day && typeof day === 'object') : [];
   const todaySteps = snapshot?.todaySteps || 0;
   const weekSteps = snapshot?.weekSteps || 0;
   const maxSteps = Math.max(10000, ...days.map(day => day.steps || 0));
