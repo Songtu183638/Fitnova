@@ -85,7 +85,6 @@ export default function WorkoutAnalysisPanel({ posts = [], onCreatePost, onRefre
   const maxSessions = Math.max(1, ...week.map(day => day.count));
   const recent = filtered.slice(0, expanded ? filtered.length : 5);
   const bestMuscle = Object.entries(stats.muscleCounts).sort((a, b) => b[1] - a[1])[0];
-  const previousCutoff = Date.now() - (period === 'all' ? 60 : Number(period) * 2) * 86400000;
   const previous = period === 'all' ? [] : records.filter(item => item._date && item._date.getTime() >= previousCutoff && item._date.getTime() < Date.now() - Number(period) * 86400000);
   const change = previous.length ? Math.round(((stats.sessions - previous.length) / previous.length) * 100) : null;
 
@@ -118,7 +117,7 @@ export default function WorkoutAnalysisPanel({ posts = [], onCreatePost, onRefre
     </div> : <>
       <div className="wa-stats-grid">
         <article className="wa-stat-card wa-stat-featured"><div className="wa-stat-top"><span>운동 세션</span><span className="wa-stat-icon"><Activity size={17}/></span></div><strong>{stats.sessions}<small>회</small></strong><div className="wa-stat-foot"><span>{period === 'all' ? '전체 기록' : `최근 ${period}일 기준`}</span>{change !== null && <span className={change >= 0 ? 'wa-trend-up' : 'wa-trend-down'}>{change >= 0 ? <ArrowUpRight size={13}/> : <ArrowDownRight size={13}/>} {Math.abs(change)}%</span>}</div></article>
-        <article className="wa-stat-card"><div className="wa-stat-top"><span>운동 시간</span><span className="wa-stat-icon"><Clock3 size={17}/></span></div><strong>{Math.floor(stats.minutes / 60) > 0 ? `${Math.floor(stats.minutes / 60)}<i>h</i> ` : ''}{stats.minutes % 60}<small>분</small></strong><div className="wa-stat-foot"><span>시간 정보가 입력된 기록 기준</span></div></article>
+        <article className="wa-stat-card"><div className="wa-stat-top"><span>운동 시간</span><span className="wa-stat-icon"><Clock3 size={17}/></span></div><strong>{Math.floor(stats.minutes / 60) > 0 && <><span>{Math.floor(stats.minutes / 60)}</span><i>h</i> </>}{stats.minutes % 60}<small>분</small></strong><div className="wa-stat-foot"><span>시간 정보가 입력된 기록 기준</span></div></article>
         <article className="wa-stat-card"><div className="wa-stat-top"><span>총 세트</span><span className="wa-stat-icon"><Dumbbell size={17}/></span></div><strong>{stats.sets.toLocaleString('ko-KR')}<small>세트</small></strong><div className="wa-stat-foot"><span>세트 수가 입력된 기록 기준</span></div></article>
         <article className="wa-stat-card"><div className="wa-stat-top"><span>활동한 날짜</span><span className="wa-stat-icon"><CalendarDays size={17}/></span></div><strong>{stats.activeDays}<small>일</small></strong><div className="wa-stat-foot"><span>중복 날짜는 한 번만 계산</span></div></article>
       </div>
