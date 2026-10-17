@@ -213,7 +213,7 @@ def _init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_created_at_idx ON posts(created_at DESC)")
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS workout_records (
+            CREATE TABLE IF NOT EXISTS workout_analysis_sessions (
                 id BIGSERIAL PRIMARY KEY,
                 username TEXT NOT NULL,
                 exercises JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -224,7 +224,7 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
-        conn.execute("CREATE INDEX IF NOT EXISTS workout_records_user_created_idx ON workout_records(username, created_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS workout_analysis_sessions_user_created_idx ON workout_analysis_sessions(username, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_author_created_idx ON posts(author_username, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_hashtags_gin_idx ON posts USING GIN (hashtags)")
         conn.execute("""
@@ -1909,7 +1909,7 @@ def list_workout_records(user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
             rows = conn.execute(
-                "SELECT id, username, exercises, total_volume_kg, total_sets, total_reps, note, created_at FROM workout_records WHERE username=%s ORDER BY created_at DESC LIMIT 300",
+                "SELECT id, username, exercises, total_volume_kg, total_sets, total_reps, note, created_at FROM workout_analysis_sessions WHERE username=%s ORDER BY created_at DESC LIMIT 300",
                 (user["username"],)
             ).fetchall()
         return {"records": [dict(row) for row in rows]}
@@ -1948,7 +1948,7 @@ def create_workout_record(payload: WorkoutRecordIn, user: dict = Depends(_curren
     if _DATABASE_URL:
         with _db() as conn:
             row = conn.execute(
-                """INSERT INTO workout_records(username, exercises, total_volume_kg, total_sets, total_reps, note)
+                """INSERT INTO workout_analysis_sessions(username, exercises, total_volume_kg, total_sets, total_reps, note)
                    VALUES (%s, %s::jsonb, %s, %s, %s, %s)
                    RETURNING id, username, exercises, total_volume_kg, total_sets, total_reps, note, created_at""",
                 (user["username"], json.dumps(exercises, ensure_ascii=False), total_volume_kg, total_sets, total_reps, note)
@@ -1975,7 +1975,7 @@ def delete_workout_record(record_id: int, user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
             result = conn.execute(
-                "DELETE FROM workout_records WHERE id=%s AND username=%s RETURNING id",
+                "DELETE FROM workout_analysis_sessions WHERE id=%s AND username=%s RETURNING id",
                 (record_id, user["username"])
             ).fetchone()
         if not result:
