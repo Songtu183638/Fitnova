@@ -270,6 +270,7 @@ input,textarea,select{accent-color:var(--green)}
 
 /* Lazy media and comment moderation controls */
 .media-loading{display:flex;align-items:center;justify-content:center;min-height:180px;background:#090d0a;border:1px solid #293326;border-radius:12px;color:#8d9986;font-size:12px}
+.media-error{border-color:#705238;color:#e2c69f}.media-error button{margin-left:10px;padding:7px 12px;border:1px solid #687849;border-radius:8px;background:#171d12;color:#c3ef83;font:inherit;cursor:pointer}
 .delete-comment{flex:0 0 auto;margin-left:auto;padding:3px 7px;border:1px solid #4a302c;border-radius:6px;background:#1a1110;color:#ffb4a9;font-size:10px;cursor:pointer}
 .delete-comment:hover{background:#321816;border-color:#8c4b40}
 .comment{align-items:flex-start;gap:9px;min-width:0}
