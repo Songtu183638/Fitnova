@@ -1,0 +1,14 @@
+/* FITNOVA UI parity layer */
+:root{--fitnova-lime:#b7ff36}
+html,body,#root{background:#080808}
+.app-shell{background:radial-gradient(ellipse at 50% 0%,#b7ff360b,transparent 42%),#080808!important}
+.side-rail{background:#090b09!important;border-right-color:#242724!important}
+.rail-nav button.selected,.mobile-nav button.selected{color:#b7ff36!important;background:#b7ff3614!important;border-color:#b7ff3633!important}
+.post-card,.settings-card,.steps-week-card,.steps-today-card,.empty-feed{border-color:#292d29!important;background-color:#111311!important}
+.post-card{border-radius:16px!important}
+.primary,.primary.compact,.post-modal-actions .primary{background:#b7ff36!important;color:#10140b!important}
+.icon-surface,.secondary-action,.refresh-button{border-color:#303630!important;background-color:#151815!important}
+.mobile-nav{border:1px solid #343a31!important;background:rgb(12 14 12 / 94%)!important;box-shadow:0 12px 42px #0009!important;backdrop-filter:blur(22px)}
+.mobile-nav button{min-height:44px;border-radius:12px}
+.post-actions button.liked,.saved-post-button.active{color:#b7ff36!important}
+@media(max-width:650px){.dashboard-main{padding-bottom:calc(100px + env(safe-area-inset-bottom))!important}.mobile-nav{left:10px!important;right:10px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;width:auto!important;justify-content:space-around;padding:7px 5px!important;border-radius:17px!important}.mobile-nav button{flex:1 1 0;min-width:0;gap:4px;padding:7px 2px;font-size:9px}}
