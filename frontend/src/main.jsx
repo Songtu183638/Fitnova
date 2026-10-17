@@ -698,9 +698,6 @@ function Dashboard({ user, tab, setTab, logout }) {
       form.append('title',postTitle.trim()); form.append('content',postContent.trim()); form.append('media_type',mediaType); form.append('media',postMedia.file,postMedia.file.name); form.append('hashtags',JSON.stringify(hashtags));
       if(postMedia.durationSeconds!==null) form.append('media_duration_seconds',String(postMedia.durationSeconds));
       if(postWeight!=='') form.append('weight',postWeight); if(postSets!=='') form.append('sets_count',postSets); if(postDuration!=='') form.append('duration_minutes',postDuration);
-Warning: truncated output (original token count: 8658)
-Total output lines: 100
-
       if(postExercise.trim()) form.append('exercise_name',postExercise.trim()); if(postReps.trim()) form.append('reps',postReps.trim()); if(postNotes.trim()) form.append('workout_notes',postNotes.trim());
       await new Promise((resolve,reject)=>{
         const xhr=new XMLHttpRequest(); xhr.open('POST',API+'/api/posts/upload');
