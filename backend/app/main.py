@@ -29,6 +29,8 @@ _post_likes = set()
 _follows = set()
 _messages = []
 _saved_posts = set()
+_workout_records = defaultdict(list)
+_workout_record_seq = 0
 _notifications = []
 _blocks = set()
 _suspended_users = set()
@@ -111,6 +113,17 @@ class PostIn(BaseModel):
     reps: str = Field(default="", max_length=100)
     duration_minutes: int | None = Field(default=None, ge=0, le=1440)
     workout_notes: str = Field(default="", max_length=1000)
+
+class WorkoutExerciseIn(BaseModel):
+    category: str = Field(min_length=1, max_length=30)
+    exercise_name: str = Field(min_length=1, max_length=100)
+    weight_kg: float = Field(default=0, ge=0, le=1000)
+    sets: int = Field(ge=1, le=100)
+    reps: int = Field(ge=1, le=1000)
+
+class WorkoutRecordIn(BaseModel):
+    exercises: list[WorkoutExerciseIn] = Field(min_length=1, max_length=30)
+    note: str = Field(default="", max_length=500)
 
 class CommentIn(BaseModel):
     content: str = Field(min_length=1, max_length=500)
@@ -199,6 +212,19 @@ def _init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS workout_notes TEXT NOT NULL DEFAULT ''")
         conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_created_at_idx ON posts(created_at DESC)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS workout_records (
+                id BIGSERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                exercises JSONB NOT NULL DEFAULT '[]'::jsonb,
+                total_volume_kg DOUBLE PRECISION NOT NULL DEFAULT 0,
+                total_sets INTEGER NOT NULL DEFAULT 0,
+                total_reps INTEGER NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS workout_records_user_created_idx ON workout_records(username, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_author_created_idx ON posts(author_username, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS posts_hashtags_gin_idx ON posts USING GIN (hashtags)")
         conn.execute("""
@@ -1876,3 +1902,89 @@ def edit_post(post_id: int, payload: PostEditIn, user: dict = Depends(_current_u
         if post["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인이 작성한 게시물만 수정할 수 있습니다.")
         post.update({"title":title,"content":content,"hashtags":hashtags})
     return {"updated": True, "id": post_id, "title": title, "content": content, "hashtags": hashtags}
+
+
+@app.get("/api/workout-records")
+def list_workout_records(user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            rows = conn.execute(
+                "SELECT id, username, exercises, total_volume_kg, total_sets, total_reps, note, created_at FROM workout_records WHERE username=%s ORDER BY created_at DESC LIMIT 300",
+                (user["username"],)
+            ).fetchall()
+        return {"records": [dict(row) for row in rows]}
+    with _lock:
+        records = [dict(item) for item in _workout_records.get(user["username"], [])]
+    records.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
+    return {"records": records[:300]}
+
+
+@app.post("/api/workout-records", status_code=201)
+def create_workout_record(payload: WorkoutRecordIn, user: dict = Depends(_current_user)):
+    global _workout_record_seq
+    exercises = []
+    total_volume_kg = 0.0
+    total_sets = 0
+    total_reps = 0
+    for item in payload.exercises:
+        category = item.category.strip()
+        exercise_name = item.exercise_name.strip()
+        if not category or not exercise_name:
+            raise HTTPException(status_code=422, detail="운동 카테고리와 종목을 선택해 주세요.")
+        volume = round(item.weight_kg * item.sets * item.reps, 2)
+        exercises.append({
+            "category": category,
+            "exercise_name": exercise_name,
+            "weight_kg": item.weight_kg,
+            "sets": item.sets,
+            "reps": item.reps,
+            "volume_kg": volume,
+        })
+        total_volume_kg += volume
+        total_sets += item.sets
+        total_reps += item.sets * item.reps
+    total_volume_kg = round(total_volume_kg, 2)
+    note = payload.note.strip()
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute(
+                """INSERT INTO workout_records(username, exercises, total_volume_kg, total_sets, total_reps, note)
+                   VALUES (%s, %s::jsonb, %s, %s, %s, %s)
+                   RETURNING id, username, exercises, total_volume_kg, total_sets, total_reps, note, created_at""",
+                (user["username"], json.dumps(exercises, ensure_ascii=False), total_volume_kg, total_sets, total_reps, note)
+            ).fetchone()
+        return {"record": dict(row)}
+    with _lock:
+        _workout_record_seq += 1
+        record = {
+            "id": _workout_record_seq,
+            "username": user["username"],
+            "exercises": exercises,
+            "total_volume_kg": total_volume_kg,
+            "total_sets": total_sets,
+            "total_reps": total_reps,
+            "note": note,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _workout_records[user["username"]].insert(0, record)
+    return {"record": record}
+
+
+@app.delete("/api/workout-records/{record_id}")
+def delete_workout_record(record_id: int, user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            result = conn.execute(
+                "DELETE FROM workout_records WHERE id=%s AND username=%s RETURNING id",
+                (record_id, user["username"])
+            ).fetchone()
+        if not result:
+            raise HTTPException(status_code=404, detail="운동 기록을 찾을 수 없습니다.")
+    else:
+        with _lock:
+            records = _workout_records.get(user["username"], [])
+            match = next((item for item in records if item["id"] == record_id), None)
+            if not match:
+                raise HTTPException(status_code=404, detail="운동 기록을 찾을 수 없습니다.")
+            records.remove(match)
+    return {"deleted": True, "id": record_id}
