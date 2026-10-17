@@ -9,6 +9,7 @@ import {
   UserPlus, UserCheck, MessageSquare, ChevronLeft, ChevronRight, Settings, Bookmark, KeyRound, UserX, MailCheck, Search, Flag, Ban, VolumeX, Pencil, Share2, ClipboardList, Footprints, RefreshCw
 } from 'lucide-react';
 import './style.css';
+import './source-ui-parity.css';
 
 // Keep localhost as a development convenience only. Production builds should use
 // an explicit API origin or a same-origin reverse proxy, never the developer's host.
