@@ -6,7 +6,7 @@ import {
   Activity, ArrowRight, Bell, CheckCircle2, Compass, Eye, EyeOff, Flame,
   Heart, Home, LockKeyhole, LogOut, Mail, MessageCircle, Send, ShieldCheck,
   Sparkles, Trash2, TrendingUp, UserRound, Users, X, Zap, Plus, Image as ImageIcon, Video, Hash, Dumbbell, Weight, Clock3, Upload, FileVideo, FileImage,
-  UserPlus, UserCheck, MessageSquare, ChevronLeft, ChevronRight, Settings, Bookmark, KeyRound, UserX, MailCheck, Search, Flag, Ban, VolumeX, Pencil, Share2, ClipboardList
+  UserPlus, UserCheck, MessageSquare, ChevronLeft, ChevronRight, Settings, Bookmark, KeyRound, UserX, MailCheck, Search, Flag, Ban, VolumeX, Pencil, Share2, ClipboardList, Footprints, RefreshCw
 } from 'lucide-react';
 import './style.css';
 
@@ -16,6 +16,7 @@ const API = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://loca
 const TOKEN_KEY = 'fitnova_access_token';
 const PushNotifications = registerPlugin('PushNotifications');
 const LocalNotifications = registerPlugin('LocalNotifications');
+const StepCounter = registerPlugin('StepCounter');
 const apiGetCache = new Map();
 const apiGetInFlight = new Map();
 let apiCacheGeneration = 0;
@@ -108,6 +109,9 @@ function App() {
   const [recoveryCode, setRecoveryCode] = useState('');
   const [recoveryPassword, setRecoveryPassword] = useState('');
   const [tab, setTab] = useState('home');
+  const [stepSnapshot, setStepSnapshot] = useState(null);
+  const [stepBusy, setStepBusy] = useState(false);
+  const [stepError, setStepError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -318,6 +322,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const nav = [
     { id: 'home', label: '홈', icon: Home },
+    { id: 'steps', label: '만보기', icon: Footprints },
     { id: 'feed', label: '피드', icon: Compass },
     { id: 'create', label: '작성', icon: Plus },
     { id: 'messages', label: '메시지', icon: MessageCircle },
@@ -357,6 +362,34 @@ function Dashboard({ user, tab, setTab, logout }) {
     } finally {
       if (requestId === postsRequestId.current) setFeedLoading(false);
     }
+  };
+  const refreshStepSnapshot = async () => {
+    const snapshot = await StepCounter.getWeeklySteps();
+    setStepSnapshot(snapshot);
+    return snapshot;
+  };
+  const enableStepCounter = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      setStepError('걸음 수 측정은 Android 앱에서 사용할 수 있습니다.');
+      return;
+    }
+    setStepBusy(true); setStepError('');
+    try {
+      const result = await StepCounter.requestPermission();
+      if (!result.granted) {
+        setStepError('신체 활동 권한을 허용해야 걸음 수를 측정할 수 있습니다.');
+        await refreshStepSnapshot();
+      } else {
+        await refreshStepSnapshot();
+      }
+    } catch (e) { setStepError(e.message || '걸음 수 권한을 설정하지 못했습니다.'); }
+    finally { setStepBusy(false); }
+  };
+  const stopStepCounter = async () => {
+    setStepBusy(true); setStepError('');
+    try { await StepCounter.stopTracking(); await refreshStepSnapshot(); }
+    catch (e) { setStepError(e.message || '만보기를 중지하지 못했습니다.'); }
+    finally { setStepBusy(false); }
   };
   const openProfile = (username) => { setRelationshipList(v=>({...v,open:false})); setSelectedProfile(username); setProfileData(null); setTab('profile'); setError(''); };
   const openRelationshipList = async (type, username) => {
@@ -571,6 +604,18 @@ function Dashboard({ user, tab, setTab, logout }) {
     return () => window.clearTimeout(timer);
   }, [user.username]);
   useEffect(() => { if (tab === 'feed' || tab === 'home') loadPosts(); if (tab === 'profile') {loadProfile(); loadOwnPosts(selectedProfile || user.username);} if (tab === 'messages') loadThreads(); if(tab==='saved')loadSavedPosts(); if(tab==='settings')loadSettings(); }, [tab, selectedProfile]);
+  useEffect(() => {
+    if (tab !== 'steps') return;
+    if (!Capacitor.isNativePlatform()) { setStepSnapshot({ supported: false, permissionGranted: false, tracking: false, days: [] }); return; }
+    let active = true;
+    const refresh = async () => {
+      try { const snapshot = await StepCounter.getWeeklySteps(); if (active) setStepSnapshot(snapshot); }
+      catch (e) { if (active) setStepError(e.message || '걸음 수 정보를 불러오지 못했습니다.'); }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [tab]);
   useEffect(() => {
     if (tab !== 'home' || !posts.length) return;
     const videos = posts.filter(post => post.media_type === 'video' && post.id).slice(0, 2);
@@ -814,9 +859,10 @@ function Dashboard({ user, tab, setTab, logout }) {
   const prettyDate = (value) => { try { return new Date(value).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
   return <main className={"app-shell "+(tab==="messages"&&activeChat?"chat-active":"")}>
     <aside className="side-rail"><a className="brand" href="#feed"><span className="brand-icon"><Activity size={21}/></span><span className="rail-brand">FIT<span>NOVA</span></span></a><div className="rail-nav">{nav.map(item=><button key={item.id} className={item.id==='create'?'nav-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?'게시물 작성':undefined}><item.icon size={20}/><span>{item.label}</span></button>)}</div><div className="rail-bottom"><div className="avatar">{user.username.slice(0,1).toUpperCase()}</div><button className="rail-logout" onClick={logout} aria-label="로그아웃"><LogOut size={18}/></button></div></aside>
-    <section className="dashboard-main"><header className={"dash-top "+(tab==="messages"&&activeChat?"chat-top-hidden":"")}><div><div className="eyebrow"><Sparkles size={13}/> MOVE. CONNECT. EVOLVE.</div><h1>{tab==='feed'?'함께 성장하는 피드':tab==='home'?'오늘도 한 단계 성장해요':tab==='messages'?'메시지':tab==='settings'?'설정':tab==='saved'?'저장한 게시물':tab==='moderation'?'신고 관리':'나의 FITNOVA'}</h1></div><div className="top-actions"><button className="icon-surface" aria-label="검색" title="검색" onClick={()=>{setSearchOpen(true);setNotificationsOpen(false);}}><Search size={19}/></button><button className="icon-surface notification-trigger" aria-label="알림" title="알림" onClick={()=>{setNotificationsOpen(!notificationsOpen);setSearchOpen(false);if(!notificationsOpen)loadNotifications(true);}}><Bell size={19}/>{unreadCount>0&&<i className="notification-dot">{unreadCount>9?'9+':unreadCount}</i>}</button><button className="user-chip" onClick={()=>setProfileOpen(!profileOpen)}><span className="avatar">{user.username.slice(0,1).toUpperCase()}</span><span><b>{user.username}</b><small>FITNOVA 멤버</small></span></button>{profileOpen&&<div className="profile-pop"><b>{user.username}</b><span>{user.email}</span><button onClick={logout}><LogOut size={15}/> 로그아웃</button></div>}</div></header>
+    <section className="dashboard-main"><header className={"dash-top "+(tab==="messages"&&activeChat?"chat-top-hidden":"")}><div><div className="eyebrow"><Sparkles size={13}/> MOVE. CONNECT. EVOLVE.</div><h1>{tab==='feed'?'함께 성장하는 피드':tab==='home'?'오늘도 한 단계 성장해요':tab==='steps'?'이번 주 걸음 수':tab==='messages'?'메시지':tab==='settings'?'설정':tab==='saved'?'저장한 게시물':tab==='moderation'?'신고 관리':'나의 FITNOVA'}</h1></div><div className="top-actions"><button className="icon-surface" aria-label="검색" title="검색" onClick={()=>{setSearchOpen(true);setNotificationsOpen(false);}}><Search size={19}/></button><button className="icon-surface notification-trigger" aria-label="알림" title="알림" onClick={()=>{setNotificationsOpen(!notificationsOpen);setSearchOpen(false);if(!notificationsOpen)loadNotifications(true);}}><Bell size={19}/>{unreadCount>0&&<i className="notification-dot">{unreadCount>9?'9+':unreadCount}</i>}</button><button className="user-chip" onClick={()=>setProfileOpen(!profileOpen)}><span className="avatar">{user.username.slice(0,1).toUpperCase()}</span><span><b>{user.username}</b><small>FITNOVA 멤버</small></span></button>{profileOpen&&<div className="profile-pop"><b>{user.username}</b><span>{user.email}</span><button onClick={logout}><LogOut size={15}/> 로그아웃</button></div>}</div></header>
     {error&&<div className="alert error feed-alert">{error}</div>}{notice&&<div className="alert success feed-alert">{notice}</div>}
     {tab==='moderation'&&user.is_master&&<ModerationPanel/>}
+    {tab==='steps'&&<StepCounterPanel snapshot={stepSnapshot} busy={stepBusy} error={stepError} onEnable={enableStepCounter} onStop={stopStepCounter} onRefresh={()=>refreshStepSnapshot().catch(e=>setStepError(e.message||'걸음 수를 새로고침하지 못했습니다.'))}/>}
     {tab==='feed'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?'불러오는 중…':'게시물 더 불러오기'}</button>}
     {tab==='feed'&&<section className="feed-layout"><div className="feed-heading"><div><span className="eyebrow">FITNOVA VIDEO FEED</span><h2>운동의 순간을 영상으로.</h2><p>영상 게시물만 모아보는 피드입니다.</p></div><button className="refresh-button" onClick={()=>loadPosts()}><Activity size={16}/> 새로고침</button></div><div className="feed-list">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>게시물을 불러오는 중…</b></div>:posts.filter(p=>p.media_type==='video').length===0?<div className="empty-feed"><div className="empty-art"><Video size={34}/></div><h3>아직 영상 게시물이 없어요</h3><p>옆의 + 버튼으로 운동 영상을 공유해 보세요.</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> 영상 게시물 작성</button></div>:posts.filter(p=>p.media_type==='video').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} editPost={editPost} sharePost={sharePost} priority={index<2}/>)}</div></section>}
     {tab==='home'&&<section className="feed-layout home-feed-layout"><div className="feed-heading"><div className="home-intro"><div className="home-intro-copy"><span className="home-intro-kicker"><Sparkles size={14}/> YOUR DAILY MOMENT</span><h2>오늘의 움직임이<br/><em>내일의 나를 만들어요.</em></h2><p>작은 기록도 충분히 멋져요. 오늘의 순간을 사진으로 남겨보세요.</p><div className="home-intro-tags"><span>MOVE</span><i/><span>GROW</span><i/><span>REPEAT</span></div></div><div className="home-intro-art" aria-hidden="true"><div className="home-intro-orbit home-intro-orbit-one"/><div className="home-intro-orbit home-intro-orbit-two"/><div className="home-intro-emblem"><Activity size={31}/></div><span className="home-intro-index">01 <small>SHOW UP</small></span></div></div><button className="refresh-button" onClick={()=>loadPosts()}><Activity size={16}/> 새로고침</button></div><div className="feed-list photo-feed">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>게시물을 불러오는 중…</b></div>:posts.filter(p=>p.media_type==='image').length===0?<div className="empty-feed"><div className="empty-art"><ImageIcon size={34}/></div><h3>아직 사진 게시물이 없어요</h3><p>운동 기록 사진이나 오늘의 변화를 공유해 보세요.</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> 사진 게시물 작성</button></div>:posts.filter(p=>p.media_type==='image').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} priority={index<2}/>)}</div></section>}
@@ -967,6 +1013,25 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
    return () => { if(observer) observer.disconnect(); video.removeEventListener('canplay',tryPlay); video.removeEventListener('loadeddata',tryPlay); };
  }, [mediaData, post.media_type, priority]);
  return <article className="post-card" id={"post-"+post.id} ref={cardRef}><div className="post-top"><button className="post-author author-link" onClick={()=>openProfile(post.author_username)} aria-label={post.author_username+' 프로필 보기'}><div className="composer-avatar">{(post.author_username||'?').slice(0,1).toUpperCase()}</div><div><b>{post.author_username}</b><small>{prettyDate(post.created_at)}</small></div></button><div className="post-owner-actions">{post.author_username===user.username&&<button className="delete-post" onClick={()=>editPost(post)} aria-label="게시물 수정" title="게시물 수정"><Pencil size={15}/></button>}{(post.author_username===user.username||user.is_master)&&<button className="delete-post" onClick={()=>removePost(post.id)} aria-label="게시물 삭제"><Trash2 size={17}/></button>}{user.is_master&&<button className="delete-post" onClick={()=>togglePostPin(post)} aria-label={post.pinned?"게시물 고정 해제":"게시물 상단 고정"} title={post.pinned?"고정 해제":"상단 고정"}><span>{post.pinned?"고정됨":"고정"}</span></button>}{user.is_master&&post.author_username!==user.username&&<button className="delete-post" onClick={()=>toggleSuspension(post.author_username)} aria-label="계정 정지"><Ban size={16}/></button>}{post.author_username!==user.username&&<button className="delete-post report-post-button" onClick={()=>reportPost("post",post.id)} aria-label="게시물 신고" title="게시물 신고"><Flag size={16}/></button>}</div></div><h3 className="post-title">{post.title||'운동 기록'}</h3>{post.media_type!=='text'&&<div className={mediaData?'post-media':(mediaFailed?'post-media media-loading media-error':'post-media media-loading')}>{mediaData?(post.media_type==='image'?<img src={mediaData} alt={post.title||'운동 사진'} loading={priority?'eager':'lazy'} fetchPriority={priority?'high':'auto'} decoding="async"/>:<video ref={videoRef} src={mediaData} controls preload={priority?'auto':'metadata'} autoPlay muted loop playsInline webkit-playsinline="true" onCanPlay={e=>e.currentTarget.play().catch(()=>{})}/>):<span>{mediaFailed?<>미디어를 불러오지 못했습니다. <button type="button" onClick={()=>{setMediaFailed(false);setMediaRetry(value=>value+1);}}>다시 시도</button></>:<>미디어 불러오는 중…</>}</span>}</div>}<p className="post-content">{post.content}</p>{post.hashtags?.length>0&&<div className="post-hashtags">{post.hashtags.map((tag,i)=><span key={i}>{tag.startsWith('#')?tag:'#'+tag}</span>)}</div>}{(post.weight!=null||post.sets_count!=null||post.exercise_name||post.reps||post.duration_minutes!=null||post.workout_notes)&&<div className="workout-details">{post.weight!=null&&<span><Weight size={14}/> 체중 {post.weight}kg</span>}{post.sets_count!=null&&<span><Dumbbell size={14}/> {post.sets_count}세트</span>}{post.exercise_name&&<span><Activity size={14}/> {post.exercise_name}</span>}{post.reps&&<span><TrendingUp size={14}/> {post.reps}</span>}{post.duration_minutes!=null&&<span><Clock3 size={14}/> {post.duration_minutes}분</span>}{post.workout_notes&&<p>{post.workout_notes}</p>}</div>}<div className="post-actions"><button className={post.liked_by_me?'liked':''} onClick={()=>toggleLike(post.id)}><Heart size={17} fill={post.liked_by_me?'currentColor':'none'}/><span>좋아요 {post.like_count||0}</span></button><button className={savedPostIds.has(post.id)?'saved-post-button active':'saved-post-button'} onClick={()=>toggleSavePost(post.id)} aria-label={savedPostIds.has(post.id)?'저장 취소':'게시물 저장'}><Bookmark size={17} fill={savedPostIds.has(post.id)?'currentColor':'none'}/><span>{savedPostIds.has(post.id)?'저장됨':'저장'}</span></button><button className="share-post-button" onClick={()=>sharePost(post)}><Share2 size={16}/><span>공유</span></button><span className="comment-count"><MessageCircle size={17}/>{(post.comments||[]).length}개 댓글</span></div>{(post.comments||[]).length>0&&<div className="comments-list">{post.comments.map(comment=><div className="comment" key={comment.id}><b>{comment.author_username}</b><span>{comment.content}</span>{(comment.author_username===user.username||post.author_username===user.username)&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>deleteComment(post.id,comment.id)} aria-label="댓글 삭제">삭제</button>}{comment.author_username!==user.username&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>toggleSafetyAction(comment.author_username,"block")} aria-label="댓글 작성자 차단">차단</button>}</div>)}</div>}<form className="comment-form" onSubmit={e=>{e.preventDefault();addComment(post.id);}}><input aria-label="댓글 입력" value={commentDrafts[post.id]||''} onChange={e=>setCommentDrafts(items=>({...items,[post.id]:e.target.value.slice(0,500)}))} placeholder="응원의 댓글을 남겨보세요..." maxLength={500}/><button type="submit" disabled={!(commentDrafts[post.id]||'').trim()} aria-label="댓글 등록"><Send size={16}/></button></form></article>;
+}
+
+function StepCounterPanel({ snapshot, busy, error, onEnable, onStop, onRefresh }) {
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  const todaySteps = snapshot?.todaySteps || 0;
+  const weekSteps = snapshot?.weekSteps || 0;
+  const maxSteps = Math.max(10000, ...days.map(day => day.steps || 0));
+  const progress = Math.min(100, Math.round(todaySteps / 10000 * 100));
+  const supported = snapshot?.supported !== false;
+  const permissionGranted = Boolean(snapshot?.permissionGranted);
+  return <section className="steps-page">
+    <header className="steps-heading"><div><span className="eyebrow">FITNOVA · DAILY MOVEMENT</span><h2>오늘도 한 걸음씩</h2><p>걸음 수를 확인하고 이번 주 움직임을 돌아보세요.</p></div><button type="button" className="refresh-button" onClick={onRefresh} aria-label="걸음 수 새로고침"><RefreshCw size={16}/> 새로고침</button></header>
+    {error&&<div className="alert error" role="alert">{error}</div>}
+    {!supported?<div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>이 기기에서는 만보기를 사용할 수 없어요</h3><p>걸음 수 센서가 있는 Android 기기에서 이용해 주세요.</p></div>:!permissionGranted?<div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>FITNOVA 만보기를 시작해 볼까요?</h3><p>신체 활동 권한을 허용하면 그 시점부터 걸음 수를 측정합니다. 앱을 닫아도 측정되며 걸음 수는 이 기기에만 저장됩니다.</p><button type="button" className="primary compact" onClick={onEnable} disabled={busy}>{busy?'권한 확인 중…':'걸음 수 측정 시작'}</button></div>:<>
+      <article className="steps-today-card"><div className="steps-today-copy"><span className="steps-today-label"><Footprints size={16}/> 오늘 걸음 수</span><div className="steps-today-count">{todaySteps.toLocaleString('ko-KR')}<small>걸음</small></div><p>이번 주 <b>{weekSteps.toLocaleString('ko-KR')}</b>걸음</p></div><div className="steps-goal-ring" style={{'--steps-progress':`${progress}%`}}><div><b>{progress}%</b><small>목표 10,000</small></div></div></article>
+      <article className="steps-week-card"><div className="steps-week-heading"><div><span className="eyebrow">THIS WEEK</span><h3>월요일부터 일요일까지</h3></div><span>{weekSteps.toLocaleString('ko-KR')} 걸음</span></div><div className="steps-chart" role="img" aria-label="이번 주 요일별 걸음 수 그래프">{days.map(day=><div className={'steps-day '+(day.isToday?'today':'')} key={day.date}><span className="steps-day-count">{(day.steps||0).toLocaleString('ko-KR')}</span><div className="steps-bar-track"><i style={{height:`${Math.max(day.steps?4:2,Math.round((day.steps||0)/maxSteps*100))}%`}}/></div><b>{day.label}</b></div>)}</div></article>
+      <div className="steps-privacy-note"><span className={'steps-status-dot '+(snapshot?.tracking?'':'paused')}/><span>{snapshot?.tracking?'백그라운드에서 측정 중':'만보기 측정이 중지되어 있어요'} · 앱을 닫아도 측정되며 걸음 기록은 이 기기에 저장됩니다.</span>{snapshot?.tracking?<button type="button" onClick={onStop} disabled={busy}>측정 중지</button>:<button type="button" onClick={onEnable} disabled={busy}>{busy?'시작 중…':'측정 다시 시작'}</button>}</div>
+    </>}
+  </section>;
 }
 
 function Stat({ icon: Icon, label, value, unit, note }) {
