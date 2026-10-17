@@ -258,14 +258,21 @@ function App() {
 }
 
 class DashboardErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { failed: false }; }
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(error) {
-    // Preserve the error in the console for diagnosis instead of leaving a blank WebView.
-    console.error('FITNOVA dashboard render failed:', error);
+  constructor(props) { super(props); this.state = { failed: false, message: '' }; }
+  static getDerivedStateFromError(error) { return { failed: true, message: String(error?.message || error || '알 수 없는 렌더링 오류') }; }
+  componentDidCatch(error, info) {
+    console.error('FITNOVA dashboard render failed:', error, info);
   }
   render() {
-    if (this.state.failed) return <main className="app-shell"><section className="dashboard-main"><section className="steps-page"><div className="steps-permission-card" role="alert"><div className="steps-icon"><Activity size={25}/></div><h3>화면을 표시하는 중 문제가 발생했어요</h3><p>화면을 다시 열어 주세요. 문제가 반복되면 앱을 최신 버전으로 업데이트해 주세요.</p><button type="button" className="primary compact" onClick={() => window.location.reload()}>앱 화면 다시 열기</button></div></section></section></main>;
+    if (this.state.failed) return <main role="alert" style={{position:'fixed',inset:0,zIndex:99999,boxSizing:'border-box',width:'100vw',minHeight:'100dvh',overflowY:'auto',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',background:'#080a08',color:'#f4f7f2',fontFamily:'system-ui,sans-serif'}}>
+      <section style={{boxSizing:'border-box',width:'min(100%,560px)',padding:'28px',border:'1px solid #303a2c',borderRadius:'20px',background:'#111610',textAlign:'center'}}>
+        <div style={{width:'48px',height:'48px',margin:'0 auto 18px',display:'grid',placeItems:'center',borderRadius:'14px',background:'#25351b',color:'#b7f34a'}}><Activity size={25}/></div>
+        <h2 style={{margin:'0 0 12px',fontSize:'22px',lineHeight:1.4}}>FITNOVA 화면 오류</h2>
+        <p style={{margin:'0 0 16px',color:'#b8c0b2',lineHeight:1.7}}>앱 화면을 표시하는 중 오류가 발생했어요. 오류 내용을 확인하면 원인을 더 정확히 고칠 수 있어요.</p>
+        <pre style={{boxSizing:'border-box',whiteSpace:'pre-wrap',overflowWrap:'anywhere',textAlign:'left',padding:'12px',borderRadius:'10px',background:'#090c08',color:'#d4e5c7',fontSize:'12px',lineHeight:1.5}}>{this.state.message}</pre>
+        <button type="button" style={{width:'100%',minHeight:'46px',marginTop:'12px',border:0,borderRadius:'12px',background:'#b7f34a',color:'#11160b',fontWeight:700,cursor:'pointer'}} onClick={() => window.location.reload()}>화면 다시 열기</button>
+      </section>
+    </main>;
     return this.props.children;
   }
 }
