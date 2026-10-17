@@ -109,9 +109,6 @@ function App() {
   const [recoveryCode, setRecoveryCode] = useState('');
   const [recoveryPassword, setRecoveryPassword] = useState('');
   const [tab, setTab] = useState('home');
-  const [stepSnapshot, setStepSnapshot] = useState(null);
-  const [stepBusy, setStepBusy] = useState(false);
-  const [stepError, setStepError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -278,6 +275,9 @@ class DashboardErrorBoundary extends React.Component {
 }
 
 function Dashboard({ user, tab, setTab, logout }) {
+  const [stepSnapshot, setStepSnapshot] = useState(null);
+  const [stepBusy, setStepBusy] = useState(false);
+  const [stepError, setStepError] = useState('');
   const [posts, setPosts] = useState(() => readHomePostsCache(user.username));
   const [feedLoading, setFeedLoading] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(false);
