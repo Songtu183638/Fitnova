@@ -374,3 +374,12 @@ input, textarea, select { max-width: 100%; }
     padding-bottom: calc(5px + var(--fitnova-safe-bottom)) !important;
   }
 }
+
+
+/* Ensure text in the current user's outgoing DM bubbles stays readable. */
+.conversation-screen .chat-bubble.mine,
+.conversation-screen .chat-bubble.mine p,
+.conversation-screen .chat-bubble.mine small,
+.conversation-screen .chat-bubble.mine .message-read-receipt {
+  color: #fff !important;
+}
