@@ -15,7 +15,7 @@ from pwdlib import PasswordHash
 
 app = FastAPI(title="FITNOVA API", version="0.2.0")
 origins = list(dict.fromkeys([x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:4173,capacitor://localhost,https://localhost,http://localhost").split(",") if x.strip()] + ["https://localhost", "capacitor://localhost"]))
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type"])
+app.add_middleware(CORSMiddleware, allow_origins=origins + ["https://fitnova-songtu183638.vercel.app", "https://fitnova-iota.vercel.app"], allow_origin_regex=r"https://fitnova(?:-[a-z0-9-]+)*\.vercel\.app", allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type"])
 
 _password_hash = PasswordHash.recommended()
 _lock = Lock()
