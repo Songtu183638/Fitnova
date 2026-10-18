@@ -125,9 +125,17 @@ function App() {
   }, []);
 
   const request = async (path, body) => {
-    const res = await fetch(API + path, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-    });
+    let res;
+    try {
+      res = await fetch(API + path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+    } catch (err) {
+      if (err instanceof TypeError && /fetch/i.test(err.message || '')) {
+        throw new Error('서버 연결에 실패했습니다. 잠시 후 다시 시도해 주세요. 반복되면 서버 연결 또는 CORS 설정을 확인해야 합니다.');
+      }
+      throw err;
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || '요청에 실패했습니다. 서버 설정을 확인해 주세요.');
     return data;
