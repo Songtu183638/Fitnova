@@ -16,6 +16,8 @@ public class StepCounterBootReceiver extends BroadcastReceiver {
         if (!context.getSharedPreferences("fitnova_step_counter", Context.MODE_PRIVATE).getBoolean("enabled", false)) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
         Intent service = new Intent(context, StepCounterService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(service);
         else context.startService(service);
