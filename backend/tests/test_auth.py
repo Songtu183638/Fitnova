@@ -508,6 +508,18 @@ def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch)
     assert pushes[0]["username"] == "master_user"
     assert pushes[0]["data"]["username"] == "flagged_user"
 
+    master_reports = client.get("/api/admin/reports?status=open", headers=master_headers)
+    assert master_reports.status_code == 200
+    assert len(master_reports.json()["reports"]) == 5
+    report_id = master_reports.json()["reports"][0]["id"]
+    reviewed = client.patch(
+        f"/api/admin/reports/{report_id}",
+        headers=master_headers,
+        json={"status": "reviewed"},
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["report"]["status"] == "reviewed"
+
     sixth_token = _verified_user("reporter_5", "reporter5@example.com", sent)
     sixth = client.post(
         "/api/reports",
