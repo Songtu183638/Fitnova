@@ -62,7 +62,9 @@ const pages = {
 };
 
 export default function LegalPages({ path = window.location.pathname }) {
-  const page = pages[path] || pages['/privacy'];
+  // Vercel may normalize extensionless routes with a trailing slash.
+  const normalizedPath = path === '/' ? '/' : path.replace(/\/+$/, '');
+  const page = pages[normalizedPath] || pages['/privacy'];
   const Icon = page.icon;
   return <main className="legal-shell">
     <header className="legal-topbar">
@@ -80,9 +82,9 @@ export default function LegalPages({ path = window.location.pathname }) {
         <p>운영자 명칭·문의 이메일·만 14세 이상 이용 정책을 반영했습니다. 다만 실제 데이터 처리업체, 국외 이전, 로그·신고·백업 보유기간과 삭제 절차는 배포 설정과 운영 실태를 대조해야 합니다. 이를 확인하고 법률 검토를 마친 뒤 최종 시행하세요.</p>
       </aside>
       <nav className="legal-tabs" aria-label="정책 문서">
-        <a className={path==='/privacy'?'active':''} href="/privacy">개인정보 처리방침</a>
-        <a className={path==='/terms'?'active':''} href="/terms">이용약관</a>
-        <a className={path==='/community-guidelines'?'active':''} href="/community-guidelines">커뮤니티 운영정책</a>
+        <a className={normalizedPath==='/privacy'?'active':''} href="/privacy">개인정보 처리방침</a>
+        <a className={normalizedPath==='/terms'?'active':''} href="/terms">이용약관</a>
+        <a className={normalizedPath==='/community-guidelines'?'active':''} href="/community-guidelines">커뮤니티 운영정책</a>
       </nav>
       <div className="legal-sections">{page.sections.map(([heading, body]) => <section className="legal-section" key={heading}><h2>{heading}</h2><p>{body}</p></section>)}</div>
       <footer className="legal-footer"><span>© 2026 FITNOVA</span><span>MOVE. CONNECT. EVOLVE.</span></footer>
