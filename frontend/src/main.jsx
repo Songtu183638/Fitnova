@@ -106,7 +106,6 @@ function App() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [recoveryStep, setRecoveryStep] = useState('');
@@ -156,7 +155,7 @@ function App() {
     e.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
       if (mode === 'register' && step === 'form') {
-        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password, age_confirmed: ageConfirmed });
+        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password });
         setStep('verify');
         setNotice('인증 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요.');
       } else if (mode === 'register') {
@@ -196,7 +195,7 @@ function App() {
   };
 
   const switchMode = (nextMode) => {
-    setMode(nextMode); setStep('form'); setRecoveryStep(''); setAgeConfirmed(false); setError(''); setNotice('');
+    setMode(nextMode); setStep('form'); setRecoveryStep(''); setError(''); setNotice('');
   };
   const logout = async () => {
     if (!window.confirm('FITNOVA에서 로그아웃할까요? 저장되지 않은 작성 내용은 사라질 수 있습니다.')) return;
