@@ -55,8 +55,22 @@ jobs:
           FIREBASE_GOOGLE_SERVICES_JSON: ${{ vars.FIREBASE_GOOGLE_SERVICES_JSON }}
         run: printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" > android/app/google-services.json
       - run: npx cap sync android
+      - name: Check Android release signing configuration
+        id: release-signing-check
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Release signing secrets are not all configured; skipping signed AAB."
+          fi
       - name: Configure Android release signing
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        if: ${{ steps.release-signing-check.outputs.enabled == 'true' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -72,7 +86,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - run: bash android/gradlew --no-daemon -p android assembleDebug
       - name: Build signed Google Play release bundle
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        if: ${{ steps.release-signing-check.outputs.enabled == 'true' }}
         run: bash android/gradlew --no-daemon -p android bundleRelease
       - uses: actions/upload-artifact@v4
         if: ${{ vars.VITE_API_URL != '' && vars.FIREBASE_GOOGLE_SERVICES_JSON != '' }}
@@ -80,7 +94,7 @@ jobs:
           name: fitnova-android-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        if: ${{ steps.release-signing-check.outputs.enabled == 'true' }}
         with:
           name: fitnova-android-release-aab
           path: frontend/android/app/build/outputs/bundle/release/app-release.aab
