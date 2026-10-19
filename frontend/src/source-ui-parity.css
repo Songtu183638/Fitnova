@@ -406,3 +406,21 @@ input, textarea, select { max-width: 100%; }
 .age-confirmation span { display:grid; gap:4px; min-width:0; }
 .age-confirmation strong { color:#e8eee4; font-size:13px; line-height:1.45; }
 .age-confirmation small { color:#929b8d; font-size:11px; line-height:1.5; }
+
+
+/* Mobile create action stays centered; DM send control is a sibling of the input and never wraps below it. */
+@media (max-width: 760px) {
+  .mobile-nav { display:flex !important; align-items:center !important; justify-content:space-between !important; gap:3px !important; }
+  .mobile-nav > button { flex:1 1 0 !important; min-width:0 !important; max-width:none !important; }
+  .mobile-nav > .mobile-create { order:0 !important; flex:0 0 46px !important; width:46px !important; max-width:46px !important; min-width:46px !important; height:46px !important; min-height:46px !important; padding:4px !important; margin:0 !important; }
+  .mobile-nav > .mobile-create span { font-size:7px !important; line-height:1 !important; white-space:nowrap !important; }
+  .conversation-screen .message-compose { display:flex !important; flex-flow:row nowrap !important; align-items:center !important; gap:8px !important; width:100% !important; min-width:0 !important; }
+  .conversation-screen .message-compose-field { display:flex !important; flex:1 1 0% !important; width:0 !important; min-width:0 !important; max-width:none !important; }
+  .conversation-screen .message-compose-field input { width:100% !important; min-width:0 !important; }
+  .conversation-screen .message-send-button { display:inline-flex !important; flex:0 0 42px !important; width:42px !important; min-width:42px !important; max-width:42px !important; height:42px !important; align-self:center !important; margin:0 !important; }
+}
+@media (max-width: 390px) {
+  .mobile-nav > .mobile-create { flex-basis:42px !important; width:42px !important; max-width:42px !important; min-width:42px !important; }
+  .conversation-screen .message-compose { gap:6px !important; }
+  .conversation-screen .message-send-button { flex-basis:38px !important; width:38px !important; min-width:38px !important; max-width:38px !important; height:38px !important; }
+}
