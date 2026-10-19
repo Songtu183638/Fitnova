@@ -8,3 +8,9 @@ __pycache__/
 .env.*
 !.env.example
 *.py[cod]
+
+# Android signing material — never commit private keys or certificates.
+*.jks
+*.keystore
+*.p12
+*.pfx
