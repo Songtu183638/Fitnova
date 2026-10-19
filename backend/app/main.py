@@ -1745,6 +1745,10 @@ class ReportIn(BaseModel):
     details: str = Field(default="", max_length=1000)
 
 
+class ReportStatusIn(BaseModel):
+    status: str = Field(pattern=r"^(reviewed|dismissed)$")
+
+
 def _maybe_alert_master_report_threshold(target_username: str) -> None:
     """Alert the master once when an account receives its fifth user report."""
     target = _find_username(target_username)
@@ -1960,6 +1964,57 @@ def create_report(payload: ReportIn, user: dict = Depends(_current_user)):
     if payload.target_type == "user":
         _maybe_alert_master_report_threshold(payload.target_id)
     return {"reported": True, "message": "신고가 접수되었습니다. 검토하겠습니다."}
+
+
+@app.get("/api/admin/reports")
+def list_admin_reports(
+    status: str = Query(default="open", pattern=r"^(open|reviewed|dismissed|all)$"),
+    user: dict = Depends(_current_user),
+):
+    if not _is_master(user):
+        raise HTTPException(status_code=403, detail="마스터 계정만 신고를 관리할 수 있습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            if status == "all":
+                rows = conn.execute(
+                    """SELECT id, reporter_username, target_type, target_id, reason, details, status, created_at
+                       FROM content_reports ORDER BY created_at DESC LIMIT 500"""
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT id, reporter_username, target_type, target_id, reason, details, status, created_at
+                       FROM content_reports WHERE status=%s ORDER BY created_at DESC LIMIT 500""",
+                    (status,),
+                ).fetchall()
+        reports = [dict(row) for row in rows]
+    else:
+        reports = [dict(item) for item in _reports if status == "all" or item.get("status", "open") == status]
+        reports.sort(key=lambda item: item.get("id", 0), reverse=True)
+        reports = reports[:500]
+    return {"reports": reports}
+
+
+@app.patch("/api/admin/reports/{report_id}")
+def update_admin_report_status(report_id: int, payload: ReportStatusIn, user: dict = Depends(_current_user)):
+    if not _is_master(user):
+        raise HTTPException(status_code=403, detail="마스터 계정만 신고를 관리할 수 있습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute(
+                """UPDATE content_reports SET status=%s WHERE id=%s
+                   RETURNING id, reporter_username, target_type, target_id, reason, details, status, created_at""",
+                (payload.status, report_id),
+            ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다.")
+        report = dict(row)
+    else:
+        report = next((item for item in _reports if item["id"] == report_id), None)
+        if not report:
+            raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다.")
+        report["status"] = payload.status
+        report = dict(report)
+    return {"report": report}
 
 
 @app.patch("/api/posts/{post_id}")
