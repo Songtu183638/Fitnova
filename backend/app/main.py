@@ -584,6 +584,8 @@ def health():
 
 @app.post("/api/auth/register", status_code=202)
 def register(payload: RegisterIn, request: Request):
+    if not payload.age_confirmed:
+        raise HTTPException(status_code=422, detail="FITNOVA 가입은 만 14세 이상이며 연령 확인이 필요합니다.")
     email = str(payload.email).lower()
     _rate_limit("register:" + (request.client.host if request.client else "unknown"), 5)
     display_name = payload.name.strip() if payload.name is not None else payload.username
