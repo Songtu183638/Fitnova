@@ -477,6 +477,7 @@ def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch)
     sent = {}
     pushes = []
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_rate_limit", lambda key, limit=8, window=900: None)
     monkeypatch.setattr(auth, "_send_push", lambda username, title, body, data=None: pushes.append({
         "username": username, "title": title, "body": body, "data": data or {}
     }))
