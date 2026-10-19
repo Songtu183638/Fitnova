@@ -18,7 +18,7 @@
 - GitHub Actions 백엔드 테스트: **20 passed** 확인
 - 같은 CI 실행에서 Vite 프런트엔드 빌드 성공 확인
 - Vercel 프로덕션 별칭이 기능 커밋 `ff78f5ca`를 대상으로 **READY**인 것을 확인했습니다.
-- Android `assembleDebug`는 해당 확인 시점에 아직 실행 중이었습니다. 최신 상태는 [GitHub Actions](https://github.com/Songtu183638/Fitnova/actions)에서 확인하세요.
+- 같은 CI 실행에서 Android `assembleDebug` 및 아티팩트 업로드 단계도 **성공**했습니다. 이 결과는 debug APK 빌드 성공이며, Google Play용 서명 release AAB를 의미하지 않습니다. [검증된 GitHub Actions 실행](https://github.com/Songtu183638/Fitnova/actions/runs/39230122966).
 - 백엔드 테스트 로그에는 FastAPI `on_event` 및 Starlette/httpx 관련 비치명적 deprecation 경고가 남아 있습니다.
 
 ## 출시 전에 반드시 완료할 항목
