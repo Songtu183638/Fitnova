@@ -399,3 +399,10 @@ input, textarea, select { max-width: 100%; }
   .safety-list-row { align-items: flex-start; }
   .safety-list-row .secondary-action { min-height: 34px; }
 }
+
+/* Required minimum-age confirmation in the signup form. */
+.age-confirmation { display:flex; align-items:flex-start; gap:11px; padding:12px 13px; border:1px solid #30382c; border-radius:12px; background:#0b0e0a; cursor:pointer; }
+.age-confirmation input[type="checkbox"] { flex:0 0 auto; width:18px; height:18px; margin:2px 0 0; accent-color:#b7f34a; cursor:pointer; }
+.age-confirmation span { display:grid; gap:4px; min-width:0; }
+.age-confirmation strong { color:#e8eee4; font-size:13px; line-height:1.45; }
+.age-confirmation small { color:#929b8d; font-size:11px; line-height:1.5; }
