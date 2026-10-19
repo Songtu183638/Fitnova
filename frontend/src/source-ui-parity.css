@@ -383,3 +383,19 @@ input, textarea, select { max-width: 100%; }
 .conversation-screen .chat-bubble.mine .message-read-receipt {
   color: #fff !important;
 }
+
+/* Account safety controls: manage blocked and muted accounts from Settings. */
+.settings-card-title { min-width: 0; }
+.settings-card-title > button { flex: 0 0 auto; }
+.safety-list-groups { display: grid; gap: 18px; margin-top: 16px; }
+.safety-list-group { display: grid; gap: 8px; min-width: 0; }
+.safety-list-group > b { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #e8eee4; font-size: 12px; }
+.safety-list-group > b span { color: #a7ff3f; font-variant-numeric: tabular-nums; }
+.safety-list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 10px 11px; border: 1px solid #292f29; border-radius: 11px; background: #0c0f0c; }
+.safety-list-row > span { min-width: 0; overflow-wrap: anywhere; color: #dce4d7; font-size: 12px; }
+.safety-list-row .secondary-action { flex: 0 0 auto; min-height: 32px; padding: 6px 10px; font-size: 10px; }
+.safety-list-empty { margin: 0; padding: 11px 12px; border: 1px dashed #30372e; border-radius: 10px; color: #8f9a8d; font-size: 11px; line-height: 1.5; }
+@media (max-width: 520px) {
+  .safety-list-row { align-items: flex-start; }
+  .safety-list-row .secondary-action { min-height: 34px; }
+}
