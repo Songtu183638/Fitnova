@@ -36,6 +36,8 @@ _blocks = set()
 _suspended_users = set()
 _mutes = set()
 _reports = []
+_report_alerted_users = set()
+_report_alert_lock = Lock()
 _notification_seq = 0
 _report_seq = 0
 _user_settings = {}
@@ -295,6 +297,13 @@ def _init_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS content_reports_status_idx ON content_reports(status, created_at DESC)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS account_report_alerts (
+                target_username TEXT PRIMARY KEY,
+                report_count INTEGER NOT NULL DEFAULT 5,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS notifications (
                 id BIGSERIAL PRIMARY KEY, recipient_username TEXT NOT NULL,
@@ -1736,6 +1745,53 @@ class ReportIn(BaseModel):
     details: str = Field(default="", max_length=1000)
 
 
+def _maybe_alert_master_report_threshold(target_username: str) -> None:
+    """Alert the master once when an account receives its fifth user report."""
+    target = _find_username(target_username)
+    if not target:
+        return
+    normalized = target["username"].casefold()
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*)::int AS report_count FROM content_reports WHERE target_type='user' AND LOWER(target_id)=LOWER(%s)",
+                (target["username"],),
+            ).fetchone()
+            count = int(row["report_count"] or 0)
+            if count < 5:
+                return
+            claimed = conn.execute(
+                """INSERT INTO account_report_alerts(target_username, report_count)
+                   VALUES (%s, %s) ON CONFLICT (target_username) DO NOTHING
+                   RETURNING target_username""",
+                (normalized, count),
+            ).fetchone()
+        if not claimed:
+            return
+    else:
+        with _report_alert_lock:
+            count = sum(
+                1 for report in _reports
+                if report.get("target_type") == "user"
+                and str(report.get("target_id", "")).casefold() == normalized
+            )
+            if count < 5 or normalized in _report_alerted_users:
+                return
+            _report_alerted_users.add(normalized)
+
+    master = _find_email("fitnova@naver.com")
+    if not master or master["username"].casefold() == normalized:
+        return
+    message = f"@{target['username']} 계정에 신고가 {count}건 접수되었습니다. 신고 관리에서 확인해 주세요."
+    _notify(master["username"], target["username"], "report_threshold", message)
+    _send_push(
+        master["username"],
+        "FITNOVA 신고 알림",
+        f"@{target['username']} 계정에 신고가 5건 이상 접수되었습니다.",
+        {"type": "report_threshold", "username": target["username"]},
+    )
+
+
 @app.get("/api/search")
 def search_social(q: str = Query(default="", max_length=80), user: dict = Depends(_current_user)):
     term = q.strip().lstrip("#").strip()
@@ -1901,6 +1957,8 @@ def create_report(payload: ReportIn, user: dict = Depends(_current_user)):
         else:
             _report_seq += 1
             _reports.append({"id":_report_seq,"reporter_username":user["username"],"target_type":payload.target_type,"target_id":payload.target_id,"reason":payload.reason,"details":payload.details,"status":"open"})
+    if payload.target_type == "user":
+        _maybe_alert_master_report_threshold(payload.target_id)
     return {"reported": True, "message": "신고가 접수되었습니다. 검토하겠습니다."}
 
 
