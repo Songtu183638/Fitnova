@@ -15,6 +15,8 @@ def setup_function():
     auth._messages.clear()
     auth._saved_posts.clear()
     auth._user_settings.clear()
+    auth._blocks.clear()
+    auth._mutes.clear()
     auth._account_codes.clear()
     auth._message_seq = 0
     auth._post_seq = 0
@@ -422,3 +424,32 @@ def test_binary_video_upload_and_raw_media_delivery(monkeypatch):
     assert stream.content == b"fake-"
     assert stream.headers["content-range"].startswith("bytes 0-4/")
     assert stream.headers["accept-ranges"] == "bytes"
+
+
+def test_account_safety_lists_can_unblock_and_unmute(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+
+    def create_verified_user(username, email):
+        payload = {"username": username, "email": email, "password": "StrongPass!123"}
+        response = client.post("/api/auth/register", json=payload)
+        assert response.status_code == 202
+        verified = client.post("/api/auth/verify", json={"email": email, "code": sent["code"]})
+        assert verified.status_code == 200
+        return {"Authorization": f"Bearer {verified.json()['access_token']}"}
+
+    owner_headers = create_verified_user("safety_owner", "safety_owner@example.com")
+    create_verified_user("safety_target", "safety_target@example.com")
+    assert client.post("/api/users/safety_target/block", headers=owner_headers).status_code == 200
+    assert client.post("/api/users/safety_target/mute", headers=owner_headers).status_code == 200
+
+    lists = client.get("/api/account/safety", headers=owner_headers)
+    assert lists.status_code == 200
+    assert lists.json()["blocked_users"] == ["safety_target"]
+    assert lists.json()["muted_users"] == ["safety_target"]
+
+    assert client.post("/api/users/safety_target/block", headers=owner_headers).json()["blocked"] is False
+    assert client.post("/api/users/safety_target/mute", headers=owner_headers).json()["muted"] is False
+    lists = client.get("/api/account/safety", headers=owner_headers).json()
+    assert lists["blocked_users"] == []
+    assert lists["muted_users"] == []
