@@ -1,6 +1,8 @@
 # FITNOVA backend
 
-FastAPI authentication starter. Python 3.11+ recommended.
+FastAPI API for FITNOVA. Python 3.11+ is recommended.
+
+## Local development
 
 ```bash
 python -m venv .venv
@@ -8,10 +10,37 @@ python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-```
+``
 
-Set `JWT_SECRET` to a long random secret before deployment. Configure `APP_ENV=production`, `SMTP_HOST`, `SMTP_PORT` (usually 587), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, and `CORS_ORIGINS` to send real verification mail. Development mode prints the code to the server console only; the HTTP response never contains it.
+Without `DATABASE_URL`, local development and automated tests use an in-memory adapter. That data disappears when the process restarts and is not suitable for public production. When `APP_ENV=production`, the API refuses to start without `DATABASE_URL` and `JWT_SECRET`.
 
-**Prototype limitation:** user and verification data currently live in process memory, so restarts erase them and multiple workers are not safe. Replace this adapter with PostgreSQL and a shared rate limiter before public production launch. Use HTTPS and a managed secret store. Do not run multiple workers with this in-memory version.
+## Required production configuration
 
-Run tests from this directory with `pytest -q`.
+Configure these values in the hosting provider's secret/environment settings, never in Git:
+
+- `APP_ENV=production`
+- `DATABASE_URL`: PostgreSQL connection string (use the provider's pooled URL only if supported by your database setup)
+- `JWT_SECRET`: long, random secret used to sign sessions
+- `VERIFICATION_CODE_SECRET`: separate long, random secret for one-time codes
+- `CORS_ORIGINS`: comma-separated exact trusted origins
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`: required for real verification and security emails
+
+For Android push notifications, configure `FIREBASE_SERVICE_ACCOUNT_JSON` on the API server and include the matching Firebase Android configuration in the built app. Push notifications will not work without both sides.
+
+## Data and operational notes
+
+- PostgreSQL-backed records persist when `DATABASE_URL` is configured; the in-memory adapter is for local tests only.
+- The API creates/updates its required tables during startup. Keep regular database backups and verify restore procedures before launch.
+- Rate-limit counters are process-local. For multiple server workers or higher traffic, replace them with a shared limiter (for example, Redis).
+- Account deletion is scheduled with a 30-day grace period; verify the live database cleanup and retention behavior before public release.
+- Never commit production secrets, Firebase service-account files, or real user data.
+
+## Tests
+
+Run from this directory:
+
+```bash
+pytest -q
+``
+
+The GitHub Actions workflow also builds the frontend and Android debug target. A successful debug build is not a signed Google Play release bundle.
