@@ -51,7 +51,7 @@
 ### 3. Android / Google Play
 
 - [ ] Firebase 클라이언트 설정과 서버의 Firebase Admin 자격 증명을 확인하고 실제 푸시 알림을 테스트합니다. 둘 중 하나라도 없으면 푸시가 작동하지 않습니다.
-- [ ] 서명된 **release AAB**를 생성합니다. CI의 debug APK 빌드 성공은 Play Store 출시 번들/서명 완료를 의미하지 않습니다.
+- [ ] 서명된 **release AAB**를 생성합니다. CI에는 서명 키를 GitHub Actions Secrets에 설정했을 때만 `fitnova-android-release-aab` 아티팩트를 빌드·업로드하는 단계가 준비되어 있습니다. 아래의 키 설정을 운영자가 완료해야 합니다. CI의 debug APK 빌드 성공은 Play Store 출시 번들/서명 완료를 의미하지 않습니다.
 - [ ] 실제 Android 기기에서 가입, 로그인, 비밀번호 재설정, 사진/동영상 업로드, DM, 읽음 표시, 차단/숨김, 회원탈퇴를 테스트합니다.
 - [ ] 만보기 권한, 백그라운드 동작, 배터리 절약 모드, 기기 재부팅 후 동작을 확인합니다.
 - [ ] Google Play의 Data safety, 콘텐츠 등급, 앱 액세스 안내, 개인정보 URL을 실제 기능과 일치하게 작성합니다.
@@ -75,3 +75,15 @@
 - 운동 기록, Android 만보기 모듈, 계정 삭제 유예 처리
 
 목록에 있는 기능도 모든 외부 설정과 실제 기기 환경에서 검증되었다는 뜻은 아닙니다. 공개 출시 여부는 위 차단 항목을 완료하고 실서비스 테스트 결과를 확인한 뒤 결정해야 합니다.
+
+
+### Android 서명 키 설정 (운영자 작업 필요)
+
+GitHub 저장소 Settings → Secrets and variables → Actions → New repository secret에 다음 4개를 설정합니다. 서명 키와 비밀번호는 채팅·저장소 코드·일반 로그에 올리지 마세요.
+
+- `ANDROID_KEYSTORE_BASE64`: 전용 release keystore 파일 전체를 Base64로 인코딩한 값
+- `ANDROID_KEYSTORE_PASSWORD`: keystore 비밀번호
+- `ANDROID_KEY_ALIAS`: key alias
+- `ANDROID_KEY_PASSWORD`: key 비밀번호
+
+키가 아직 없다면 안전한 로컬 환경에서 새 키를 생성하고 백업한 뒤 Base64 값만 Secret으로 등록하세요. 이미 Google Play에 배포한 앱이 있다면 새 키를 임의로 만들지 말고 기존 업로드 키/Play App Signing 설정과 일치하는지 확인해야 합니다. Secret은 저장소 API에서 읽거나 대신 설정할 수 없으므로 이 작업이 끝나야 CI가 서명 AAB를 생성합니다.
