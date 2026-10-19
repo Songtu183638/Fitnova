@@ -430,3 +430,121 @@ input, textarea, select { max-width: 100%; }
   .conversation-screen .message-compose { gap:6px !important; }
   .conversation-screen .message-send-button { flex-basis:38px !important; width:38px !important; min-width:38px !important; max-width:38px !important; height:38px !important; }
 }
+
+
+/* FITNOVA fast tactile feedback + subtle lime F intro */
+.app-shell { isolation: isolate; }
+.app-shell button,
+.auth-screen button,
+.boot-screen button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform .13s cubic-bezier(.2,.8,.2,1), background-color .16s ease,
+    border-color .16s ease, color .16s ease, box-shadow .18s ease, filter .13s ease;
+}
+.app-shell button:active:not(:disabled),
+.auth-screen button:active:not(:disabled) {
+  transform: scale(.965);
+  filter: brightness(1.18);
+}
+.app-shell input,
+.app-shell textarea,
+.app-shell select,
+.auth-screen input,
+.auth-screen textarea,
+.auth-screen select {
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+.app-shell input:focus,
+.app-shell textarea:focus,
+.app-shell select:focus,
+.auth-screen input:focus,
+.auth-screen textarea:focus,
+.auth-screen select:focus {
+  border-color: #a7ff3f !important;
+  box-shadow: 0 0 0 3px #a7ff3f19, 0 0 18px #a7ff3f0a;
+}
+.boot-logo-f { position:relative; overflow:visible; }
+.boot-logo-f span {
+  display:block; font-size:37px; line-height:1; font-weight:1000; font-style:italic;
+  letter-spacing:-5px; transform:translateX(-2px);
+  color:#b8ff43; text-shadow:0 0 10px #a7ff3f9c, 0 0 28px #a7ff3f58;
+  animation: fitnova-f-breathe 1.65s ease-in-out infinite;
+}
+.boot-logo-f::before {
+  content:""; position:absolute; inset:-9px; border-radius:23px;
+  border:1px solid #a7ff3f40; box-shadow:0 0 30px #a7ff3f22;
+  animation: fitnova-f-ring 1.9s ease-out infinite;
+}
+.fitnova-entry-mark {
+  position:fixed; z-index:9999; inset:0; display:grid; place-items:center;
+  pointer-events:none; background:#070a07;
+  animation: fitnova-entry-screen 1.25s cubic-bezier(.2,.7,.2,1) forwards;
+}
+.fitnova-entry-mark span {
+  display:block; font-size:clamp(100px,24vw,170px); line-height:1;
+  font-weight:1000; font-style:italic; letter-spacing:-.13em; padding-right:.13em;
+  color:#b9ff43; opacity:0; transform:scale(.82);
+  text-shadow:0 0 12px #a7ff3fa6, 0 0 38px #a7ff3f70, 0 0 90px #a7ff3f30;
+  animation: fitnova-entry-f .95s cubic-bezier(.2,.7,.2,1) .06s forwards;
+}
+@keyframes fitnova-entry-screen {
+  0%,62% { opacity:1; visibility:visible; }
+  100% { opacity:0; visibility:hidden; }
+}
+@keyframes fitnova-entry-f {
+  0% { opacity:0; transform:scale(.82); filter:blur(8px); }
+  35% { opacity:1; transform:scale(1.04); filter:blur(0); }
+  62% { opacity:.86; transform:scale(1); }
+  100% { opacity:0; transform:scale(1.08); filter:blur(5px); }
+}
+@keyframes fitnova-f-breathe {
+  0%,100% { opacity:.84; text-shadow:0 0 8px #a7ff3f80,0 0 20px #a7ff3f38; }
+  50% { opacity:1; text-shadow:0 0 13px #a7ff3fbd,0 0 34px #a7ff3f72; }
+}
+@keyframes fitnova-f-ring {
+  0% { opacity:.55; transform:scale(.92); }
+  100% { opacity:0; transform:scale(1.22); }
+}
+.post-actions .like-action.liked { color:#ff647c !important; }
+.post-actions .like-action-icon { transform-origin:center; }
+.post-actions .like-action.liked .like-action-icon {
+  animation: fitnova-heart-pop .34s cubic-bezier(.2,.8,.2,1);
+  filter: drop-shadow(0 0 7px #ff647c5c);
+}
+@keyframes fitnova-heart-pop {
+  0% { transform:scale(.55); }
+  55% { transform:scale(1.42) rotate(-8deg); }
+  100% { transform:scale(1) rotate(0); }
+}
+.post-actions .save-action.active .save-action-icon {
+  animation: fitnova-save-pop .3s cubic-bezier(.2,.8,.2,1);
+  filter: drop-shadow(0 0 6px #a7ff3f55);
+}
+@keyframes fitnova-save-pop {
+  0% { transform:translateY(2px) scale(.65); }
+  65% { transform:translateY(-2px) scale(1.18); }
+  100% { transform:translateY(0) scale(1); }
+}
+.comment-form { align-items:center; gap:8px; }
+.comment-form input { flex:1 1 0%; min-width:0; }
+.comment-form .comment-send-action {
+  flex:0 0 40px; width:40px; min-width:40px; height:40px;
+  display:grid; place-items:center; border-radius:11px;
+  border:1px solid #a7ff3f62; color:#b7ff36;
+  background:linear-gradient(145deg,#a7ff3f24,#a7ff3f0b);
+  box-shadow:0 0 0 0 #a7ff3f00;
+}
+.comment-form .comment-send-action:not(:disabled) { box-shadow:0 0 16px #a7ff3f0d; }
+.comment-form .comment-send-action:not(:disabled):active { box-shadow:0 0 20px #a7ff3f30; }
+.comment-form .comment-send-action:disabled { opacity:.32; }
+@media (max-width: 420px) {
+  .comment-form .comment-send-action { flex-basis:38px; width:38px; min-width:38px; height:38px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fitnova-entry-mark, .fitnova-entry-mark span, .boot-logo-f span, .boot-logo-f::before,
+  .post-actions .like-action.liked .like-action-icon, .post-actions .save-action.active .save-action-icon {
+    animation:none !important;
+  }
+  .fitnova-entry-mark { display:none; }
+}
