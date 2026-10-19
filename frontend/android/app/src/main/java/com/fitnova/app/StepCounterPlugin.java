@@ -27,7 +27,8 @@ import java.util.Locale;
 @CapacitorPlugin(
     name = "StepCounter",
     permissions = {
-        @Permission(alias = "activityRecognition", strings = { Manifest.permission.ACTIVITY_RECOGNITION })
+        @Permission(alias = "activityRecognition", strings = { Manifest.permission.ACTIVITY_RECOGNITION }),
+        @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
     }
 )
 public class StepCounterPlugin extends Plugin {
@@ -39,15 +40,38 @@ public class StepCounterPlugin extends Plugin {
             requestPermissionForAlias("activityRecognition", call, "permissionCallback");
             return;
         }
-        startService();
-        call.resolve(new JSObject().put("granted", true));
+        requestNotificationPermissionOrStart(call);
     }
 
     @PermissionCallback
     private void permissionCallback(PluginCall call) {
-        boolean granted = getPermissionState("activityRecognition") == PermissionState.GRANTED;
-        if (granted) startService();
-        call.resolve(new JSObject().put("granted", granted));
+        if (!hasActivityRecognitionPermission()) {
+            call.resolve(new JSObject().put("granted", false).put("notificationGranted", hasNotificationPermission()));
+            return;
+        }
+        requestNotificationPermissionOrStart(call);
+    }
+
+    @PermissionCallback
+    private void notificationPermissionCallback(PluginCall call) {
+        boolean activityGranted = hasActivityRecognitionPermission();
+        boolean notificationsGranted = hasNotificationPermission();
+        if (activityGranted && notificationsGranted) startService();
+        call.resolve(new JSObject().put("granted", activityGranted).put("notificationGranted", notificationsGranted));
+    }
+
+    private void requestNotificationPermissionOrStart(PluginCall call) {
+        if (!hasNotificationPermission()) {
+            requestPermissionForAlias("notifications", call, "notificationPermissionCallback");
+            return;
+        }
+        startService();
+        call.resolve(new JSObject().put("granted", true).put("notificationGranted", true));
+    }
+
+    private boolean hasNotificationPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(getContext(), Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
     }
 
     @PluginMethod
