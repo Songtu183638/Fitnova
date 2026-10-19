@@ -79,6 +79,7 @@ class RegisterIn(BaseModel):
     username: str = Field(min_length=3, max_length=24, pattern=r"^[a-zA-Z0-9_]+$")
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
+    age_confirmed: bool = False
 
 class VerifyIn(BaseModel):
     email: EmailStr
