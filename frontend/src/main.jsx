@@ -106,6 +106,7 @@ function App() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [recoveryStep, setRecoveryStep] = useState('');
@@ -155,7 +156,7 @@ function App() {
     e.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
       if (mode === 'register' && step === 'form') {
-        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password });
+        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password, age_confirmed: ageConfirmed });
         setStep('verify');
         setNotice('인증 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요.');
       } else if (mode === 'register') {
@@ -196,6 +197,7 @@ function App() {
 
   const switchMode = (nextMode) => {
     setMode(nextMode); setStep('form'); setRecoveryStep(''); setError(''); setNotice('');
+    setAgeConfirmed(false);
   };
   const logout = async () => {
     if (!window.confirm('FITNOVA에서 로그아웃할까요? 저장되지 않은 작성 내용은 사라질 수 있습니다.')) return;
@@ -252,6 +254,7 @@ function App() {
           {!recoveryStep&&mode==='login'&&step==='form'&&<label>아이디 또는 이메일<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="아이디 또는 이메일" autoComplete="username"/></div></label>}
           {!recoveryStep&&((mode==='register'||mode==='login')&&step==='verify')&&<><label>{mode==='register'?'인증 이메일':'보안 코드 발송 이메일'}<div className="input-wrap"><Mail size={17}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div></label><label>6자리 인증 코드<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="이메일 인증 코드" className="code-input"/></div></label></>}
           {!recoveryStep&&((mode==='register'&&step==='form')||(mode==='login'&&step==='form'))&&<label>비밀번호<div className="input-wrap"><LockKeyhole size={17}/><input required minLength={mode==='register'?10:1} maxLength="128" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='register'?'비밀번호 10자 이상':'비밀번호'} autoComplete={mode==='register'?'new-password':'current-password'}/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label="비밀번호 표시">{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>{mode==='register'&&<small className="hint">영문, 숫자 등을 조합해 10자 이상 입력해 주세요.</small>}</label>}
+          {!recoveryStep&&mode==='register'&&step==='form'&&<label className="age-confirmation"><input type="checkbox" required checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} /><span><strong>만 14세 이상입니다.</strong><small>FITNOVA의 최소 이용 연령을 확인했습니다.</small></span></label>}
           {error&&<div className="alert error">{error}</div>}
           {notice&&<div className="alert success"><CheckCircle2 size={16}/>{notice}</div>}
           <button className="primary" disabled={busy}>{busy?'처리 중...':recoveryStep==='request'?'재설정 코드 받기':recoveryStep==='verify'?'비밀번호 변경':mode==='register'?(step==='verify'?'인증하고 시작하기':'인증 코드 받기'):(step==='verify'?'보안 코드 확인 후 로그인':'로그인하기')}<ArrowRight size={17}/></button>
