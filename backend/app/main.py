@@ -1812,6 +1812,27 @@ def mark_notifications_read(user: dict = Depends(_current_user)):
     return {"read": True}
 
 
+@app.get("/api/account/safety")
+def get_account_safety(user: dict = Depends(_current_user)):
+    """Return account block and mute lists for account settings."""
+    username = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            blocked_rows = conn.execute(
+                "SELECT blocked_username FROM user_blocks WHERE blocker_username=%s ORDER BY created_at DESC",
+                (username,)
+            ).fetchall()
+            muted_rows = conn.execute(
+                "SELECT muted_username FROM user_mutes WHERE muter_username=%s ORDER BY created_at DESC",
+                (username,)
+            ).fetchall()
+        blocked_users = [row["blocked_username"] for row in blocked_rows]
+        muted_users = [row["muted_username"] for row in muted_rows]
+    else:
+        blocked_users = sorted(blocked for actor, blocked in _blocks if actor.lower() == username.lower())
+        muted_users = sorted(muted for actor, muted in _mutes if actor.lower() == username.lower())
+    return {"blocked_users": blocked_users, "muted_users": muted_users}
+
 @app.post("/api/users/{username}/block")
 def toggle_user_block(username: str, user: dict = Depends(_current_user)):
     target = _find_username(username)
