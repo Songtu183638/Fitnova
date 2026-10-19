@@ -17,6 +17,11 @@ def setup_function():
     auth._user_settings.clear()
     auth._blocks.clear()
     auth._mutes.clear()
+    auth._reports.clear()
+    auth._notifications.clear()
+    auth._report_alerted_users.clear()
+    auth._report_seq = 0
+    auth._notification_seq = 0
     auth._account_codes.clear()
     auth._message_seq = 0
     auth._post_seq = 0
@@ -465,3 +470,52 @@ def test_registration_requires_minimum_age_confirmation(monkeypatch):
     assert under_confirmed.status_code == 422
     accepted = client.post("/api/auth/register", json={**base, "age_confirmed": True})
     assert accepted.status_code == 202
+
+
+
+def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch):
+    sent = {}
+    pushes = []
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_push", lambda username, title, body, data=None: pushes.append({
+        "username": username, "title": title, "body": body, "data": data or {}
+    }))
+    auth._reports.clear()
+    auth._notifications.clear()
+    auth._report_alerted_users.clear()
+
+    master_token = _verified_user("master_user", "fitnova@naver.com", sent)
+    _verified_user("flagged_user", "flagged@example.com", sent)
+    master_headers = {"Authorization": f"Bearer {master_token}"}
+
+    for index in range(5):
+        token = _verified_user(f"reporter_{index}", f"reporter{index}@example.com", sent)
+        response = client.post(
+            "/api/reports",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"target_type": "user", "target_id": "flagged_user", "reason": "부적절한 계정"},
+        )
+        assert response.status_code == 201
+
+    alerts = [
+        item for item in auth._notifications
+        if item["recipient_username"] == "master_user" and item["kind"] == "report_threshold"
+    ]
+    assert len(alerts) == 1
+    assert "@flagged_user" in alerts[0]["message"]
+    assert len(pushes) == 1
+    assert pushes[0]["username"] == "master_user"
+    assert pushes[0]["data"]["username"] == "flagged_user"
+
+    sixth_token = _verified_user("reporter_5", "reporter5@example.com", sent)
+    sixth = client.post(
+        "/api/reports",
+        headers={"Authorization": f"Bearer {sixth_token}"},
+        json={"target_type": "user", "target_id": "flagged_user", "reason": "부적절한 계정"},
+    )
+    assert sixth.status_code == 201
+    assert len([
+        item for item in auth._notifications
+        if item["recipient_username"] == "master_user" and item["kind"] == "report_threshold"
+    ]) == 1
+    assert len(pushes) == 1
