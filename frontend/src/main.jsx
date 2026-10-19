@@ -1087,12 +1087,12 @@ function StepCounterPanel() {
     setError('');
     try {
       const result = await StepCounter.requestPermission();
+      await refresh({ quiet: true });
       if (result?.granted !== true) {
         setError('신체 활동 권한을 허용해야 걸음 수를 측정할 수 있습니다.');
       } else if (result?.notificationGranted !== true) {
         setError('상단 알림창에 걸음 수를 계속 표시하려면 FITNOVA 알림 권한을 허용해야 합니다. 휴대폰 설정에서 알림을 켜 주세요.');
       }
-      await refresh({ quiet: true });
     } catch (err) {
       setError(err?.message || '걸음 수 권한을 설정하지 못했습니다.');
     } finally {
