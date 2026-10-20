@@ -1120,6 +1120,7 @@ def toggle_like(post_id: int, user: dict = Depends(_current_user)):
             conn.execute("INSERT INTO post_likes(post_id,username) VALUES (%s,%s) ON CONFLICT DO NOTHING", (post_id,user["username"]))
             author = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()["author_username"]
             _notify(author, user["username"], "like", "게시물에 좋아요를 눌렀습니다.", post_id)
+            _send_push(author, "새 좋아요", f"@{user['username']}님이 게시물에 좋아요를 눌렀습니다.", {"kind":"like", "username":user["username"], "post_id":str(post_id)})
             return {"liked": True}
     if post_id not in _posts: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     key = (post_id, user["username"])
@@ -1128,6 +1129,7 @@ def toggle_like(post_id: int, user: dict = Depends(_current_user)):
         return {"liked": False}
     _post_likes.add(key)
     _notify(_posts[post_id]["author_username"], user["username"], "like", "게시물에 좋아요를 눌렀습니다.", post_id)
+    _send_push(_posts[post_id]["author_username"], "새 좋아요", f"@{user['username']}님이 게시물에 좋아요를 눌렀습니다.", {"kind":"like", "username":user["username"], "post_id":str(post_id)})
     return {"liked": True}
 
 @app.post("/api/posts/{post_id}/comments", status_code=201)
@@ -1145,6 +1147,7 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
             c = dict(row); c["created_at"] = c["created_at"].isoformat()
             author = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()["author_username"]
             _notify(author, user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
+            _send_push(author, "새 댓글", f"@{user['username']}: {content[:120]}", {"kind":"comment", "username":user["username"], "post_id":str(post_id)})
             return {"comment": c}
     if post_id not in _posts: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     with _lock:
@@ -1152,6 +1155,7 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
         comment = {"id": _comment_seq, "author_username": user["username"], "content": content, "created_at": datetime.now(timezone.utc).isoformat()}
         _post_comments.setdefault(post_id, []).append(comment)
     _notify(_posts[post_id]["author_username"], user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
+    _send_push(_posts[post_id]["author_username"], "새 댓글", f"@{user['username']}: {content[:120]}", {"kind":"comment", "username":user["username"], "post_id":str(post_id)})
     return {"comment": comment}
 
 @app.delete("/api/posts/{post_id}/comments/{comment_id}")
@@ -1334,7 +1338,9 @@ def toggle_follow(username: str, user: dict = Depends(_current_user)):
             _follows.remove(key); followed = False
         else:
             _follows.add(key); followed = True
-    if followed: _notify(target["username"], me, "follow", "회원님을 팔로우하기 시작했습니다.")
+    if followed:
+        _notify(target["username"], me, "follow", "회원님을 팔로우하기 시작했습니다.")
+        _send_push(target["username"], "새 팔로워", f"@{me}님이 회원님을 팔로우하기 시작했습니다.", {"kind":"follow", "username":me})
     return {"following": followed, "profile": _profile_summary(target["username"], me)}
 
 def _message_dict(row):
