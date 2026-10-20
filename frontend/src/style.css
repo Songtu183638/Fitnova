@@ -1969,3 +1969,17 @@ button,input,textarea,select{font-family:inherit}
     width: 100%;
   }
 }
+
+
+/* Notification preferences and edge-to-edge mobile direct messages */
+.notification-push-actions{padding:16px 19px 19px;border-top:1px solid #272e26;margin-top:4px}
+.notification-push-actions .secondary-action{margin:0 0 9px}
+.notification-push-actions .setting-help{display:block;line-height:1.65}
+@media(max-width:760px){
+.app-shell.chat-active .dashboard-main{min-width:0;width:100%;padding:0!important;margin:0!important}
+.app-shell.chat-active .dashboard-main>.dash-top,.app-shell.chat-active .dashboard-main>.feed-alert,.app-shell.chat-active .dashboard-main>.dash-footer{display:none!important}
+.app-shell.chat-active .dashboard-main>.messages-view.chat-open{position:fixed!important;inset:0!important;z-index:1000!important;width:100vw!important;height:100dvh!important;min-height:100dvh!important;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#0d110e!important}
+.app-shell.chat-active .conversation-screen{position:absolute!important;inset:0!important;width:100%!important;height:100dvh!important;min-height:0!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;display:flex!important;flex-direction:column!important}
+.app-shell.chat-active .conversation-screen .conversation-messages{flex:1 1 auto!important;min-height:0!important;max-height:none!important;overflow-y:auto!important;overscroll-behavior:contain!important}
+.app-shell.chat-active .conversation-screen .message-compose{flex-shrink:0!important}
+}
