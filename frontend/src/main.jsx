@@ -154,35 +154,46 @@ function App() {
 
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setError(''); setNotice('');
+    const startingStep = step;
+    const startingMode = mode;
     try {
       if (mode === 'register' && step === 'form') {
-        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password, age_confirmed: ageConfirmed });
         setStep('verify');
+        setNotice('인증 코드를 보내고 있어요...');
+        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password, age_confirmed: ageConfirmed });
         setNotice('인증 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요.');
       } else if (mode === 'register') {
         const data = await request('/api/auth/verify', { email, code });
         acceptSession(data);
       } else if (step === 'form') {
-        const data = await request('/api/auth/login', { identifier: identifier.trim(), password });
-        setEmail(data.email || '');
+        setEmail(identifier.includes('@') ? identifier.trim() : '');
         setCode('');
         setStep('verify');
+        setNotice('로그인 보안 코드를 요청하고 있어요...');
+        const data = await request('/api/auth/login', { identifier: identifier.trim(), password });
+        setEmail(data.email || (identifier.includes('@') ? identifier.trim() : ''));
         setNotice('로그인 보안 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요.');
       } else {
         const data = await request('/api/auth/login/verify', { email, code });
         acceptSession(data);
       }
-    } catch (err) { setError(err.message || '오류가 발생했습니다.'); }
-    finally { setBusy(false); }
+    } catch (err) {
+      if (startingStep === 'form' && startingMode === mode) setStep('form');
+      setError(err.message || '오류가 발생했습니다.');
+      setNotice('');
+    } finally { setBusy(false); }
   };
 
   const requestPasswordReset = async (e) => {
     e.preventDefault(); setBusy(true); setError(''); setNotice('');
+    setRecoveryStep('verify'); setNotice('비밀번호 재설정 코드를 요청하고 있어요...');
     try {
       const data = await request('/api/auth/password/reset/request', {email:recoveryEmail.trim()});
-      setRecoveryStep('verify'); setNotice(data.message||'계정이 있다면 재설정 코드를 이메일로 발송했습니다.');
-    } catch (err) { setError(err.message||'재설정 코드를 요청하지 못했습니다.'); }
-    finally { setBusy(false); }
+      setNotice(data.message||'재설정 코드를 이메일로 발송했습니다.');
+    } catch (err) {
+      setRecoveryStep('request'); setNotice('');
+      setError(err.message||'재설정 코드를 요청하지 못했습니다.');
+    } finally { setBusy(false); }
   };
 
   const confirmPasswordReset = async (e) => {
@@ -455,7 +466,19 @@ function Dashboard({ user, tab, setTab, logout }) {
       setError(e.message||'게시물을 저장하지 못했습니다.');
     } finally { pendingSaves.current.delete(id); }
   };
-  const requestSettingsCode = async (kind) => { setSettingsBusy(true); setError(''); try { if(kind==='password'){await api('/api/account/password/request-code',{method:'POST'});setSettingsPasswordCodeSent(true);setNotice('현재 이메일로 비밀번호 변경 보안 코드를 보냈습니다.');} else {await api('/api/account/email/request-code',{method:'POST',body:JSON.stringify({email:settingsEmailInput})});setSettingsEmailCodeSent(true);setNotice('새 이메일로 인증 코드를 보냈습니다.');} } catch(e){setError(e.message||'보안 코드를 보내지 못했습니다.');} finally{setSettingsBusy(false);} };
+  const requestSettingsCode = async (kind) => {
+    setSettingsBusy(true); setError(''); setNotice('');
+    const wasSent = kind === 'password' ? settingsPasswordCodeSent : settingsEmailCodeSent;
+    if (kind === 'password') setSettingsPasswordCodeSent(true); else setSettingsEmailCodeSent(true);
+    setNotice('보안 코드를 요청하고 있어요...');
+    try {
+      if(kind==='password'){await api('/api/account/password/request-code',{method:'POST'});setNotice('현재 이메일로 비밀번호 변경 보안 코드를 보냈습니다.');}
+      else {await api('/api/account/email/request-code',{method:'POST',body:JSON.stringify({email:settingsEmailInput})});setNotice('새 이메일로 인증 코드를 보냈습니다.');}
+    } catch(e){
+      if (kind === 'password') setSettingsPasswordCodeSent(wasSent); else setSettingsEmailCodeSent(wasSent);
+      setNotice(''); setError(e.message||'보안 코드를 보내지 못했습니다.');
+    } finally {setSettingsBusy(false);}
+  };
   const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice('비밀번호를 변경했습니다.');}catch(e){setError(e.message||'비밀번호를 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
   const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('이메일을 변경했습니다.');}catch(e){setError(e.message||'이메일을 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
   const deleteAccount = async () => { if(!window.confirm('정말 회원탈퇴를 신청할까요? 계정은 즉시 비활성화되고, 30일 후 영구 삭제됩니다.'))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'회원탈퇴가 접수되었습니다. 계정은 비활성화되었으며 30일 후 영구 삭제됩니다.');}catch(e){setError((e.message||'회원탈퇴를 처리하지 못했습니다.')+' 계정 상태는 변경되지 않았습니다.');}finally{setSettingsBusy(false);} };
