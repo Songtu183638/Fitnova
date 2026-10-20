@@ -246,9 +246,15 @@ def _init_db():
                 username TEXT PRIMARY KEY, private_account BOOLEAN NOT NULL DEFAULT FALSE,
                 allow_messages_from TEXT NOT NULL DEFAULT 'everyone',
                 show_activity BOOLEAN NOT NULL DEFAULT TRUE, show_workout_details BOOLEAN NOT NULL DEFAULT TRUE,
+                notify_messages BOOLEAN NOT NULL DEFAULT TRUE, notify_comments BOOLEAN NOT NULL DEFAULT TRUE,
+                notify_likes BOOLEAN NOT NULL DEFAULT TRUE, notify_follows BOOLEAN NOT NULL DEFAULT TRUE,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS notify_messages BOOLEAN NOT NULL DEFAULT TRUE")
+        conn.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS notify_comments BOOLEAN NOT NULL DEFAULT TRUE")
+        conn.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS notify_likes BOOLEAN NOT NULL DEFAULT TRUE")
+        conn.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS notify_follows BOOLEAN NOT NULL DEFAULT TRUE")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS saved_posts (
                 username TEXT NOT NULL, post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -1341,8 +1347,20 @@ def _message_dict(row):
 _firebase_app = None
 _firebase_init_lock = Lock()
 
+def _notification_preference_enabled(username: str, kind: str) -> bool:
+    preference = {"message": "notify_messages", "comment": "notify_comments", "like": "notify_likes", "follow": "notify_follows"}.get(kind)
+    if not preference:
+        return True
+    try:
+        return bool(_get_user_settings(username).get(preference, True))
+    except Exception:
+        return True
+
+
 def _send_push(username: str, title: str, body: str, data: dict | None = None):
     """Send best-effort FCM notifications when production credentials are configured."""
+    if not _notification_preference_enabled(username, str((data or {}).get("kind", (data or {}).get("type", "")))):
+        return
     try:
         credential_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
         if not credential_json:
@@ -1483,7 +1501,7 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
                 VALUES (%s,%s,%s) RETURNING id,sender_username,recipient_username,content,created_at,read_at""",
                 (user["username"],target["username"],content)).fetchone()
         _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-        _send_push(target["username"], "새 메시지", f"@{user['username']}님이 메시지를 보냈습니다.", {"kind":"message", "username":user["username"]})
+        _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
         return {"message": _message_dict(dict(row))}
     with _lock:
         _message_seq += 1
@@ -1491,15 +1509,15 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
                    "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "read_at": None}
         _messages.append(message)
     _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-    _send_push(target["username"], "새 메시지", f"@{user['username']}님이 메시지를 보냈습니다.", {"kind":"message", "username":user["username"]})
+    _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
     return {"message": _message_dict(message)}
 
 
 def _get_user_settings(username: str):
-    defaults = {"private_account": False, "allow_messages_from": "everyone", "show_activity": True, "show_workout_details": True}
+    defaults = {"private_account": False, "allow_messages_from": "everyone", "show_activity": True, "show_workout_details": True, "notify_messages": True, "notify_comments": True, "notify_likes": True, "notify_follows": True}
     if _DATABASE_URL:
         with _db() as conn:
-            row = conn.execute("SELECT private_account,allow_messages_from,show_activity,show_workout_details FROM user_settings WHERE username=%s", (username,)).fetchone()
+            row = conn.execute("SELECT private_account,allow_messages_from,show_activity,show_workout_details,notify_messages,notify_comments,notify_likes,notify_follows FROM user_settings WHERE username=%s", (username,)).fetchone()
             if row: return dict(row)
             conn.execute("INSERT INTO user_settings(username) VALUES (%s) ON CONFLICT DO NOTHING", (username,))
         return defaults
@@ -1510,6 +1528,10 @@ class SettingsIn(BaseModel):
     allow_messages_from: str = Field(default="everyone", pattern=r"^(everyone|following)$")
     show_activity: bool = True
     show_workout_details: bool = True
+    notify_messages: bool = True
+    notify_comments: bool = True
+    notify_likes: bool = True
+    notify_follows: bool = True
 class SecurityCodeIn(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
 class PasswordChangeIn(SecurityCodeIn):
@@ -1591,11 +1613,12 @@ def update_account_settings(payload: SettingsIn,user: dict = Depends(_current_us
     settings=payload.model_dump()
     if _DATABASE_URL:
         with _db() as conn:
-            conn.execute("""INSERT INTO user_settings(username,private_account,allow_messages_from,show_activity,show_workout_details)
-                VALUES (%s,%s,%s,%s,%s) ON CONFLICT(username) DO UPDATE SET private_account=EXCLUDED.private_account,
+            conn.execute("""INSERT INTO user_settings(username,private_account,allow_messages_from,show_activity,show_workout_details,notify_messages,notify_comments,notify_likes,notify_follows)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(username) DO UPDATE SET private_account=EXCLUDED.private_account,
                 allow_messages_from=EXCLUDED.allow_messages_from,show_activity=EXCLUDED.show_activity,
-                show_workout_details=EXCLUDED.show_workout_details,updated_at=NOW()""",
-                (user["username"],settings["private_account"],settings["allow_messages_from"],settings["show_activity"],settings["show_workout_details"]))
+                show_workout_details=EXCLUDED.show_workout_details,notify_messages=EXCLUDED.notify_messages,
+                notify_comments=EXCLUDED.notify_comments,notify_likes=EXCLUDED.notify_likes,notify_follows=EXCLUDED.notify_follows,updated_at=NOW()""",
+                (user["username"],settings["private_account"],settings["allow_messages_from"],settings["show_activity"],settings["show_workout_details"],settings["notify_messages"],settings["notify_comments"],settings["notify_likes"],settings["notify_follows"]))
     else: _user_settings[user["username"]]=settings
     return {"settings":settings}
 
@@ -1722,6 +1745,8 @@ def list_saved_posts(user: dict = Depends(_current_user)):
 def _notify(recipient: str, actor: str, kind: str, message: str, post_id: int | None = None):
     global _notification_seq
     if not recipient or recipient == actor:
+        return
+    if not _notification_preference_enabled(recipient, kind):
         return
     try:
         if _DATABASE_URL:
