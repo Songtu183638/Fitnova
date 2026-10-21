@@ -132,7 +132,6 @@ public class StepCounterService extends Service implements SensorEventListener {
             .setCategory(Notification.CATEGORY_STATUS)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setSilent(true)
             .setShowWhen(false);
         if (contentIntent != null) builder.setContentIntent(contentIntent);
         return builder.build();
