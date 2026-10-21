@@ -728,3 +728,12 @@ input, textarea, select { max-width: 100%; }
   .dashboard-main .dash-top .top-actions { gap: 5px !important; }
   .dashboard-main .dash-top .top-actions .icon-surface { width: 35px !important; height: 35px !important; min-width: 35px !important; }
 }
+
+
+/* Fine-tune: lower both the centered wordmark and the greeting/action row slightly. */
+@media (max-width: 760px) {
+  .dashboard-main .dash-top { padding-top: 12px !important; row-gap: 19px !important; }
+  .dashboard-main .dash-top::before { transform: translateY(4px); }
+  .dashboard-main .dash-top > div:first-child,
+  .dashboard-main .dash-top .top-actions { transform: translateY(5px); }
+}
