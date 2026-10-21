@@ -19,7 +19,7 @@ import java.util.Date;
 import java.util.Locale;
 
 public class StepCounterService extends Service implements SensorEventListener {
-    private static final String CHANNEL_ID = "fitnova_step_counter";
+    private static final String CHANNEL_ID = "fitnova_step_counter_silent_v2";
     private static final int NOTIFICATION_ID = 7312;
     private static final String PREFS = "fitnova_step_counter";
     private static final String TRACKING_KEY = "tracking";
@@ -93,8 +93,11 @@ public class StepCounterService extends Service implements SensorEventListener {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "만보기", NotificationManager.IMPORTANCE_LOW);
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "만보기", NotificationManager.IMPORTANCE_MIN);
         channel.setDescription("FITNOVA가 걸음 수를 측정하고 있습니다.");
+        channel.setSound(null, null);
+        channel.enableVibration(false);
+        channel.enableLights(false);
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.createNotificationChannel(channel);
     }
@@ -126,10 +129,10 @@ public class StepCounterService extends Service implements SensorEventListener {
             .setContentText(details)
             .setStyle(new Notification.BigTextStyle().bigText(expanded))
             .setProgress(10000, progress, false)
-            .setNumber(steps)
             .setCategory(Notification.CATEGORY_STATUS)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setSilent(true)
             .setShowWhen(false);
         if (contentIntent != null) builder.setContentIntent(contentIntent);
         return builder.build();
