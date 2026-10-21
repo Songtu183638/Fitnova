@@ -445,8 +445,50 @@ def _send_code(email: str, code: str, purpose: str = "계정 보안"):
     subject = f"FITNOVA | {purpose} 인증 코드"
     html_body = _verification_email_html(code, purpose)
     text_body = _verification_email_text(code, purpose)
-    # Preferred provider: Google Apps Script. It receives both MIME variants
-    # so its MailApp.sendEmail call can render htmlBody in supported mail clients.
+    # Fast path: Resend HTTPS API. No SMTP handshake or Apps Script relay is needed.
+    # Configure RESEND_API_KEY and a verified RESEND_FROM sender in the hosting environment.
+    resend_api_key = os.getenv("RESEND_API_KEY", "").strip()
+    resend_from = os.getenv("RESEND_FROM", "").strip()
+    if resend_api_key:
+        if not resend_from:
+            raise HTTPException(status_code=503, detail="RESEND_FROM 이메일 발신 주소 설정이 필요합니다.")
+        payload = json.dumps({
+            "from": resend_from,
+            "to": [email],
+            "subject": subject,
+            "html": html_body,
+            "text": text_body,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            if not result.get("id"):
+                raise RuntimeError("Resend returned no email ID")
+            return
+        except urllib.error.HTTPError as exc:
+            # Do not silently fall back after a provider error: a timeout/retry
+            # can otherwise send the same verification code twice.
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")[:300]
+            except Exception:
+                detail = ""
+            print(f"Resend email API failed ({exc.code}): {detail}")
+            raise HTTPException(status_code=503, detail="인증 이메일 발송에 실패했습니다. 이메일 발신 주소와 Resend 설정을 확인해 주세요.")
+        except Exception as exc:
+            print(f"Resend email API request failed: {type(exc).__name__}")
+            raise HTTPException(status_code=503, detail="인증 이메일 발송 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+
+    # Compatibility fallback: Google Apps Script receives both MIME variants.
+    # Resend is used automatically when RESEND_API_KEY is configured.
     script_url = os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
     script_secret = os.getenv("GOOGLE_APPS_SCRIPT_SECRET", "").strip()
     if script_url:
