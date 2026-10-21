@@ -656,3 +656,75 @@ input, textarea, select { max-width: 100%; }
   .panel, .module-card, .settings-card, .empty-feed { padding:11px !important; }
   .post-card { padding:11px !important; }
 }
+
+
+/* Mobile header: centered neon FITNOVA wordmark, with greeting and actions lower. */
+@media (max-width: 760px) {
+  .dashboard-main .dash-top {
+    position: relative !important;
+    top: auto !important;
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) auto !important;
+    grid-template-rows: 35px auto !important;
+    align-items: center !important;
+    column-gap: 10px !important;
+    row-gap: 16px !important;
+    padding: 8px 2px 12px !important;
+    margin: 0 0 12px !important;
+    min-height: 0 !important;
+    background: transparent !important;
+    border-bottom: 1px solid #ffffff0b !important;
+  }
+  .dashboard-main .dash-top::before {
+    content: "FITNOVA";
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+    align-self: center;
+    color: #b7ff36;
+    font-size: 25px;
+    line-height: 1;
+    font-weight: 1000;
+    letter-spacing: 1.8px;
+    text-shadow: 0 0 8px #a7ff3f9c, 0 0 23px #a7ff3f55;
+  }
+  .dashboard-main .dash-top > div:first-child {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    align-self: center;
+  }
+  .dashboard-main .dash-top > div:first-child .eyebrow { display: none !important; }
+  .dashboard-main .dash-top > div:first-child h1 {
+    display: block !important;
+    font-size: 19px !important;
+    line-height: 1.25 !important;
+    margin: 0 !important;
+    letter-spacing: -.45px !important;
+  }
+  .dashboard-main .dash-top .top-actions {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    min-width: 0;
+  }
+  .dashboard-main .dash-top .top-actions .icon-surface {
+    width: 39px !important;
+    height: 39px !important;
+    min-width: 39px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .dashboard-main .dash-top .top-actions .user-chip { display: none !important; }
+}
+@media (max-width: 390px) {
+  .dashboard-main .dash-top { column-gap: 6px !important; row-gap: 14px !important; }
+  .dashboard-main .dash-top > div:first-child h1 { font-size: 17px !important; }
+  .dashboard-main .dash-top .top-actions { gap: 5px !important; }
+  .dashboard-main .dash-top .top-actions .icon-surface { width: 35px !important; height: 35px !important; min-width: 35px !important; }
+}
