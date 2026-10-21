@@ -23,7 +23,9 @@ Configure these values in the hosting provider's secret/environment settings, ne
 - `JWT_SECRET`: long, random secret used to sign sessions
 - `VERIFICATION_CODE_SECRET`: separate long, random secret for one-time codes
 - `CORS_ORIGINS`: comma-separated exact trusted origins
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`: required for real verification and security emails
+- `RESEND_API_KEY` and `RESEND_FROM`: preferred fast HTTPS email delivery. The sender address must be allowed by your Resend account (verify your own domain for production recipients).
+- `GOOGLE_APPS_SCRIPT_URL` and `GOOGLE_APPS_SCRIPT_SECRET`: compatibility fallback when Resend is not configured.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`: optional SMTP fallback when Apps Script is not configured.
 
 For Android push notifications, configure `FIREBASE_SERVICE_ACCOUNT_JSON` on the API server and include the matching Firebase Android configuration in the built app. Push notifications will not work without both sides.
 
