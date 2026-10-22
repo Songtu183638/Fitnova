@@ -375,6 +375,8 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   border-right: 1px solid var(--line);
   background: var(--bg-rail);
 }
+.side-rail .brand { display: none; }
+.side-rail { padding-top: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 24px; text-decoration: none; font-size: 19px; font-weight: 800; letter-spacing: -0.03em; }
 .brand-icon { display: grid; place-items: center; color: var(--lime); }
 .rail-brand span { color: var(--lime); }
@@ -434,9 +436,9 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   position: sticky;
   top: 0;
   z-index: 15;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   min-height: var(--topbar);
   background: rgba(10, 10, 10, 0.86);
@@ -445,8 +447,18 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   border-bottom: 1px solid var(--line);
 }
 .dash-top .eyebrow { display: none; }
-.dash-top h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.top-actions { position: relative; display: flex; align-items: center; gap: 8px; }
+.dash-top h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-brand {
+  grid-column: 2;
+  color: var(--lime);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-decoration: none;
+  text-shadow: 0 0 18px rgba(183, 255, 54, 0.45);
+}
+.top-actions { position: relative; grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 8px; }
 .notification-trigger { position: relative; }
 .notification-dot {
   position: absolute;
@@ -552,6 +564,22 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
 .comment-send-action { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; border: 0; border-radius: 50%; background: none; color: var(--lime); }
 .comment-send-action:hover:not(:disabled) { background: var(--lime-soft); }
 .comment-send-action:disabled { color: var(--text-3); opacity: 0.6; }
+
+/* Instagram-style post: author → media → actions → caption → comments */
+.post-card { display: flex; flex-direction: column; }
+.post-top { order: 1; padding-bottom: 12px; }
+.post-media { order: 2; margin-top: 0; }
+.post-actions { order: 3; margin-top: 0; padding: 4px 6px; border-top: 0; }
+.post-title { order: 4; padding-top: 4px; font-size: 15px; font-weight: 700; }
+.post-content { order: 5; padding-top: 4px; font-size: 14.5px; }
+.post-hashtags { order: 6; }
+.workout-details { order: 7; }
+.comments-list { order: 8; margin-top: 12px; border-top: 0; }
+.comment-form { order: 9; border-top: 1px solid var(--line); margin-top: 8px; }
+.post-media img, .post-media video { max-height: min(78vh, 680px); }
+.home-feed-layout > .feed-heading { display: none; }
+.home-feed-layout { padding-top: 16px; }
+.feed-list { gap: 20px; }
 
 /* 8 · Profile -------------------------------------------------------------- */
 .module-view { display: flex; flex-direction: column; gap: 20px; padding-top: 24px; }
@@ -821,10 +849,11 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   .side-rail { display: none; }
   .dashboard-main { min-height: 100svh; padding: 0 max(16px, var(--safe-left)) calc(88px + var(--safe-bottom)) max(16px, var(--safe-right)); }
   .dashboard-main > * { min-width: 0; }
-  .dash-top { min-height: 56px; padding-top: var(--safe-top); }
-  .dash-top h1 { font-size: 18px; }
-  .user-chip { padding: 0 4px; }
-  .user-chip > span:last-child { display: none; }
+  .dash-top { min-height: 56px; padding-top: var(--safe-top); gap: 8px; }
+  .dash-top h1 { display: none; }
+  .top-brand { font-size: 22px; }
+  .user-chip { display: none; }
+  .icon-surface { width: 38px; height: 38px; }
   .dash-footer { display: none; }
 
   .mobile-nav {
@@ -877,7 +906,8 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   .feed-layout, .module-view, .settings-page, .steps-page, .moderation-page, .messages-view { padding-top: 20px; }
   .feed-heading { align-items: flex-start; }
   .feed-heading h2, .settings-heading h2, .steps-heading h2, .messages-heading h2 { font-size: 20px; }
-  .post-card { border-radius: 14px; }
+  .post-card { border-radius: 0; border-left: 0; border-right: 0; margin: 0 -16px; }
+  .feed-list { gap: 12px; }
 
   .profile-card { padding: 20px; column-gap: 16px; }
   .profile-avatar { width: 64px; height: 64px; font-size: 26px; }
