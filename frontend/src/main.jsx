@@ -12,6 +12,7 @@ import './style.css';
 import WorkoutAnalysisPanel from './WorkoutAnalysisPanel.jsx';
 import './workout-analysis.css';
 import LegalPages from './LegalPages.jsx';
+import './source-ui-parity.css';
 
 // Keep localhost as a development convenience only. Production builds should use
 // an explicit API origin or a same-origin reverse proxy, never the developer's host.
