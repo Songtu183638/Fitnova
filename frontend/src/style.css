@@ -459,6 +459,8 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   text-shadow: 0 0 18px rgba(183, 255, 54, 0.45);
 }
 .top-actions { position: relative; grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 8px; }
+.top-actions { transform: translateY(8px); }
+.top-tagline { display: none; color: var(--text-2); font-size: 12px; font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; transform: translateY(6px); }
 .notification-trigger { position: relative; }
 .notification-dot {
   position: absolute;
@@ -849,8 +851,9 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   .side-rail { display: none; }
   .dashboard-main { min-height: 100svh; padding: 0 max(16px, var(--safe-left)) calc(88px + var(--safe-bottom)) max(16px, var(--safe-right)); }
   .dashboard-main > * { min-width: 0; }
-  .dash-top { min-height: 56px; padding-top: var(--safe-top); gap: 8px; }
+  .dash-top { min-height: 68px; padding-top: var(--safe-top); gap: 8px; }
   .dash-top h1 { display: none; }
+  .top-tagline { display: block; }
   .top-brand { font-size: 22px; }
   .user-chip { display: none; }
   .icon-surface { width: 38px; height: 38px; }
