@@ -737,3 +737,59 @@ input, textarea, select { max-width: 100%; }
   .dashboard-main .dash-top > div:first-child,
   .dashboard-main .dash-top .top-actions { transform: translateY(5px); }
 }
+
+
+/* Smooth, lightweight transitions between FITNOVA sections and overlays. */
+@keyframes fitnova-page-enter {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes fitnova-panel-enter {
+  from { opacity: 0; transform: translate3d(0, 8px, 0) scale(.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.dashboard-main > .feed-view,
+.dashboard-main > .module-view,
+.dashboard-main > .messages-view,
+.dashboard-main > .settings-page,
+.dashboard-main > .profile-page,
+.dashboard-main > .analysis-page,
+.dashboard-main > .saved-page,
+.dashboard-main > .steps-page,
+.dashboard-main > .moderation-page {
+  animation: fitnova-page-enter .28s cubic-bezier(.22,.75,.25,1) both;
+}
+.social-overlay-panel,
+.relationship-modal,
+.post-modal {
+  animation: fitnova-panel-enter .22s cubic-bezier(.22,.75,.25,1) both;
+}
+button, .mobile-nav button, .icon-surface {
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled) {
+  transition: transform .16s ease, filter .18s ease, background-color .18s ease, border-color .18s ease;
+}
+button:not(:disabled):active {
+  transform: scale(.975);
+}
+.mobile-nav button {
+  transition: color .2s ease, background-color .2s ease, transform .2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-main > .feed-view,
+  .dashboard-main > .module-view,
+  .dashboard-main > .messages-view,
+  .dashboard-main > .settings-page,
+  .dashboard-main > .profile-page,
+  .dashboard-main > .analysis-page,
+  .dashboard-main > .saved-page,
+  .dashboard-main > .steps-page,
+  .dashboard-main > .moderation-page,
+  .social-overlay-panel, .relationship-modal, .post-modal {
+    animation: none !important;
+  }
+  button, .mobile-nav button, .icon-surface {
+    transition: none !important;
+  }
+}
