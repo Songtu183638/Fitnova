@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
 
 /* ==========================================================================
    FITNOVA design system
@@ -460,7 +460,7 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
 }
 .top-actions { position: relative; grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 8px; }
 .top-actions { transform: translateY(8px); }
-.top-tagline { display: none; color: var(--text-2); font-size: 12px; font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; transform: translateY(6px); }
+.top-tagline { display: none !important; color: var(--text-2); font-size: 12px; font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; transform: translateY(6px); }
 .notification-trigger { position: relative; }
 .notification-dot {
   position: absolute;
@@ -853,7 +853,6 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   .dashboard-main > * { min-width: 0; }
   .dash-top { min-height: 68px; padding-top: var(--safe-top); gap: 8px; }
   .dash-top h1 { display: none; }
-  .top-tagline { display: block; }
   .top-brand { font-size: 22px; }
   .user-chip { display: none; }
   .icon-surface { width: 38px; height: 38px; }
@@ -955,4 +954,214 @@ button:not(:disabled):active { transform: scale(0.975); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}
+
+/* ==========================================================================
+   15 · ARENA theme — scoreboard look
+   Hard edges, angled-cut lime buttons, condensed numerals, diagonal stripes.
+   Loaded last so it wins over the neutral base above.
+   ========================================================================== */
+:root {
+  --bg: #050505;
+  --bg-rail: #070707;
+  --surface: #0d0d0d;
+  --surface-2: #141414;
+  --surface-3: #1d1d1d;
+  --line: #1e1e1e;
+  --line-2: #2e2e2e;
+  --radius-sm: 3px;
+  --radius: 5px;
+  --radius-lg: 8px;
+  --display: 'Barlow Condensed', 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  --cut: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+}
+body { background: var(--bg); }
+
+/* Angled-cut lime actions */
+.primary, .follow-button, .followbtn, .wa-primary,
+.rail-nav button.nav-create, .mobile-nav button.mobile-create {
+  border-radius: 0;
+  clip-path: var(--cut);
+  font-weight: 800;
+}
+.primary.compact { border-radius: 0; }
+
+/* Cards: hard edge + short lime notch in the corner */
+.post-card, .settings-card, .profile-card, .thread-list, .steps-today-card, .steps-week-card,
+.wa-panel, .wa-record-form, .auth-card, .settings-account-banner, .conversation-screen,
+.post-modal, .relationship-modal, .social-overlay-panel, .home-quick button {
+  position: relative;
+  border-radius: var(--radius-lg);
+  border-color: var(--line-2);
+  background: var(--surface);
+}
+.post-card::before, .settings-card::before, .profile-card::before, .thread-list::before,
+.steps-today-card::before, .steps-week-card::before, .wa-panel::before, .wa-record-form::before,
+.auth-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  width: 32px;
+  height: 3px;
+  background: var(--lime);
+  pointer-events: none;
+}
+.tabs, .tabs button, .wa-view-switch, .wa-view-switch button, .moderation-filters, .moderation-filters button { border-radius: 4px; }
+.avatar, .composer-avatar, .profile-avatar, .settings-account-avatar, .thread-avatar,
+.relationship-avatar, .message-mini-avatar, .user-chip { border-radius: 6px; }
+.user-chip .avatar { border-radius: 4px; }
+.chat-bubble { border-radius: 6px; }
+.chat-bubble.mine { border-bottom-right-radius: 0; }
+.chat-bubble.theirs { border-bottom-left-radius: 0; }
+
+/* Display type */
+.feed-heading h2, .settings-heading h2, .steps-heading h2, .messages-heading h2, .wa-hero h2,
+.profile-card h2, .card-head h2, .auth-welcome h1, .home-hero h2 { font-family: var(--display); }
+.profile-stats b, .wa-stat-card > strong, .steps-today-count, .steps-goal-ring b,
+.thread-unread-badge, .notification-dot, .message-count-pill, .wa-form-footer strong,
+.wa-session-top b, .wa-exercise-volume strong { font-family: var(--display); font-weight: 800; letter-spacing: 0; }
+.profile-stats b { font-size: 30px; }
+.wa-stat-card > strong { font-size: 38px; }
+.steps-today-count { font-size: 72px; font-weight: 800; line-height: 1; }
+.steps-goal-ring b { font-size: 26px; }
+
+/* Brand */
+.top-brand {
+  font-family: var(--display);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  transform: skewX(-8deg);
+  text-shadow: 0 0 22px rgba(183, 255, 54, 0.55);
+}
+
+/* Navigation */
+.dash-top { border-bottom-color: var(--line-2); }
+.rail-nav button { border-radius: 0; }
+.rail-nav button.selected {
+  background: linear-gradient(90deg, rgba(183, 255, 54, 0.14), transparent 80%);
+  box-shadow: inset 3px 0 0 var(--lime);
+  color: var(--lime);
+}
+.rail-nav button.nav-create { margin: 10px 0; }
+.mobile-nav { border-top-color: var(--line-2); background: rgba(5, 5, 5, 0.96); }
+
+/* Home: hero + quick actions + feed */
+.home-hero { position: relative; overflow: hidden; padding: 40px 0 28px; }
+.home-hero::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -30px;
+  bottom: 0;
+  width: 52%;
+  background: repeating-linear-gradient(115deg, rgba(183, 255, 54, 0.16) 0 9px, transparent 9px 21px);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 70%);
+  mask-image: linear-gradient(90deg, transparent, #000 70%);
+  pointer-events: none;
+}
+.home-hero h2 { position: relative; z-index: 1; font-size: clamp(46px, 14vw, 64px); font-weight: 900; line-height: 1.06; letter-spacing: -0.045em; }
+.home-hero h2 em { display: block; font-style: normal; color: var(--lime); }
+.home-hero p { position: relative; z-index: 1; margin-top: 16px; color: var(--text-2); font-size: 15px; }
+
+.home-quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; counter-reset: quick; }
+.home-quick button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid var(--line-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.home-quick button::after {
+  counter-increment: quick;
+  content: '0' counter(quick);
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--text-3);
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.home-quick button > span { display: grid; place-items: center; width: 38px; height: 38px; background: var(--lime); color: var(--on-lime); clip-path: var(--cut); }
+.home-quick button:hover { border-color: var(--lime-line); background: var(--surface-2); }
+
+.home-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.home-section-head h3 { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.home-section-head h3::before { content: ''; width: 10px; height: 10px; background: var(--lime); clip-path: polygon(0 0, 100% 0, 100% 100%, 30% 100%, 0 70%); }
+.home-feed-layout { gap: 16px; padding-top: 0; }
+.home-feed-layout .post-media img, .home-feed-layout .post-media video { aspect-ratio: 4 / 3; max-height: none; object-fit: cover; }
+
+/* Auth: big, vertically balanced */
+.auth-screen { justify-content: center; background: var(--bg); }
+.auth-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 44%;
+  background: repeating-linear-gradient(115deg, rgba(183, 255, 54, 0.07) 0 12px, transparent 12px 28px);
+  -webkit-mask-image: linear-gradient(270deg, #000, transparent 90%);
+  mask-image: linear-gradient(270deg, #000, transparent 90%);
+  pointer-events: none;
+}
+.auth-app-header, .auth-layout, .auth-legal-links { position: relative; z-index: 1; }
+.auth-welcome h1 { font-size: clamp(40px, 5.2vw, 68px); font-weight: 900; line-height: 1.04; letter-spacing: -0.045em; }
+.auth-app-brand { font-family: var(--display); font-size: 28px; font-weight: 800; transform: skewX(-8deg); }
+.auth-app-mark { border-radius: 4px; clip-path: var(--cut); }
+.auth-benefits span { border-radius: 4px; }
+.auth-card { border-radius: var(--radius-lg); }
+.mini-mark { border-radius: 4px; }
+
+/* Mobile */
+@media (max-width: 900px) {
+  .mobile-nav button.selected { background: none; box-shadow: inset 0 2px 0 var(--lime); border-radius: 0; color: var(--lime); }
+  .mobile-nav button.mobile-create { flex: 0 0 56px; min-height: 52px; margin: -16px 4px 0; align-self: flex-start; box-shadow: none; }
+  .dash-top h1 { display: none; }
+}
+@media (max-width: 640px) {
+  .home-feed-layout .post-media img, .home-feed-layout .post-media video { aspect-ratio: 16 / 11; }
+  .home-hero { padding: 32px 0 24px; }
+  .auth-layout { align-items: center; }
+  .auth-welcome h1 { font-size: 46px; }
+  .profile-details { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .profile-details > div { padding: 10px 8px; }
+  .profile-details b { font-size: 12px; }
+}
+
+.home-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* Desktop: dashboard grid so hero, actions and feed are all visible at once */
+@media (min-width: 1101px) {
+  .dashboard-main > .dash-top { max-width: none; }
+  .dashboard-main > .home-feed-layout {
+    max-width: 1120px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+    grid-template-areas: "left head" "left feed";
+    grid-template-rows: auto 1fr;
+    column-gap: 56px;
+    row-gap: 16px;
+    align-items: start;
+    padding-top: 24px;
+  }
+  .home-left { grid-area: left; position: sticky; top: 16vh; gap: 20px; }
+  .home-hero { padding: 24px 0 24px; }
+  .home-hero h2 { font-size: 84px; }
+  .home-hero p { font-size: 17px; }
+  .home-quick button { min-height: 120px; padding: 16px; font-size: 14px; }
+  .home-section-head { grid-area: head; margin-top: 0; }
+  .home-feed-layout > .feed-list { grid-area: feed; }
 }
