@@ -329,7 +329,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [settingsEmailCodeSent, setSettingsEmailCodeSent] = useState(false);
   const [settingsPasswordCodeSent, setSettingsPasswordCodeSent] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
-  const [messageThreads, setMessageThreads] = useState([]);
+  const [messageThreads, setMessageThreads] = useState(() => { try { const raw = localStorage.getItem('fitnova_message_threads:' + (user?.username || '')); const parsed = raw ? JSON.parse(raw) : []; return Array.isArray(parsed) ? parsed : []; } catch { return []; } });
   const [activeChat, setActiveChat] = useState('');
   const activeChatRef = useRef('');
   const [chatMessages, setChatMessages] = useState([]);
@@ -416,12 +416,17 @@ function Dashboard({ user, tab, setTab, logout }) {
   };
   const openProfile = (username) => { setRelationshipList(v=>({...v,open:false})); setSelectedProfile(username); setProfileData(null); setTab('profile'); setError(''); };
   const openRelationshipList = async (type, username) => {
-    setRelationshipList({open:true,type,username,users:[],loading:true});
+    const cacheKey = 'fitnova_relationships:' + username + ':' + type;
+    let cachedUsers = [];
+    try { const raw = localStorage.getItem(cacheKey); const parsed = raw ? JSON.parse(raw) : []; if (Array.isArray(parsed)) cachedUsers = parsed; } catch {}
+    setRelationshipList({open:true,type,username,users:cachedUsers,loading:cachedUsers.length===0});
     try {
       const data = await api('/api/users/' + encodeURIComponent(username) + '/relationships?type=' + type);
-      setRelationshipList({open:true,type,username,users:Array.isArray(data.users)?data.users:[],loading:false});
+      const users = Array.isArray(data.users) ? data.users : [];
+      try { localStorage.setItem(cacheKey, JSON.stringify(users)); } catch {}
+      setRelationshipList({open:true,type,username,users,loading:false});
     } catch (e) {
-      setRelationshipList({open:true,type,username,users:[],loading:false,error:e.message||'목록을 불러오지 못했습니다.'});
+      setRelationshipList({open:true,type,username,users:cachedUsers,loading:false,error:cachedUsers.length ? '' : (e.message||'목록을 불러오지 못했습니다.')});
     }
   };
   const loadProfile = async (username = selectedProfile || user.username) => {
@@ -481,7 +486,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice('비밀번호를 변경했습니다.');}catch(e){setError(e.message||'비밀번호를 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
   const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('이메일을 변경했습니다.');}catch(e){setError(e.message||'이메일을 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
   const deleteAccount = async () => { if(!window.confirm('정말 회원탈퇴를 신청할까요? 계정은 즉시 비활성화되고, 30일 후 영구 삭제됩니다.'))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'회원탈퇴가 접수되었습니다. 계정은 비활성화되었으며 30일 후 영구 삭제됩니다.');}catch(e){setError((e.message||'회원탈퇴를 처리하지 못했습니다.')+' 계정 상태는 변경되지 않았습니다.');}finally{setSettingsBusy(false);} };
-  const loadThreads = async () => { try { const data = await api('/api/messages'); setMessageThreads(data.threads || []); } catch (e) { setError(e.message || '메시지를 불러오지 못했습니다.'); } };
+  const loadThreads = async () => { try { const data = await api('/api/messages'); const threads = Array.isArray(data.threads) ? data.threads : []; setMessageThreads(threads); try { localStorage.setItem('fitnova_message_threads:' + (user?.username || ''), JSON.stringify(threads)); } catch {} } catch (e) { setError(e.message || '메시지를 불러오지 못했습니다.'); } };
   const enablePushNotifications = async ({ startup = false, requestPermission = true } = {}) => {
     if (!Capacitor.isNativePlatform()) { setError('푸시 알림은 FITNOVA 안드로이드 앱에서 설정할 수 있습니다.'); return; }
     setPushBusy(true); setError('');
@@ -543,8 +548,14 @@ function Dashboard({ user, tab, setTab, logout }) {
   const loadNotifications = async (markRead = false) => {
     try {
       const data = await api('/api/notifications');
-      setNotifications(data.notifications||[]); setUnreadCount(data.unread_count||0);
-      if (markRead && (data.unread_count||0)>0) {
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      const fresh = (data.notifications || []).filter(item => {
+        const created = Date.parse(item.created_at || '');
+        return Number.isFinite(created) && created >= cutoff;
+      });
+      setNotifications(fresh);
+      setUnreadCount(fresh.filter(item => !item.read).length);
+      if (markRead && fresh.some(item => !item.read)) {
         await api('/api/notifications/read',{method:'POST'});
         setNotifications(items=>items.map(item=>({...item,read:true}))); setUnreadCount(0);
       }
@@ -636,6 +647,33 @@ function Dashboard({ user, tab, setTab, logout }) {
       setError(e.message || '메시지를 보내지 못했습니다.');
     } finally { setMessageBusy(false); }
   };
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !user?.username) return;
+    const installKey = 'fitnova_install_notifications_cleared_v1';
+    if (localStorage.getItem(installKey) === 'true') return;
+    let active = true;
+    (async () => {
+      try {
+        await api('/api/notifications', { method: 'DELETE' });
+        if (!active) return;
+        setNotifications([]);
+        setUnreadCount(0);
+        localStorage.setItem(installKey, 'true');
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, [user?.username]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      setNotifications(items => items.filter(item => {
+        const created = Date.parse(item.created_at || '');
+        return Number.isFinite(created) && created >= cutoff;
+      }));
+      setUnreadCount(count => Math.min(count, notifications.filter(item => !item.read && Date.parse(item.created_at || '') >= cutoff).length));
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [notifications]);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const timer = window.setTimeout(() => {

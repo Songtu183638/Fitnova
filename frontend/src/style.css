@@ -910,6 +910,16 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
   .message-compose { padding-top: 6px; padding-bottom: calc(6px + var(--safe-bottom)); }
 }
 
+/* Page and overlay transitions. `backwards` fill avoids leaving a transform on
+   the element afterwards (a lingering transform would trap position:fixed children). */
+@keyframes fitnova-page-enter { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+@keyframes fitnova-panel-enter { from { opacity: 0; transform: translate3d(0, 8px, 0) scale(0.985); } to { opacity: 1; transform: none; } }
+.dashboard-main > :where(.feed-layout, .module-view, .settings-page, .steps-page, .workout-analysis-page, .moderation-page),
+.dashboard-main > .messages-view:not(.chat-open) { animation: fitnova-page-enter 0.28s cubic-bezier(0.22, 0.75, 0.25, 1) backwards; }
+.social-overlay-panel, .relationship-modal, .post-modal { animation: fitnova-panel-enter 0.22s cubic-bezier(0.22, 0.75, 0.25, 1) backwards; }
+button:not(:disabled):active { transform: scale(0.975); }
+.mobile-nav button { transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }

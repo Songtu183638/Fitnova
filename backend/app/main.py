@@ -1928,13 +1928,27 @@ def search_social(q: str = Query(default="", max_length=80), user: dict = Depend
 def list_notifications(user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
+            conn.execute("DELETE FROM notifications WHERE recipient_username=%s AND created_at < NOW() - INTERVAL '1 hour'",
+                (user["username"],))
             rows = conn.execute("SELECT id,actor_username,kind,message,post_id,read,created_at FROM notifications WHERE recipient_username=%s ORDER BY created_at DESC LIMIT 100",
                 (user["username"],)).fetchall()
-            unread = conn.execute("SELECT COUNT(*)::int AS n FROM notifications WHERE recipient_username=%s AND read=FALSE",
+            unread = conn.execute("SELECT COUNT(*)::int AS n FROM notifications WHERE recipient_username=%s AND read=FALSE AND created_at >= NOW() - INTERVAL '1 hour'",
                 (user["username"],)).fetchone()["n"]
             return {"notifications": [dict(r) for r in rows], "unread_count": unread}
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
+    _notifications[:] = [n for n in _notifications if n["recipient_username"] != user["username"] or (n.get("created_at") and datetime.fromisoformat(str(n["created_at"]).replace("Z", "+00:00")) >= cutoff)]
     rows = [dict(n) for n in _notifications if n["recipient_username"] == user["username"]][:100]
     return {"notifications": rows, "unread_count": sum(1 for n in rows if not n["read"])}
+
+
+@app.delete("/api/notifications")
+def clear_notifications(user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("DELETE FROM notifications WHERE recipient_username=%s", (user["username"],))
+    else:
+        _notifications[:] = [n for n in _notifications if n["recipient_username"] != user["username"]]
+    return {"cleared": True}
 
 
 @app.post("/api/notifications/read")
