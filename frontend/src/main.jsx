@@ -549,8 +549,14 @@ function Dashboard({ user, tab, setTab, logout }) {
   const loadNotifications = async (markRead = false) => {
     try {
       const data = await api('/api/notifications');
-      setNotifications(data.notifications||[]); setUnreadCount(data.unread_count||0);
-      if (markRead && (data.unread_count||0)>0) {
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      const fresh = (data.notifications || []).filter(item => {
+        const created = Date.parse(item.created_at || '');
+        return Number.isFinite(created) && created >= cutoff;
+      });
+      setNotifications(fresh);
+      setUnreadCount(fresh.filter(item => !item.read).length);
+      if (markRead && fresh.some(item => !item.read)) {
         await api('/api/notifications/read',{method:'POST'});
         setNotifications(items=>items.map(item=>({...item,read:true}))); setUnreadCount(0);
       }
@@ -642,6 +648,33 @@ function Dashboard({ user, tab, setTab, logout }) {
       setError(e.message || '메시지를 보내지 못했습니다.');
     } finally { setMessageBusy(false); }
   };
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !user?.username) return;
+    const installKey = 'fitnova_install_notifications_cleared_v1';
+    if (localStorage.getItem(installKey) === 'true') return;
+    let active = true;
+    (async () => {
+      try {
+        await api('/api/notifications', { method: 'DELETE' });
+        if (!active) return;
+        setNotifications([]);
+        setUnreadCount(0);
+        localStorage.setItem(installKey, 'true');
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, [user?.username]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      setNotifications(items => items.filter(item => {
+        const created = Date.parse(item.created_at || '');
+        return Number.isFinite(created) && created >= cutoff;
+      }));
+      setUnreadCount(count => Math.min(count, notifications.filter(item => !item.read && Date.parse(item.created_at || '') >= cutoff).length));
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [notifications]);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const timer = window.setTimeout(() => {
