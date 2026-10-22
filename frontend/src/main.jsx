@@ -9,7 +9,6 @@ import {
   UserPlus, UserCheck, MessageSquare, ChevronLeft, ChevronRight, Settings, Bookmark, KeyRound, UserX, MailCheck, Search, Flag, Ban, VolumeX, Pencil, Share2, ClipboardList, Footprints, RefreshCw, FileText
 } from 'lucide-react';
 import './style.css';
-import './source-ui-parity.css';
 import WorkoutAnalysisPanel from './WorkoutAnalysisPanel.jsx';
 import './workout-analysis.css';
 import LegalPages from './LegalPages.jsx';
