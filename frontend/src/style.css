@@ -1165,3 +1165,112 @@ body { background: var(--bg); }
   .home-section-head { grid-area: head; margin-top: 0; }
   .home-feed-layout > .feed-list { grid-area: feed; }
 }
+
+/* ==========================================================================
+   16 · Soften — rounder corners, no angled cuts, floating mobile nav
+   ========================================================================== */
+:root {
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --cut: none;
+}
+
+/* Buttons: rounded instead of angle-cut */
+.primary, .follow-button, .followbtn, .wa-primary, .rail-nav button.nav-create { border-radius: 14px; }
+.primary.compact { border-radius: 12px; }
+.auth-app-mark { border-radius: 12px; }
+.home-quick button > span { border-radius: 12px; }
+
+/* Cards: notch becomes a small inset tab */
+.post-card::before, .settings-card::before, .profile-card::before, .thread-list::before,
+.steps-today-card::before, .steps-week-card::before, .wa-panel::before, .wa-record-form::before,
+.auth-card::before { left: 24px; width: 28px; height: 3px; border-radius: 0 0 4px 4px; }
+
+/* Round the small hard-edged pieces */
+.tabs, .wa-view-switch, .moderation-filters { border-radius: 14px; }
+.tabs button, .wa-view-switch button, .moderation-filters button { border-radius: 10px; }
+.avatar, .composer-avatar, .profile-avatar, .settings-account-avatar, .thread-avatar,
+.relationship-avatar, .message-mini-avatar, .user-chip .avatar { border-radius: 50%; }
+.user-chip { border-radius: 99px; }
+.auth-benefits span, .mini-mark { border-radius: 99px; }
+.mini-mark { border-radius: 14px; }
+.chat-bubble { border-radius: 18px; }
+.chat-bubble.mine { border-bottom-right-radius: 6px; }
+.chat-bubble.theirs { border-bottom-left-radius: 6px; }
+.rail-nav button { border-radius: 14px; }
+.rail-nav button.selected { background: var(--lime-soft); box-shadow: none; }
+.home-quick button { border-radius: 18px; }
+.workout-details { border-radius: 16px; }
+.workout-details span { border-radius: 99px; }
+.wa-exercise-card, .wa-session-card { border-radius: 16px; }
+.wa-select-wrap, .wa-number-wrap, .wa-note-field textarea { border-radius: 12px; }
+.empty-feed, .thread-empty, .chat-empty-state, .steps-permission-card { border-radius: 22px; }
+.media-pick { border-radius: 12px; }
+.post-media img, .post-media video { border-radius: 0; }
+
+/* Stripes glow out of the corner instead of ending in a hard block */
+.home-hero::after {
+  right: -20px;
+  width: 60%;
+  -webkit-mask-image: radial-gradient(ellipse 80% 90% at 100% 40%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(ellipse 80% 90% at 100% 40%, #000 0%, transparent 72%);
+}
+.auth-screen::before {
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 100% 30%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 70% at 100% 30%, #000 0%, transparent 75%);
+}
+
+@media (max-width: 900px) {
+  /* Floating rounded tab bar */
+  .dashboard-main { padding-bottom: calc(108px + var(--safe-bottom)); }
+  .mobile-nav {
+    left: max(12px, var(--safe-left));
+    right: max(12px, var(--safe-right));
+    bottom: calc(10px + var(--safe-bottom));
+    padding: 6px;
+    border: 1px solid var(--line-2);
+    border-radius: 26px;
+    background: rgba(12, 12, 12, 0.94);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  }
+  .mobile-nav button { border-radius: 18px; }
+  .mobile-nav button.selected { background: var(--lime-soft); box-shadow: none; border-radius: 18px; }
+  .mobile-nav button.mobile-create {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+    margin: -22px 4px 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 5px var(--bg), 0 6px 18px rgba(183, 255, 54, 0.25);
+  }
+  .app-shell.chat-active .mobile-nav { display: none !important; }
+}
+@media (max-width: 640px) {
+  /* Posts: rounded cards inside the page margin (no edge-to-edge squares) */
+  .post-card { margin: 0; border: 1px solid var(--line-2); border-radius: var(--radius-lg); }
+  .feed-list { gap: 16px; }
+}
+
+/* Cleanup: drop the corner tabs, fade the stripes on every side */
+.post-card::before, .settings-card::before, .profile-card::before, .thread-list::before,
+.steps-today-card::before, .steps-week-card::before, .wa-panel::before, .wa-record-form::before,
+.auth-card::before { display: none; }
+.home-hero::after {
+  top: -10px;
+  bottom: -10px;
+  right: 0;
+  width: 58%;
+  -webkit-mask-image: radial-gradient(ellipse 62% 60% at 68% 45%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 62% 60% at 68% 45%, #000 0%, transparent 78%);
+}
+.home-hero { overflow: visible; }
+.home-hero::after {
+  -webkit-mask-image: radial-gradient(ellipse 48% 52% at 62% 45%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 48% 52% at 62% 45%, #000 0%, transparent 100%);
+}
+.home-hero::after {
+  -webkit-mask-image: radial-gradient(ellipse 42% 52% at 45% 45%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 42% 52% at 45% 45%, #000 0%, transparent 100%);
+}
