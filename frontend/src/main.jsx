@@ -4,7 +4,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { createRoot } from 'react-dom/client';
 import {
   Activity, ArrowRight, Bell, CheckCircle2, Compass, Eye, EyeOff, Flame,
-  Heart, Home, LockKeyhole, LogOut, Mail, MessageCircle, Send, ShieldCheck,
+  Heart, Home, Pin, LockKeyhole, LogOut, Mail, MessageCircle, Send, ShieldCheck,
   Sparkles, Trash2, TrendingUp, UserRound, Users, X, Zap, Plus, Image as ImageIcon, Video, Hash, Dumbbell, Weight, Clock3, Upload, FileVideo, FileImage,
   UserPlus, UserCheck, MessageSquare, ChevronLeft, ChevronRight, Settings, Bookmark, KeyRound, UserX, MailCheck, Search, Flag, Ban, VolumeX, Pencil, Share2, ClipboardList, Footprints, RefreshCw, FileText
 } from 'lucide-react';
