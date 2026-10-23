@@ -802,3 +802,62 @@ button:not(:disabled):active {
     transition: none !important;
   }
 }
+
+
+/* Feed actions: keep social actions in one horizontal row on mobile and desktop. */
+.post-card .post-actions {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: clamp(0px, 0.8vw, 8px) !important;
+  padding: 8px 10px !important;
+  overflow-x: auto !important;
+  scrollbar-width: none;
+}
+.post-card .post-actions::-webkit-scrollbar { display: none; }
+.post-card .post-actions > button {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  gap: 5px !important;
+  padding: 0 clamp(6px, 1.8vw, 12px) !important;
+  font-size: clamp(11px, 2.9vw, 13px) !important;
+}
+.post-card .post-actions .comment-count {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  margin-left: auto !important;
+  padding-left: 4px !important;
+  padding-right: 0 !important;
+  font-size: clamp(10px, 2.8vw, 12px) !important;
+  gap: 4px !important;
+}
+.comments-list .comment {
+  position: relative;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 7px 9px;
+  border-radius: 9px;
+}
+.comments-list .comment.comment-pinned {
+  background: #a7ff3f0b;
+  border: 1px solid #a7ff3f30;
+}
+.comment-pinned-label {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 100% !important;
+  color: var(--fitnova-lime, #a7ff3f) !important;
+  font-size: 10px !important;
+  font-weight: 800;
+}
+.comments-list .pin-comment-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--fitnova-lime, #a7ff3f);
+  white-space: nowrap;
+}
