@@ -57,6 +57,8 @@ function cacheSet(cache, key, value, ttl, maxItems = 30) {
 function invalidateApiCache() {
   apiCacheGeneration += 1;
   apiGetCache.clear();
+  // Do not let an older GET hold up a fresh request after a write.
+  apiGetInFlight.clear();
 }
 
 async function api(path, options = {}) {
@@ -87,7 +89,11 @@ async function api(path, options = {}) {
     return data;
   };
   if (!cacheable) return run();
-  const promise = run().finally(() => apiGetInFlight.delete(cacheKey));
+  let promise;
+  promise = run().finally(() => {
+    // An invalidated request must not delete a newer request for the same key.
+    if (apiGetInFlight.get(cacheKey) === promise) apiGetInFlight.delete(cacheKey);
+  });
   apiGetInFlight.set(cacheKey, promise);
   return promise;
 }
