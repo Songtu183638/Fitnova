@@ -30,6 +30,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Cache npm package downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -37,7 +44,8 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
-      - run: npm install --no-audit --no-fund
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm install --no-audit --no-fund --prefer-offline
       - name: Validate Android API origin
         if: ${{ vars.VITE_API_URL != '' }}
         env:
