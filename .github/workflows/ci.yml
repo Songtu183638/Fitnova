@@ -2,9 +2,9 @@ name: FITNOVA CI
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, integration]
   pull_request:
-    branches: [main]
+    branches: [main, integration]
 jobs:
   backend:
     runs-on: ubuntu-latest
