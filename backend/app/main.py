@@ -830,6 +830,15 @@ def confirm_password_reset(payload: PasswordResetConfirmIn, request: Request):
 def me(user: dict = Depends(_current_user)):
     return {"user": _public(user)}
 
+# Columns of `posts` that the list endpoints (feed, profile, saved, search) need.
+# `media_data` (the base64 photo/video, often several MB per post) is intentionally left out:
+# list responses never include it and the client loads it lazily via /api/posts/{id}/media.
+# Selecting `p.*` made the database ship every post's media to the API only to be discarded.
+# If a column is added to `posts`, add it here too.
+_POST_LIST_COLUMNS = ("p.id, p.author_username, p.content, p.title, p.media_type, p.media_duration_seconds, "
+                      "p.hashtags, p.weight, p.sets_count, p.exercise_name, p.reps, p.duration_minutes, "
+                      "p.workout_notes, p.created_at, p.pinned")
+
 def _post_dict(row: dict, username: str, comments=None):
     created = row["created_at"]
     hashtags = row.get("hashtags") or []
@@ -866,7 +875,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
     normalized_tag = (hashtag or "").strip().lstrip("#").strip().lower()
     if _DATABASE_URL:
         with _db() as conn:
-            rows = conn.execute("""SELECT p.*,
+            rows = conn.execute(f"""SELECT {_POST_LIST_COLUMNS},
                 (SELECT COUNT(*)::int FROM post_likes l WHERE l.post_id=p.id) AS like_count,
                 EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.username=%s) AS liked_by_me
                 FROM posts p
@@ -1472,16 +1481,25 @@ def list_message_threads(user: dict = Depends(_current_user)):
     me = user["username"]
     if _DATABASE_URL:
         with _db() as conn:
+            # Unread counts are aggregated once instead of re-counted by a correlated subquery for
+            # every message row (which made this list take seconds for users with long histories).
             rows = conn.execute("""
-                SELECT DISTINCT ON (other_user) other_user, id, sender_username, recipient_username, content, created_at, read_at,
-                       (SELECT COUNT(*)::int FROM direct_messages unread WHERE unread.sender_username = other_user
-                        AND unread.recipient_username = %s AND unread.read_at IS NULL) AS unread_count
-                FROM (
+                WITH mine AS (
                     SELECT CASE WHEN sender_username=%s THEN recipient_username ELSE sender_username END AS other_user,
                            id, sender_username, recipient_username, content, created_at, read_at
                     FROM direct_messages WHERE sender_username=%s OR recipient_username=%s
-                ) dm
-                ORDER BY other_user, created_at DESC
+                ),
+                latest AS (
+                    SELECT DISTINCT ON (other_user) * FROM mine ORDER BY other_user, created_at DESC, id DESC
+                ),
+                unread AS (
+                    SELECT sender_username AS other_user, COUNT(*)::int AS unread_count
+                    FROM direct_messages WHERE recipient_username=%s AND read_at IS NULL GROUP BY sender_username
+                )
+                SELECT l.other_user, l.id, l.sender_username, l.recipient_username, l.content, l.created_at, l.read_at,
+                       COALESCE(u.unread_count, 0) AS unread_count
+                FROM latest l LEFT JOIN unread u ON u.other_user = l.other_user
+                ORDER BY l.other_user
             """, (me, me, me, me)).fetchall()
         threads = [_message_dict(dict(row)) | {"username": row["other_user"], "unread_count": row["unread_count"]} for row in rows]
     else:
@@ -1723,7 +1741,7 @@ def get_user_posts(username: str,user: dict = Depends(_current_user)):
         raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     if _DATABASE_URL:
         with _db() as conn:
-            rows=conn.execute("""SELECT p.*,COUNT(DISTINCT l.username)::int AS like_count,
+            rows=conn.execute(f"""SELECT {_POST_LIST_COLUMNS},COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
                 WHERE p.author_username=%s GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""",(user["username"],target["username"])).fetchall()
             result=[]
@@ -1761,7 +1779,7 @@ def toggle_saved_post(post_id: int,user: dict = Depends(_current_user)):
 def list_saved_posts(user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
-            rows=conn.execute("""SELECT p.*,COUNT(DISTINCT l.username)::int AS like_count,
+            rows=conn.execute(f"""SELECT {_POST_LIST_COLUMNS},COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me FROM saved_posts s JOIN posts p ON p.id=s.post_id
                 LEFT JOIN post_likes l ON l.post_id=p.id WHERE s.username=%s
                 AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
@@ -1881,7 +1899,7 @@ def search_social(q: str = Query(default="", max_length=80), user: dict = Depend
             user_rows = conn.execute("SELECT username,name FROM users WHERE deletion_requested_at IS NULL AND (LOWER(username) LIKE %s OR LOWER(name) LIKE %s) ORDER BY username LIMIT 12",
                 (pattern, pattern)).fetchall()
             users = [{"username": r["username"], "name": r.get("name") or r["username"]} for r in user_rows if r["username"].lower() != user["username"].lower()]
-            rows = conn.execute("""SELECT p.*, COUNT(DISTINCT l.username)::int AS like_count,
+            rows = conn.execute(f"""SELECT {_POST_LIST_COLUMNS}, COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
                 FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
                 WHERE (LOWER(p.title) LIKE %s OR LOWER(p.content) LIKE %s OR EXISTS
