@@ -1256,6 +1256,25 @@ function Stat({ icon: Icon, label, value, unit, note }) {
   return <section className="stat-card"><div className="stat-top"><span className="stat-icon"><Icon size={19}/></span><span className="stat-label">{label}</span></div><div className="stat-value">{value}<small>{unit}</small></div><p>{note}</p></section>;
 }
 
+function AccountDeletionPage() {
+  return <main className="legal-shell">
+    <header className="legal-topbar">
+      <a className="legal-brand" href="/" aria-label="FITNOVA 홈"><span className="legal-mark"><Activity size={21}/></span><span>FIT<span>NOVA</span></span></a>
+      <a className="legal-back" href="/"><ArrowLeft size={16}/> 서비스로 돌아가기</a>
+    </header>
+    <article className="legal-content">
+      <span className="legal-eyebrow">ACCOUNT & DATA</span>
+      <h1>FITNOVA 계정 삭제 요청</h1>
+      <p className="legal-intro">앱에 로그인할 수 없는 경우에도 이 페이지에서 계정 삭제를 요청할 수 있습니다.</p>
+      <section className="legal-section"><h2>삭제 요청 방법</h2><p>아래 버튼을 눌러 FITNOVA 운영자에게 요청해 주세요. 이메일에 FITNOVA 사용자 이름과 가입 이메일 주소를 적어 주세요. 비밀번호나 인증 코드는 보내지 마세요.</p></section>
+      <section className="legal-section"><h2>본인 확인 및 처리</h2><p>계정 보호를 위해 운영자가 등록된 이메일 주소로 본인 확인을 요청할 수 있습니다. 요청 확인 후 관련 계정과 연결된 개인정보를 삭제 처리합니다. 법령 준수, 보안, 사기 방지 또는 분쟁 처리 등 정당한 사유로 보관이 필요한 정보는 법적 근거가 있는 범위에서만 보관될 수 있습니다. 앱 내 탈퇴 기능으로 요청한 경우 30일 유예 기간이 적용될 수 있습니다.</p></section>
+      <section className="legal-section"><h2>운영자 및 문의</h2><p>FITNOVA 운영자: FitNova운영자(개인 운영)<br/>이메일: fitnova@naver.com</p></section>
+      <a className="legal-back" href="mailto:fitnova@naver.com?subject=FITNOVA%20계정%20삭제%20요청&body=FITNOVA%20사용자%20이름%3A%20%0A가입%20이메일%3A%20%0A계정%20삭제를%20요청합니다.">이메일로 계정 삭제 요청하기</a>
+      <p><a href="/privacy">개인정보 처리방침 보기</a></p>
+    </article>
+  </main>;
+}
+
 const legalPaths = ['/privacy', '/terms', '/community-guidelines'];
-createRoot(document.getElementById('root')).render(legalPaths.includes(window.location.pathname) ? <LegalPages /> : <App/>);
+createRoot(document.getElementById('root')).render(window.location.pathname === '/delete-account' ? <AccountDeletionPage /> : legalPaths.includes(window.location.pathname) ? <LegalPages /> : <App/>);
 
