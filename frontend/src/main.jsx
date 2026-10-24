@@ -815,16 +815,18 @@ function Dashboard({ user, tab, setTab, logout }) {
   useEffect(() => { loadSavedPosts(); }, []);
   useEffect(() => { activeChatRef.current = activeChat; if (tab === 'messages' && activeChat) loadConversation(activeChat); }, [tab, activeChat]);
   useEffect(() => {
-    if (tab !== 'messages' || !activeChat) return;
+    if (tab !== 'messages') return;
     let cancelled = false;
     let timer;
-    const refreshConversation = async () => {
+    const refreshMessages = async () => {
       if (!document.hidden) {
-        await Promise.allSettled([loadConversation(activeChat), loadThreads()]);
+        const refreshes = [loadThreads()];
+        if (activeChat) refreshes.push(loadConversation(activeChat));
+        await Promise.allSettled(refreshes);
       }
-      if (!cancelled) timer = window.setTimeout(refreshConversation, 1500);
+      if (!cancelled) timer = window.setTimeout(refreshMessages, 1500);
     };
-    timer = window.setTimeout(refreshConversation, 1500);
+    timer = window.setTimeout(refreshMessages, 1500);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
