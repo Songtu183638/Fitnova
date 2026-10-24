@@ -50,6 +50,7 @@
 
 ### 3. Android / Google Play
 
+- [x] Android target API / compile SDK를 36으로 올리고 Android Gradle Plugin을 8.10.1로 맞췄습니다. 새 앱 제출에 필요한 API 수준을 충족하도록 구성했으며, 실제 AAB 빌드와 기기 테스트는 CI에서 재검증해야 합니다.
 - [ ] Firebase 클라이언트 설정과 서버의 Firebase Admin 자격 증명을 확인하고 실제 푸시 알림을 테스트합니다. 둘 중 하나라도 없으면 푸시가 작동하지 않습니다.
 - [ ] 서명된 **release AAB**를 생성합니다. CI에는 서명 키를 GitHub Actions Secrets에 설정했을 때만 `fitnova-android-release-aab` 아티팩트를 빌드·업로드하는 단계가 준비되어 있습니다. 아래의 키 설정을 운영자가 완료해야 합니다. CI의 debug APK 빌드 성공은 Play Store 출시 번들/서명 완료를 의미하지 않습니다.
 - [ ] 실제 Android 기기에서 가입, 로그인, 비밀번호 재설정, 사진/동영상 업로드, DM, 읽음 표시, 차단/숨김, 회원탈퇴를 테스트합니다.
