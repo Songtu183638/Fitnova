@@ -830,6 +830,15 @@ def confirm_password_reset(payload: PasswordResetConfirmIn, request: Request):
 def me(user: dict = Depends(_current_user)):
     return {"user": _public(user)}
 
+# Columns of `posts` that the list endpoints (feed, profile, saved, search) need.
+# `media_data` (the base64 photo/video, often several MB per post) is intentionally left out:
+# list responses never include it and the client loads it lazily via /api/posts/{id}/media.
+# Selecting `p.*` made the database ship every post's media to the API only to be discarded.
+# If a column is added to `posts`, add it here too.
+_POST_LIST_COLUMNS = ("p.id, p.author_username, p.content, p.title, p.media_type, p.media_duration_seconds, "
+                      "p.hashtags, p.weight, p.sets_count, p.exercise_name, p.reps, p.duration_minutes, "
+                      "p.workout_notes, p.created_at, p.pinned")
+
 def _post_dict(row: dict, username: str, comments=None):
     created = row["created_at"]
     hashtags = row.get("hashtags") or []
@@ -866,7 +875,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
     normalized_tag = (hashtag or "").strip().lstrip("#").strip().lower()
     if _DATABASE_URL:
         with _db() as conn:
-            rows = conn.execute("""SELECT p.*,
+            rows = conn.execute(f"""SELECT {_POST_LIST_COLUMNS},
                 (SELECT COUNT(*)::int FROM post_likes l WHERE l.post_id=p.id) AS like_count,
                 EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.username=%s) AS liked_by_me
                 FROM posts p
@@ -1469,15 +1478,105 @@ def unregister_push_device(token: str, user: dict = Depends(_current_user)):
 
 @app.get("/api/messages")
 def list_message_threads(user: dict = Depends(_current_user)):
-    raise HTTPException(status_code=410, detail="FITNOVA 다이렉트 메시지 기능은 종료되었습니다.")
+    me = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            # Unread counts are aggregated once instead of re-counted by a correlated subquery for
+            # every message row (which made this list take seconds for users with long histories).
+            rows = conn.execute("""
+                WITH mine AS (
+                    SELECT CASE WHEN sender_username=%s THEN recipient_username ELSE sender_username END AS other_user,
+                           id, sender_username, recipient_username, content, created_at, read_at
+                    FROM direct_messages WHERE sender_username=%s OR recipient_username=%s
+                ),
+                latest AS (
+                    SELECT DISTINCT ON (other_user) * FROM mine ORDER BY other_user, created_at DESC, id DESC
+                ),
+                unread AS (
+                    SELECT sender_username AS other_user, COUNT(*)::int AS unread_count
+                    FROM direct_messages WHERE recipient_username=%s AND read_at IS NULL GROUP BY sender_username
+                )
+                SELECT l.other_user, l.id, l.sender_username, l.recipient_username, l.content, l.created_at, l.read_at,
+                       COALESCE(u.unread_count, 0) AS unread_count
+                FROM latest l LEFT JOIN unread u ON u.other_user = l.other_user
+                ORDER BY l.other_user
+            """, (me, me, me, me)).fetchall()
+        threads = [_message_dict(dict(row)) | {"username": row["other_user"], "unread_count": row["unread_count"]} for row in rows]
+    else:
+        latest = {}
+        for msg in _messages:
+            if me not in (msg["sender_username"], msg["recipient_username"]): continue
+            other = msg["recipient_username"] if msg["sender_username"] == me else msg["sender_username"]
+            if other not in latest or msg["created_at"] > latest[other]["created_at"]:
+                latest[other] = msg
+        threads = [_message_dict(msg) | {"username": name, "unread_count": sum(1 for item in _messages if item["sender_username"] == name and item["recipient_username"] == me and not item.get("read_at"))} for name, msg in latest.items()]
+        threads.sort(key=lambda item: item["created_at"], reverse=True)
+    return {"threads": threads}
 
 @app.get("/api/messages/{username}")
 def get_conversation(username: str, user: dict = Depends(_current_user)):
-    raise HTTPException(status_code=410, detail="FITNOVA 다이렉트 메시지 기능은 종료되었습니다.")
+    target = _find_username(username)
+    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    me = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute("UPDATE direct_messages SET read_at=NOW() WHERE sender_username=%s AND recipient_username=%s AND read_at IS NULL", (target["username"], me))
+            rows = conn.execute("""SELECT id,sender_username,recipient_username,content,created_at,read_at FROM direct_messages
+                WHERE (sender_username=%s AND recipient_username=%s) OR (sender_username=%s AND recipient_username=%s)
+                ORDER BY created_at ASC LIMIT 500""", (me,target["username"],target["username"],me)).fetchall()
+        messages = [_message_dict(dict(row)) for row in rows]
+    else:
+        now = datetime.now(timezone.utc).isoformat()
+        with _lock:
+            for item in _messages:
+                if item["sender_username"] == target["username"] and item["recipient_username"] == me and not item.get("read_at"):
+                    item["read_at"] = now
+            messages = [_message_dict(m) for m in _messages if
+                        (m["sender_username"] == me and m["recipient_username"] == target["username"]) or
+                        (m["sender_username"] == target["username"] and m["recipient_username"] == me)]
+    return {"username": target["username"], "messages": messages}
 
-@app.post("/api/messages/{username}", status_code=410)
+@app.post("/api/messages/{username}", status_code=201)
 def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(_current_user)):
-    raise HTTPException(status_code=410, detail="FITNOVA 다이렉트 메시지 기능은 종료되었습니다.")
+    global _message_seq
+    target = _find_username(username)
+    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    content = payload.content.strip()
+    if not content: raise HTTPException(status_code=422, detail="메시지를 입력해 주세요.")
+    _validate_community_text(content)
+    if target["username"] == user["username"]: raise HTTPException(status_code=400, detail="자기 자신에게 메시지를 보낼 수 없습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            blocked = conn.execute("SELECT 1 FROM user_blocks WHERE (blocker_username=%s AND blocked_username=%s) OR (blocker_username=%s AND blocked_username=%s) LIMIT 1",
+                (user["username"],target["username"],target["username"],user["username"])).fetchone()
+        if blocked: raise HTTPException(status_code=403, detail="이 계정과는 메시지를 주고받을 수 없습니다.")
+    elif (user["username"],target["username"]) in _blocks or (target["username"],user["username"]) in _blocks:
+        raise HTTPException(status_code=403, detail="이 계정과는 메시지를 주고받을 수 없습니다.")
+    prefs = _get_user_settings(target["username"])
+    if prefs["allow_messages_from"] == "following":
+        if _DATABASE_URL:
+            with _db() as conn:
+                allowed = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (target["username"], user["username"])).fetchone())
+        else:
+            allowed = (target["username"], user["username"]) in _follows
+        if not allowed:
+            raise HTTPException(status_code=403, detail="이 사용자는 팔로우한 계정에게서만 메시지를 받습니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("""INSERT INTO direct_messages(sender_username,recipient_username,content)
+                VALUES (%s,%s,%s) RETURNING id,sender_username,recipient_username,content,created_at,read_at""",
+                (user["username"],target["username"],content)).fetchone()
+        _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
+        _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
+        return {"message": _message_dict(dict(row))}
+    with _lock:
+        _message_seq += 1
+        message = {"id": _message_seq, "sender_username": user["username"], "recipient_username": target["username"],
+                   "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "read_at": None}
+        _messages.append(message)
+    _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
+    _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
+    return {"message": _message_dict(message)}
 
 
 def _get_user_settings(username: str):
@@ -1642,7 +1741,7 @@ def get_user_posts(username: str,user: dict = Depends(_current_user)):
         raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     if _DATABASE_URL:
         with _db() as conn:
-            rows=conn.execute("""SELECT p.*,COUNT(DISTINCT l.username)::int AS like_count,
+            rows=conn.execute(f"""SELECT {_POST_LIST_COLUMNS},COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
                 WHERE p.author_username=%s GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""",(user["username"],target["username"])).fetchall()
             result=[]
@@ -1680,7 +1779,7 @@ def toggle_saved_post(post_id: int,user: dict = Depends(_current_user)):
 def list_saved_posts(user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
-            rows=conn.execute("""SELECT p.*,COUNT(DISTINCT l.username)::int AS like_count,
+            rows=conn.execute(f"""SELECT {_POST_LIST_COLUMNS},COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me FROM saved_posts s JOIN posts p ON p.id=s.post_id
                 LEFT JOIN post_likes l ON l.post_id=p.id WHERE s.username=%s
                 AND (p.author_username=%s OR NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
@@ -1800,7 +1899,7 @@ def search_social(q: str = Query(default="", max_length=80), user: dict = Depend
             user_rows = conn.execute("SELECT username,name FROM users WHERE deletion_requested_at IS NULL AND (LOWER(username) LIKE %s OR LOWER(name) LIKE %s) ORDER BY username LIMIT 12",
                 (pattern, pattern)).fetchall()
             users = [{"username": r["username"], "name": r.get("name") or r["username"]} for r in user_rows if r["username"].lower() != user["username"].lower()]
-            rows = conn.execute("""SELECT p.*, COUNT(DISTINCT l.username)::int AS like_count,
+            rows = conn.execute(f"""SELECT {_POST_LIST_COLUMNS}, COUNT(DISTINCT l.username)::int AS like_count,
                 COALESCE(BOOL_OR(l.username=%s),FALSE) AS liked_by_me
                 FROM posts p LEFT JOIN post_likes l ON l.post_id=p.id
                 WHERE (LOWER(p.title) LIKE %s OR LOWER(p.content) LIKE %s OR EXISTS

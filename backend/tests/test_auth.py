@@ -131,7 +131,7 @@ def test_post_owner_comment_moderation_and_verified_master_actions(monkeypatch):
     assert client.get("/api/auth/me", headers=commenter_headers).status_code == 403
     assert client.post("/api/users/comment_user/suspend", headers=master_headers).json()["suspended"] is False
 
-def test_hashtag_search_follow_profile_and_dm_disabled(monkeypatch):
+def test_hashtag_search_follow_profile_and_direct_messages(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token_a = _verified_user("member_a", "membera@example.com", sent)
@@ -160,11 +160,14 @@ def test_hashtag_search_follow_profile_and_dm_disabled(monkeypatch):
     assert unfollowed.json()["following"] is False
 
     sent_message = client.post("/api/messages/member_b", headers=headers_a, json={"content": "오늘 운동 멋져요!"})
-    assert sent_message.status_code == 410
+    assert sent_message.status_code == 201
+    assert sent_message.json()["message"]["content"] == "오늘 운동 멋져요!"
     conversation = client.get("/api/messages/member_a", headers=headers_b)
-    assert conversation.status_code == 410
+    assert conversation.status_code == 200
+    assert conversation.json()["messages"][0]["sender_username"] == "member_a"
     threads = client.get("/api/messages", headers=headers_b)
-    assert threads.status_code == 410
+    assert threads.status_code == 200
+    assert threads.json()["threads"][0]["username"] == "member_a"
 
 def test_auth_token_is_persistent_for_one_year(monkeypatch):
     sent = {}
@@ -174,7 +177,7 @@ def test_auth_token_is_persistent_for_one_year(monkeypatch):
     assert payload["exp"] - payload["iat"] >= 364 * 24 * 60 * 60
 
 
-def test_saved_posts_account_settings_email_password_and_dm_disabled(monkeypatch):
+def test_saved_posts_account_settings_email_password_and_message_privacy(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token_a = _verified_user("settings_a", "settingsa@example.com", sent)
@@ -195,8 +198,11 @@ def test_saved_posts_account_settings_email_password_and_dm_disabled(monkeypatch
     })
     assert prefs.status_code == 200
     assert prefs.json()["settings"]["allow_messages_from"] == "following"
-    disabled_message = client.post("/api/messages/settings_b", headers=headers_a, json={"content":"안녕하세요"})
-    assert disabled_message.status_code == 410
+    blocked = client.post("/api/messages/settings_b", headers=headers_a, json={"content":"안녕하세요"})
+    assert blocked.status_code == 403
+    client.post("/api/users/settings_a/follow", headers=headers_b)
+    allowed = client.post("/api/messages/settings_b", headers=headers_a, json={"content":"이제 보낼 수 있나요?"})
+    assert allowed.status_code == 201
 
     requested = client.post("/api/account/password/request-code", headers=headers_a)
     assert requested.status_code == 202
