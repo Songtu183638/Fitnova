@@ -1469,96 +1469,15 @@ def unregister_push_device(token: str, user: dict = Depends(_current_user)):
 
 @app.get("/api/messages")
 def list_message_threads(user: dict = Depends(_current_user)):
-    me = user["username"]
-    if _DATABASE_URL:
-        with _db() as conn:
-            rows = conn.execute("""
-                SELECT DISTINCT ON (other_user) other_user, id, sender_username, recipient_username, content, created_at, read_at,
-                       (SELECT COUNT(*)::int FROM direct_messages unread WHERE unread.sender_username = other_user
-                        AND unread.recipient_username = %s AND unread.read_at IS NULL) AS unread_count
-                FROM (
-                    SELECT CASE WHEN sender_username=%s THEN recipient_username ELSE sender_username END AS other_user,
-                           id, sender_username, recipient_username, content, created_at, read_at
-                    FROM direct_messages WHERE sender_username=%s OR recipient_username=%s
-                ) dm
-                ORDER BY other_user, created_at DESC
-            """, (me, me, me, me)).fetchall()
-        threads = [_message_dict(dict(row)) | {"username": row["other_user"], "unread_count": row["unread_count"]} for row in rows]
-    else:
-        latest = {}
-        for msg in _messages:
-            if me not in (msg["sender_username"], msg["recipient_username"]): continue
-            other = msg["recipient_username"] if msg["sender_username"] == me else msg["sender_username"]
-            if other not in latest or msg["created_at"] > latest[other]["created_at"]:
-                latest[other] = msg
-        threads = [_message_dict(msg) | {"username": name, "unread_count": sum(1 for item in _messages if item["sender_username"] == name and item["recipient_username"] == me and not item.get("read_at"))} for name, msg in latest.items()]
-        threads.sort(key=lambda item: item["created_at"], reverse=True)
-    return {"threads": threads}
+    raise HTTPException(status_code=410, detail="FITNOVA 다이렉트 메시지 기능은 종료되었습니다.")
 
 @app.get("/api/messages/{username}")
 def get_conversation(username: str, user: dict = Depends(_current_user)):
-    target = _find_username(username)
-    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-    me = user["username"]
-    if _DATABASE_URL:
-        with _db() as conn:
-            conn.execute("UPDATE direct_messages SET read_at=NOW() WHERE sender_username=%s AND recipient_username=%s AND read_at IS NULL", (target["username"], me))
-            rows = conn.execute("""SELECT id,sender_username,recipient_username,content,created_at,read_at FROM direct_messages
-                WHERE (sender_username=%s AND recipient_username=%s) OR (sender_username=%s AND recipient_username=%s)
-                ORDER BY created_at ASC LIMIT 500""", (me,target["username"],target["username"],me)).fetchall()
-        messages = [_message_dict(dict(row)) for row in rows]
-    else:
-        now = datetime.now(timezone.utc).isoformat()
-        with _lock:
-            for item in _messages:
-                if item["sender_username"] == target["username"] and item["recipient_username"] == me and not item.get("read_at"):
-                    item["read_at"] = now
-            messages = [_message_dict(m) for m in _messages if
-                        (m["sender_username"] == me and m["recipient_username"] == target["username"]) or
-                        (m["sender_username"] == target["username"] and m["recipient_username"] == me)]
-    return {"username": target["username"], "messages": messages}
+    raise HTTPException(status_code=410, detail="FITNOVA 다이렉트 메시지 기능은 종료되었습니다.")
 
-@app.post("/api/messages/{username}", status_code=201)
+@app.post("/api/messages/{username}", status_code=410)
 def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(_current_user)):
-    global _message_seq
-    target = _find_username(username)
-    if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-    content = payload.content.strip()
-    if not content: raise HTTPException(status_code=422, detail="메시지를 입력해 주세요.")
-    _validate_community_text(content)
-    if target["username"] == user["username"]: raise HTTPException(status_code=400, detail="자기 자신에게 메시지를 보낼 수 없습니다.")
-    if _DATABASE_URL:
-        with _db() as conn:
-            blocked = conn.execute("SELECT 1 FROM user_blocks WHERE (blocker_username=%s AND blocked_username=%s) OR (blocker_username=%s AND blocked_username=%s) LIMIT 1",
-                (user["username"],target["username"],target["username"],user["username"])).fetchone()
-        if blocked: raise HTTPException(status_code=403, detail="이 계정과는 메시지를 주고받을 수 없습니다.")
-    elif (user["username"],target["username"]) in _blocks or (target["username"],user["username"]) in _blocks:
-        raise HTTPException(status_code=403, detail="이 계정과는 메시지를 주고받을 수 없습니다.")
-    prefs = _get_user_settings(target["username"])
-    if prefs["allow_messages_from"] == "following":
-        if _DATABASE_URL:
-            with _db() as conn:
-                allowed = bool(conn.execute("SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s", (target["username"], user["username"])).fetchone())
-        else:
-            allowed = (target["username"], user["username"]) in _follows
-        if not allowed:
-            raise HTTPException(status_code=403, detail="이 사용자는 팔로우한 계정에게서만 메시지를 받습니다.")
-    if _DATABASE_URL:
-        with _db() as conn:
-            row = conn.execute("""INSERT INTO direct_messages(sender_username,recipient_username,content)
-                VALUES (%s,%s,%s) RETURNING id,sender_username,recipient_username,content,created_at,read_at""",
-                (user["username"],target["username"],content)).fetchone()
-        _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-        _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
-        return {"message": _message_dict(dict(row))}
-    with _lock:
-        _message_seq += 1
-        message = {"id": _message_seq, "sender_username": user["username"], "recipient_username": target["username"],
-                   "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "read_at": None}
-        _messages.append(message)
-    _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-    _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
-    return {"message": _message_dict(message)}
+    raise HTTPException(status_code=410, detail="FITNOVA 다이렉트 메시지 기능은 종료되었습니다.")
 
 
 def _get_user_settings(username: str):
