@@ -17,8 +17,6 @@ import LegalPages from './LegalPages.jsx';
 // an explicit API origin or a same-origin reverse proxy, never the developer's host.
 const API = (import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8000') : 'https://fitnova-api-yt9t.onrender.com').replace(/\/$/, '');
 const TOKEN_KEY = 'fitnova_access_token';
-const PushNotifications = registerPlugin('PushNotifications');
-const LocalNotifications = registerPlugin('LocalNotifications');
 const StepCounter = registerPlugin('StepCounter');
 const apiGetCache = new Map();
 const apiGetInFlight = new Map();
@@ -501,55 +499,6 @@ function Dashboard({ user, tab, setTab, logout }) {
   const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('이메일을 변경했습니다.');}catch(e){setError(e.message||'이메일을 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
   const deleteAccount = async () => { if(!window.confirm('정말 회원탈퇴를 신청할까요? 계정은 즉시 비활성화되고, 30일 후 영구 삭제됩니다.'))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'회원탈퇴가 접수되었습니다. 계정은 비활성화되었으며 30일 후 영구 삭제됩니다.');}catch(e){setError((e.message||'회원탈퇴를 처리하지 못했습니다.')+' 계정 상태는 변경되지 않았습니다.');}finally{setSettingsBusy(false);} };
   const loadThreads = async () => { try { const data = await api('/api/messages'); const threads = Array.isArray(data.threads) ? data.threads : []; setMessageThreads(threads); try { localStorage.setItem('fitnova_message_threads:' + (user?.username || ''), JSON.stringify(threads)); } catch {} } catch (e) { setError(e.message || '메시지를 불러오지 못했습니다.'); } };
-  const enablePushNotifications = async ({ startup = false, requestPermission = true } = {}) => {
-    if (!Capacitor.isNativePlatform()) { setError('푸시 알림은 FITNOVA 안드로이드 앱에서 설정할 수 있습니다.'); return; }
-    setPushBusy(true); setError('');
-    try {
-      let permission = await PushNotifications.checkPermissions();
-      if (permission.receive !== 'granted' && requestPermission) {
-        permission = await PushNotifications.requestPermissions();
-        if (startup) localStorage.setItem('fitnova_notification_prompted', 'true');
-      }
-      if (permission.receive !== 'granted') {
-        setPushEnabled(false);
-        localStorage.removeItem('fitnova_push_enabled');
-        if (!startup) setError('휴대폰 알림 권한을 허용해 주세요. Android 설정에서 FITNOVA 알림을 켤 수 있습니다.');
-        return;
-      }
-      if (startup) localStorage.setItem('fitnova_notification_prompted', 'true');
-      await PushNotifications.createChannel({id:'fitnova_messages',name:'FITNOVA 메시지',description:'새 다이렉트 메시지 알림',importance:5,visibility:1});
-      await PushNotifications.addListener('registration', async token => {
-        try { await api('/api/push/devices', {method:'POST', body:JSON.stringify({token:token.value, platform:'android'})}); localStorage.setItem('fitnova_push_token', token.value); setPushEnabled(true); localStorage.setItem('fitnova_push_enabled','true'); }
-        catch (err) { setError(err.message||'알림 기기를 등록하지 못했습니다.'); }
-      });
-      await PushNotifications.addListener('registrationError', err => {
-        const message = err?.error || '푸시 알림 등록에 실패했습니다.';
-        if (startup) setNotice('알림 등록에 실패했습니다. 설정에서 다시 시도할 수 있어요.');
-        else setError(message);
-      });
-      await PushNotifications.addListener('pushNotificationReceived', notification => {
-        loadThreads();
-        const sender = notification?.data?.username;
-        if (notification?.data?.kind === 'message' && accountSettings.notify_messages !== false && sender && activeChatRef.current !== sender) {
-          LocalNotifications.schedule({notifications:[{id:Date.now()%2147483647,title:notification?.title||'새 메시지',body:notification?.body||'새 메시지가 도착했습니다.',channelId:'fitnova_messages',extra:notification?.data||{}}]}).catch(()=>{});
-        }
-      });
-      await LocalNotifications.addListener('localNotificationActionPerformed', action => {
-        const username = action?.notification?.extra?.username;
-        if (username) { setActiveChat(username); setTab('messages'); }
-      });
-      await PushNotifications.addListener('pushNotificationActionPerformed', action => {
-        const username = action?.notification?.data?.username;
-        if (username) { setActiveChat(username); setTab('messages'); }
-      });
-      await PushNotifications.register();
-      // Registration runs quietly; do not interrupt the user with a success toast.
-    } catch (err) {
-      if (startup) setNotice('알림을 설정하지 못했습니다. 설정에서 다시 시도할 수 있어요.');
-      else setError(err.message||'푸시 알림을 설정하지 못했습니다.');
-    }
-    finally { setPushBusy(false); }
-  };
   const runSearch = async (e) => {
     if (e) e.preventDefault();
     const q = searchQuery.trim();
@@ -565,7 +514,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       const cutoff = Date.now() - 60 * 60 * 1000;
       const fresh = (data.notifications || []).filter(item => {
         const created = Date.parse(item.created_at || '');
-        return Number.isFinite(created) && created >= cutoff;
+        return item.kind !== 'message' && Number.isFinite(created) && created >= cutoff;
       });
       setNotifications(fresh);
       setUnreadCount(fresh.filter(item => !item.read).length);
@@ -688,15 +637,6 @@ function Dashboard({ user, tab, setTab, logout }) {
     }, 60000);
     return () => window.clearInterval(timer);
   }, [notifications]);
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    const timer = window.setTimeout(() => {
-      const alreadyPrompted = localStorage.getItem('fitnova_notification_prompted') === 'true';
-      if (!alreadyPrompted) localStorage.setItem('fitnova_notification_prompted', 'true');
-      enablePushNotifications({ startup: true, requestPermission: !alreadyPrompted });
-    }, 700);
-    return () => window.clearTimeout(timer);
-  }, [user.username]);
   useEffect(() => { if (tab === 'feed' || tab === 'home') loadPosts(); if (tab === 'profile') {loadProfile(); loadOwnPosts(selectedProfile || user.username);} if (tab === 'analysis') loadWorkoutRecords(); if (tab === 'messages') loadThreads(); if(tab==='saved')loadSavedPosts(); if(tab==='settings'){loadSettings();loadSafetyLists();} }, [tab, selectedProfile]);
   useEffect(() => {
     if (tab !== 'home' || !posts.length) return;
