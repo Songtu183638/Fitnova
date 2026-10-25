@@ -379,6 +379,11 @@ function Dashboard({ user, tab, setTab, logout }) {
   const previousTabRef = useRef(tab);
   const ignoreNextTabHistoryRef = useRef(false);
   const [postFormOpen, setPostFormOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editHashtags, setEditHashtags] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postHashtags, setPostHashtags] = useState('');
@@ -585,19 +590,37 @@ function Dashboard({ user, tab, setTab, logout }) {
       }
     } catch (err) { setError(err.message||'알림을 불러오지 못했습니다.'); }
   };
-  const editPost = async (post) => {
-    const title = window.prompt('게시물 제목을 수정해 주세요.', post.title||'');
-    if (title === null) return;
-    const content = window.prompt('게시물 내용을 수정해 주세요.', post.content||'');
-    if (content === null) return;
-    if (!title.trim() || !content.trim()) { setError('제목과 내용을 입력해 주세요.'); return; }
+  const editPost = (post) => {
+    setEditingPost(post);
+    setEditTitle(post.title || '');
+    setEditContent(post.content || '');
+    setEditHashtags((post.hashtags || []).map(tag => String(tag).replace(/^#/, '')).join(' '));
+    setError('');
+    setNotice('');
+  };
+  const savePostEdit = async (event) => {
+    event.preventDefault();
+    if (!editingPost || editBusy) return;
+    if (!editTitle.trim() || !editContent.trim()) { setError('제목과 내용을 입력해 주세요.'); return; }
+    setEditBusy(true);
+    setError('');
     try {
-      const data = await api('/api/posts/'+post.id,{method:'PATCH',body:JSON.stringify({title:title.trim(),content:content.trim(),hashtags:post.hashtags||[]})});
-      const update = items=>items.map(item=>item.id===post.id?{...item,...data}:item);
-      setPosts(update); setOwnPosts(update); setSavedPosts(update);
-      setSearchResults(prev=>({...prev,posts:update(prev.posts)}));
-      setNotice('게시물을 수정했습니다.'); setError('');
-    } catch(err) { setError(err.message||'게시물을 수정하지 못했습니다.'); }
+      const hashtags = editHashtags.split(/[\\s,]+/).map(tag => tag.trim().replace(/^#/, '')).filter(Boolean).slice(0, 20);
+      const data = await api('/api/posts/' + editingPost.id, {method:'PATCH', body:JSON.stringify({title:editTitle.trim(),content:editContent.trim(),hashtags})});
+      const update = items => items.map(item => String(item.id) === String(editingPost.id) ? {...item,...data,hashtags:data.hashtags || hashtags} : item);
+      setPosts(update);
+      setOwnPosts(update);
+      setSavedPosts(update);
+      setSearchResults(prev => ({...prev,posts:update(prev.posts || [])}));
+      setProfileData(prev => prev ? {...prev,posts:update(prev.posts || [])} : prev);
+      setEditingPost(null);
+      setNotice('게시물을 수정했습니다.');
+      setError('');
+    } catch(err) {
+      setError(err.message || '게시물을 수정하지 못했습니다.');
+    } finally {
+      setEditBusy(false);
+    }
   };
   const sharePost = (post) => {
     setShareDialog(post);
@@ -1053,6 +1076,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       </section>
     </div>}
     {relationshipList.open&&<div className="modal-backdrop relationship-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setRelationshipList(v=>({...v,open:false}));}}><section className="relationship-modal" role="dialog" aria-modal="true" aria-labelledby="relationship-title"><header className="relationship-modal-head"><div><h2 id="relationship-title">{relationshipList.type==="followers"?"팔로워":"팔로잉"}</h2><p>@{relationshipList.username}</p></div><button className="icon-surface" type="button" aria-label="닫기" onClick={()=>setRelationshipList(v=>({...v,open:false}))}><X size={19}/></button></header>{relationshipList.loading?<div className="relationship-state"><span className="search-spinner"/>목록을 불러오는 중…</div>:relationshipList.error?<div className="relationship-state">{relationshipList.error}</div>:relationshipList.users.length===0?<div className="relationship-state">아직 {relationshipList.type==="followers"?"팔로워":"팔로잉"}이 없어요.</div>:<div className="relationship-users">{relationshipList.users.map(person=><button type="button" className="relationship-user" key={person.username} onClick={()=>{setRelationshipList(v=>({...v,open:false}));openProfile(person.username);}}><span className="relationship-avatar">{(person.name||person.username).slice(0,1).toUpperCase()}</span><span className="relationship-user-copy"><b>{person.name||person.username}</b><small>@{person.username}</small></span><ChevronRight size={17}/></button>)}</div>}</section></div>}
+    {editingPost&&<div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!editBusy)setEditingPost(null);}}><section className="post-modal edit-post-modal" role="dialog" aria-modal="true" aria-labelledby="edit-post-modal-title"><div className="post-modal-head"><div><span className="eyebrow">UPDATE YOUR MOMENT</span><h2 id="edit-post-modal-title">게시물 수정</h2><p>수정한 내용은 저장 후 게시물에 바로 반영됩니다.</p></div><button className="icon-surface" type="button" onClick={()=>setEditingPost(null)} disabled={editBusy} aria-label="닫기"><X size={19}/></button></div><form className="post-draft-form" onSubmit={savePostEdit}><label>제목 *<input value={editTitle} onChange={e=>setEditTitle(e.target.value.slice(0,120))} maxLength={120} required placeholder="게시물 제목"/></label><label>내용 *<textarea value={editContent} onChange={e=>setEditContent(e.target.value.slice(0,2000))} maxLength={2000} required rows={5} placeholder="게시물 내용을 입력해 주세요."/></label><label><span className="field-icon"><Hash size={15}/> 해시태그</span><input value={editHashtags} onChange={e=>setEditHashtags(e.target.value.slice(0,300))} placeholder="#헬스 #운동기록"/></label><div className="draft-privacy-note"><ShieldCheck size={15}/> 기존 사진·영상과 운동 정보는 유지됩니다.</div><div className="post-modal-actions"><button type="button" className="text-button" onClick={()=>setEditingPost(null)} disabled={editBusy}>취소</button><button className="primary compact" type="submit" disabled={editBusy||!editTitle.trim()||!editContent.trim()}>{editBusy?'저장 중…':'수정 내용 저장'}</button></div></form></section></div>}
     {postFormOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setPostFormOpen(false);}}><section className="post-modal" role="dialog" aria-modal="true" aria-labelledby="post-modal-title"><div className="post-modal-head"><div><span className="eyebrow">CREATE YOUR MOMENT</span><h2 id="post-modal-title">게시물 작성</h2><p>작성한 초안은 게시하기 전까지 공개되지 않습니다.</p></div><button className="icon-surface" type="button" onClick={()=>setPostFormOpen(false)} aria-label="닫기"><X size={19}/></button></div><form className="post-draft-form" onSubmit={createPost}><label>제목 *<input value={postTitle} onChange={e=>setPostTitle(e.target.value.slice(0,120))} maxLength={120} required placeholder="예: 하체 운동 4주차 기록"/></label><label>내용 *<textarea value={postContent} onChange={e=>setPostContent(e.target.value.slice(0,2000))} maxLength={2000} required rows={4} placeholder="운동하면서 느낀 점, 목표, 성취를 적어주세요."/></label><div className="draft-media-row"><label className="media-pick"><FileImage size={19}/> 사진 첨부<input type="file" accept="image/*" onChange={e=>chooseMedia(e.target.files?.[0])}/></label><label className="media-pick"><FileVideo size={19}/> 영상 첨부<input type="file" accept="video/*" onChange={e=>chooseMedia(e.target.files?.[0])}/></label><span className="media-hint">{postMediaName||'사진 5MB / 영상 40MB · 최대 1분'}</span></div>{postMedia&&<div className="media-preview">{postMedia.type==='image'?<img src={postMedia.previewUrl} alt="게시물 미리보기"/>:<video src={postMedia.previewUrl} controls muted playsInline/>}<button type="button" className="text-button" onClick={()=>{if(postMedia.previewUrl)URL.revokeObjectURL(postMedia.previewUrl);setPostMedia(null);setPostMediaName('');}}>첨부 삭제</button></div>}<label><span className="field-icon"><Hash size={15}/> 해시태그</span><input value={postHashtags} onChange={e=>setPostHashtags(e.target.value.slice(0,300))} placeholder="#헬스 #운동기록 #오늘의운동"/></label><div className="draft-grid"><label><span className="field-icon"><Weight size={15}/> 체중 (kg)</span><input type="number" min="1" max="500" step="0.1" value={postWeight} onChange={e=>setPostWeight(e.target.value)} placeholder="예: 68.5"/></label><label><span className="field-icon"><Dumbbell size={15}/> 운동 세트 수</span><input type="number" min="0" max="500" value={postSets} onChange={e=>setPostSets(e.target.value)} placeholder="예: 4"/></label><label><span className="field-icon"><Activity size={15}/> 운동 종류</span><input value={postExercise} onChange={e=>setPostExercise(e.target.value.slice(0,100))} placeholder="예: 벤치프레스"/></label><label><span className="field-icon"><TrendingUp size={15}/> 횟수 / 중량</span><input value={postReps} onChange={e=>setPostReps(e.target.value.slice(0,100))} placeholder="예: 10회 × 60kg"/></label><label><span className="field-icon"><Clock3 size={15}/> 운동 시간 (분)</span><input type="number" min="0" max="1440" value={postDuration} onChange={e=>setPostDuration(e.target.value)} placeholder="예: 45"/></label></div><label>추가 운동 정보<textarea value={postNotes} onChange={e=>setPostNotes(e.target.value.slice(0,1000))} maxLength={1000} rows={3} placeholder="휴식 시간, 루틴, 개인 기록, 운동 팁 등"/></label><div className="draft-privacy-note"><ShieldCheck size={15}/> 체중 등 입력한 정보는 게시물에 함께 공개됩니다. 공개할 정보만 입력하세요.</div>{busy&&<div className="upload-progress-wrap"><div className="upload-progress-track"><span style={{width:uploadProgress+'%'}}/></div><small>{uploadProgress>=100?'업로드 완료 · 게시물을 저장하고 있어요':`${postMedia?.type==='video'?'영상':'사진'} 업로드 중 ${uploadProgress}%`}</small></div>}<div className="post-modal-actions"><button type="button" className="text-button" onClick={()=>{resetPostForm();setPostFormOpen(false);}}>초안 취소</button><button className="primary compact" disabled={busy||!postTitle.trim()||!postContent.trim()||!postMedia}><Upload size={16}/>{busy?(uploadProgress>=100?'저장 중...':`업로드 ${uploadProgress}%`):'게시하기'}</button></div></form></section></div>}
 
     {searchOpen&&<div className="social-overlay" role="dialog" aria-modal="true" aria-label="FITNOVA 검색">
@@ -1063,7 +1087,7 @@ function Dashboard({ user, tab, setTab, logout }) {
         {!searchBusy&&searchResults.hashtags.length>0&&<section className="search-result-section"><h3>해시태그</h3><div className="search-tag-results">{searchResults.hashtags.map(tag=><button key={tag} onClick={()=>{setSearchQuery(tag);}}><Hash size={15}/>{tag}</button>)}</div></section>}
         {!searchBusy&&searchResults.users.length>0&&<section className="search-result-section"><h3>회원</h3>{searchResults.users.map(item=><button className="search-user-result" key={item.username} onClick={()=>{setSearchOpen(false);openProfile(item.username);}}><span className="composer-avatar">{(item.name||item.username).slice(0,1).toUpperCase()}</span><span><b>{item.name||item.username}</b><small>@{item.username}</small></span><ChevronLeft size={16}/></button>)}</section>}
         {!searchBusy&&searchQuery.trim()&&searchResults.posts.length===0&&searchResults.users.length===0&&<div className="empty-feed"><div className="empty-art"><Search size={28}/></div><h3>검색 결과가 없어요</h3><p>다른 검색어나 해시태그를 입력해 보세요.</p></div>}
-        {!searchBusy&&searchResults.posts.length>0&&<section className="search-result-section"><h3>게시물 {searchResults.posts.length}개</h3><div className="feed-list">{searchResults.posts.map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} priority={index<1}/>)}</div></section>}
+        {!searchBusy&&searchResults.posts.length>0&&<section className="search-result-section"><h3>게시물 {searchResults.posts.length}개</h3><div className="feed-list">{searchResults.posts.map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} editPost={editPost} sharePost={sharePost} priority={index<1}/>)}</div></section>}
       </section>
     </div>}
     {notificationsOpen&&<div className="social-overlay notification-overlay" role="dialog" aria-modal="true" aria-label="알림">
