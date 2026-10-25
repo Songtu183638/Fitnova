@@ -973,7 +973,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     {tab==='home'&&<section className="feed-layout home-feed-layout">
       <div className="home-left">
       <section className="home-hero" aria-label="오늘의 한마디">
-        <h2>{dailyMotivation()[0]}<em>{dailyMotivation()[1]}</em></h2>
+        <h2>오늘의 땀이<em>내일의 나를 만든다.</em></h2>
         <p>오늘의 운동, 기록으로 남겨요.</p>
       </section>
       <div className="home-quick" role="group" aria-label="바로가기">
