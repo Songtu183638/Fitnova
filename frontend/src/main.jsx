@@ -1158,10 +1158,18 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
          const mediaCacheKey = `${user.username}:${post.id}`;
          const cached = cacheGet(photoMediaCache, mediaCacheKey);
          if (cached) { if(active) setMediaData(cached); return; }
-         const data = await api('/api/posts/' + post.id + '/media');
-         const value = data.media_data || '';
-         if (!value) throw new Error('미디어 파일이 비어 있습니다.');
-         if (value) cacheSet(photoMediaCache,mediaCacheKey,value,300000,4);
+         let value = '';
+         try {
+           const data = await api('/api/posts/' + post.id + '/media');
+           value = data.media_data || '';
+         } catch { value = ''; }
+         if (!value) {
+           // The JSON/base64 route can fail for large photos on a cold server; fall back to the signed binary URL.
+           const playback = await api('/api/posts/' + post.id + '/media/playback');
+           if (!playback.url) throw new Error('미디어 주소를 받지 못했습니다.');
+           value = API + playback.url;
+         }
+         cacheSet(photoMediaCache,mediaCacheKey,value,value.startsWith('data:')?300000:120000,4);
          if (active) setMediaData(value);
        }
      } catch { if (active) setMediaFailed(true); }
