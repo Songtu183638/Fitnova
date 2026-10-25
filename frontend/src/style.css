@@ -1323,3 +1323,153 @@ body { background: var(--bg); }
   .home-quick button > span { width: 38px; height: 38px; flex-basis: 38px; }
   .home-quick button::after { top: 10px; right: 8px; font-size: 10px; }
 }
+
+
+/* Premium confirmation dialogs ------------------------------------------------ */
+.interaction-confirm-backdrop {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(0, 0, 0, .72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  animation: interaction-confirm-fade .18s ease-out both;
+}
+.interaction-confirm-card {
+  position: relative;
+  width: min(100%, 420px);
+  overflow: hidden;
+  padding: 30px;
+  border: 1px solid rgba(183, 255, 54, .22);
+  border-radius: 27px;
+  background:
+    radial-gradient(ellipse at 50% -12%, rgba(183, 255, 54, .13), transparent 55%),
+    linear-gradient(155deg, #191d15 0%, #111311 55%, #0e0e0e 100%);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, .62), 0 0 45px rgba(183, 255, 54, .055);
+  text-align: center;
+  animation: interaction-confirm-pop .24s cubic-bezier(.2,.8,.2,1) both;
+}
+.interaction-confirm-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(183, 255, 54, .65), transparent);
+}
+.interaction-confirm-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  margin: 0 auto 17px;
+  border: 1px solid rgba(183, 255, 54, .27);
+  border-radius: 19px;
+  color: var(--lime);
+  background: rgba(183, 255, 54, .09);
+  box-shadow: 0 0 28px rgba(183, 255, 54, .08);
+}
+.interaction-confirm-icon.logout {
+  color: #e6e8e3;
+  border-color: rgba(255,255,255,.13);
+  background: rgba(255,255,255,.055);
+  box-shadow: none;
+}
+.interaction-confirm-icon.danger {
+  color: #ff9b9b;
+  border-color: rgba(255, 107, 107, .24);
+  background: rgba(255, 89, 89, .09);
+  box-shadow: 0 0 28px rgba(255, 89, 89, .055);
+}
+.interaction-confirm-kicker {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--lime);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .2em;
+}
+.interaction-confirm-card h2 {
+  margin: 0;
+  color: #f7f8f4;
+  font-size: clamp(21px, 4vw, 25px);
+  font-weight: 800;
+  letter-spacing: -.045em;
+  line-height: 1.35;
+}
+.interaction-confirm-card p {
+  max-width: 315px;
+  margin: 12px auto 25px;
+  color: #a7aaa2;
+  font-size: 13px;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+.interaction-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 10px;
+}
+.interaction-confirm-actions button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 15px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.interaction-confirm-actions button:active { transform: scale(.97); }
+.interaction-confirm-cancel {
+  border: 1px solid #343832;
+  color: #c7c9c2;
+  background: rgba(255,255,255,.035);
+}
+.interaction-confirm-cancel:hover {
+  border-color: #51564b;
+  background: rgba(255,255,255,.07);
+}
+.interaction-confirm-submit {
+  border: 1px solid var(--lime);
+  color: #10130b;
+  background: var(--lime);
+  box-shadow: 0 5px 20px rgba(183,255,54,.12);
+}
+.interaction-confirm-submit:hover {
+  background: var(--lime-hover);
+  box-shadow: 0 7px 25px rgba(183,255,54,.2);
+}
+.interaction-confirm-submit.danger {
+  border-color: #ff7777;
+  color: #fff;
+  background: #b83232;
+  box-shadow: 0 5px 20px rgba(255,70,70,.1);
+}
+.interaction-confirm-submit.danger:hover { background: #d33d3d; }
+@keyframes interaction-confirm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes interaction-confirm-pop {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (max-width: 480px) {
+  .interaction-confirm-backdrop { padding: 18px; }
+  .interaction-confirm-card { padding: 26px 21px 21px; border-radius: 23px; }
+  .interaction-confirm-icon { width: 54px; height: 54px; border-radius: 17px; }
+  .interaction-confirm-card p { font-size: 12.5px; }
+  .interaction-confirm-actions button { min-height: 46px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .interaction-confirm-backdrop, .interaction-confirm-card { animation: none; }
+  .interaction-confirm-actions button { transition: none; }
+}
