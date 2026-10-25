@@ -1306,6 +1306,7 @@ def _profile_summary(username: str, viewer: str):
                     EXISTS(SELECT 1 FROM user_follows WHERE follower_username=%s AND followed_username=%s) AS is_followed_by,
                     (SELECT COUNT(*)::int FROM posts WHERE author_username=%s) AS post_count
             """, (target["username"], target["username"], viewer, target["username"], target["username"], viewer, target["username"])).fetchone()
+            profile_fields = conn.execute("SELECT bio, avatar_data_url FROM users WHERE username_key=%s LIMIT 1", (target["username"].lower(),)).fetchone()
         followers = stats["followers"]
         following = stats["following"]
         is_following = bool(stats["is_following"])
@@ -1317,14 +1318,42 @@ def _profile_summary(username: str, viewer: str):
         is_following = (viewer, target["username"]) in _follows
         is_followed_by = (target["username"], viewer) in _follows
         post_count = sum(1 for p in _posts.values() if p["author_username"] == target["username"])
+    if _DATABASE_URL:
+        bio = (profile_fields or {}).get("bio") or ""
+        avatar_data_url = (profile_fields or {}).get("avatar_data_url") or ""
+    else:
+        bio = target.get("bio") or ""
+        avatar_data_url = target.get("avatar_data_url") or ""
     return {"name": target.get("name") or target["username"], "username": target["username"], "email": target["email"] if target["username"] == viewer else None,
-            "verified": bool(target["verified"]), "follower_count": followers, "following_count": following,
+            "verified": bool(target["verified"]), "bio": bio, "avatar_data_url": avatar_data_url,
+            "follower_count": followers, "following_count": following,
             "post_count": post_count, "following_by_me": is_following, "followed_by_me": is_followed_by,
             "is_mutual": is_following and is_followed_by, "is_me": target["username"] == viewer}
 
 @app.get("/api/users/{username}")
 def get_user_profile(username: str, user: dict = Depends(_current_user)):
     return {"profile": _profile_summary(username, user["username"])}
+
+@app.put("/api/users/me/profile")
+def update_my_profile(payload: ProfileUpdateIn, user: dict = Depends(_current_user)):
+    bio = payload.bio.strip()
+    avatar = payload.avatar_data_url
+    if avatar is not None and avatar and not avatar.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,")):
+        raise HTTPException(status_code=422, detail="프로필 사진은 JPG, PNG 또는 WebP 이미지여야 합니다.")
+    if _DATABASE_URL:
+        with _db() as conn:
+            if avatar is None:
+                conn.execute("UPDATE users SET bio=%s WHERE username_key=%s", (bio, user["username"].lower()))
+            else:
+                conn.execute("UPDATE users SET bio=%s, avatar_data_url=%s WHERE username_key=%s", (bio, avatar, user["username"].lower()))
+    else:
+        target = _users.get(user["username"])
+        if not target:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        target["bio"] = bio
+        if avatar is not None:
+            target["avatar_data_url"] = avatar
+    return {"profile": _profile_summary(user["username"], user["username"])}
 
 @app.get("/api/users/{username}/relationships")
 def get_user_relationships(username: str, type: str = "followers", user: dict = Depends(_current_user)):
