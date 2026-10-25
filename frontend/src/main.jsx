@@ -1147,6 +1147,7 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
          const value = gallery[0] || '';
          if (!value) throw new Error('미디어 파일이 비어 있습니다.');
          if (active) { setMediaGallery(gallery); setGalleryIndex(0); setMediaData(value); }
+       }
      } catch { if (active) setMediaFailed(true); }
    };
    if (priority) loadMedia();
