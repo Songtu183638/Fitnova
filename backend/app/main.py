@@ -970,7 +970,9 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
                 (user["username"], content, payload.title.strip(), payload.media_type, payload.media_data, payload.media_duration_seconds,
                 _collect_post_hashtags(content, payload.title, payload.hashtags), payload.weight, payload.sets_count,
                 payload.exercise_name.strip(), payload.reps.strip(), payload.duration_minutes, payload.workout_notes.strip())).fetchone()
-            return {"post": _post_dict(dict(row), user["username"], [])}
+            result = {"post": _post_dict(dict(row), user["username"], [])}
+        _notify_mentions(f"{payload.title} {content}", user["username"], result["post"]["id"])
+        return result
     with _lock:
         _post_seq += 1
         post = {"id": _post_seq, "author_username": user["username"], "title": payload.title.strip(), "content": content, "media_type": payload.media_type, "media_data": payload.media_data, "media_duration_seconds": payload.media_duration_seconds,
@@ -979,6 +981,7 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
                 "workout_notes": payload.workout_notes.strip(), "created_at": datetime.now(timezone.utc).isoformat(), "like_count": 0, "liked_by_me": False}
         _posts[post["id"]] = post
         _post_comments[post["id"]] = []
+    _notify_mentions(f"{payload.title} {content}", user["username"], post["id"])
     return {"post": _post_dict(post, user["username"], [])}
 
 @app.post("/api/posts/upload", status_code=201)
@@ -1199,6 +1202,7 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
             author = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()["author_username"]
             _notify(author, user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
             _send_push(author, "새 댓글", f"@{user['username']}: {content[:120]}", {"kind":"comment", "username":user["username"], "post_id":str(post_id)})
+            _notify_mentions(content, user["username"], post_id, {author})
             return {"comment": c}
     if post_id not in _posts: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     with _lock:
@@ -1207,6 +1211,7 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
         _post_comments.setdefault(post_id, []).append(comment)
     _notify(_posts[post_id]["author_username"], user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
     _send_push(_posts[post_id]["author_username"], "새 댓글", f"@{user['username']}: {content[:120]}", {"kind":"comment", "username":user["username"], "post_id":str(post_id)})
+    _notify_mentions(content, user["username"], post_id, {_posts[post_id]["author_username"]})
     return {"comment": comment}
 
 @app.delete("/api/posts/{post_id}/comments/{comment_id}")
@@ -1886,6 +1891,75 @@ def _maybe_alert_master_report_threshold(target_username: str) -> None:
         {"type": "report_threshold", "username": target["username"]},
     )
 
+
+_MENTION_RE = re.compile(r"(?<![A-Za-z0-9_@])@([A-Za-z0-9_]{3,24})")
+
+def _notify_mentions(text: str, actor: str, post_id: int, exclude=frozenset()):
+    """Tell each existing, non-blocked @mentioned member about the post/comment (max 5 per text)."""
+    seen = {actor.lower(), *(str(x).lower() for x in exclude if x)}
+    count = 0
+    for name in _MENTION_RE.findall(text or ""):
+        if name.lower() in seen or count >= 5:
+            continue
+        seen.add(name.lower())
+        target = _find_username(name)
+        if not target or target.get("suspended"):
+            continue
+        if _DATABASE_URL:
+            with _db() as conn:
+                blocked = conn.execute("SELECT 1 FROM user_blocks WHERE (blocker_username=%s AND blocked_username=%s) OR (blocker_username=%s AND blocked_username=%s) LIMIT 1",
+                    (actor, target["username"], target["username"], actor)).fetchone()
+        else:
+            blocked = (actor, target["username"]) in _blocks or (target["username"], actor) in _blocks
+        if blocked:
+            continue
+        count += 1
+        _notify(target["username"], actor, "comment", "회원님을 언급했습니다.", post_id)
+        _send_push(target["username"], "회원님을 언급했어요", f"@{actor}: {text[:120]}", {"kind":"comment", "username":actor, "post_id":str(post_id)})
+
+@app.get("/api/explore")
+def explore(user: dict = Depends(_current_user)):
+    """Popular hashtags (last 30 days) and accounts worth following, excluding blocked/private/own/followed."""
+    me = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            tag_rows = conn.execute("""SELECT LOWER(LTRIM(tag,'#')) AS tag, COUNT(*)::int AS n
+                FROM posts p, unnest(p.hashtags) AS tag
+                WHERE p.created_at > NOW() - INTERVAL '30 days'
+                  AND NOT COALESCE((SELECT private_account FROM user_settings WHERE username=p.author_username),FALSE)
+                  AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_username=%s AND b.blocked_username=p.author_username) OR (b.blocker_username=p.author_username AND b.blocked_username=%s))
+                  AND LTRIM(tag,'#') <> ''
+                GROUP BY 1 ORDER BY n DESC, tag LIMIT 10""", (me, me)).fetchall()
+            user_rows = conn.execute("""SELECT u.username, u.name,
+                    (SELECT COUNT(*)::int FROM user_follows f WHERE f.followed_username=u.username) AS followers
+                FROM users u
+                WHERE u.deletion_requested_at IS NULL AND u.username <> %s AND COALESCE(u.suspended,FALSE)=FALSE
+                  AND NOT COALESCE((SELECT private_account FROM user_settings WHERE username=u.username),FALSE)
+                  AND NOT EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_username=%s AND f.followed_username=u.username)
+                  AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_username=%s AND b.blocked_username=u.username) OR (b.blocker_username=u.username AND b.blocked_username=%s))
+                  AND EXISTS (SELECT 1 FROM posts p WHERE p.author_username=u.username)
+                ORDER BY followers DESC, u.username LIMIT 10""", (me, me, me, me)).fetchall()
+        return {"hashtags": [{"tag": "#" + r["tag"], "count": r["n"]} for r in tag_rows],
+                "users": [{"username": r["username"], "name": r.get("name") or r["username"], "followers": r["followers"]} for r in user_rows]}
+    counts = {}
+    for post in _posts.values():
+        author = post["author_username"]
+        if (me, author) in _blocks or (author, me) in _blocks: continue
+        if _get_user_settings(author).get("private_account"): continue
+        for tag in post.get("hashtags") or []:
+            key = str(tag).lstrip("#").lower()
+            if key: counts[key] = counts.get(key, 0) + 1
+    tags = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:10]
+    authors = {p["author_username"] for p in _posts.values()}
+    candidates = []
+    for u in _users.values():
+        name = u["username"]
+        if name == me or u.get("deletion_requested_at") or u.get("suspended") or name not in authors: continue
+        if (me, name) in _follows or (me, name) in _blocks or (name, me) in _blocks: continue
+        if _get_user_settings(name).get("private_account"): continue
+        candidates.append({"username": name, "name": u.get("name") or name, "followers": sum(1 for f in _follows if f[1] == name)})
+    candidates.sort(key=lambda c: (-c["followers"], c["username"]))
+    return {"hashtags": [{"tag": "#" + t, "count": n} for t, n in tags], "users": candidates[:10]}
 
 @app.get("/api/search")
 def search_social(q: str = Query(default="", max_length=80), user: dict = Depends(_current_user)):

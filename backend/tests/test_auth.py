@@ -532,3 +532,28 @@ def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch)
         if item["recipient_username"] == "master_user" and item["kind"] == "report_threshold"
     ]) == 1
     assert len(pushes) == 1
+
+
+def test_explore_lists_popular_tags_and_recommended_accounts_and_mentions_notify(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token_a = _verified_user("explore_a", "explorea@example.com", sent)
+    token_b = _verified_user("explore_b", "exploreb@example.com", sent)
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    body = {"title": "운동", "content": "오늘 #벤치 완료 @explore_a 보세요", "media_type": "image",
+            "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []}
+    post = client.post("/api/posts", headers=headers_b, json=body).json()["post"]
+    explore = client.get("/api/explore", headers=headers_a).json()
+    assert {"tag": "#벤치", "count": 1} in explore["hashtags"]
+    assert [u["username"] for u in explore["users"]] == ["explore_b"]
+    assert client.get("/api/explore", headers=headers_b).json()["users"] == []  # never recommends yourself
+
+    client.post("/api/users/explore_b/follow", headers=headers_a)
+    assert client.get("/api/explore", headers=headers_a).json()["users"] == []  # already followed
+
+    notes = client.get("/api/notifications", headers=headers_a).json()["notifications"]
+    assert any(n["actor_username"] == "explore_b" and "언급" in n["message"] and n["post_id"] == post["id"] for n in notes)
+    client.post(f"/api/posts/{post['id']}/comments", headers=headers_a, json={"content": "@explore_b 감사합니다 @nobody_here"})
+    notes_b = client.get("/api/notifications", headers=headers_b).json()["notifications"]
+    assert sum(1 for n in notes_b if n["actor_username"] == "explore_a" and n["kind"] == "comment") == 1  # comment notice only, no duplicate mention
