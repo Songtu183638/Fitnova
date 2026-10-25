@@ -1334,3 +1334,32 @@ body { background: var(--bg); }
 .profile-photo-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .profile-edit-inline textarea { width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--line-2); border-radius: 12px; padding: 12px; color: var(--text); background: var(--surface-2); font: inherit; }
 .profile-edit-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-3); font-size: 12px; }
+
+
+/* Dedicated profile settings panel */
+.profile-settings-card {
+  margin: 18px 0 26px;
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.018));
+  text-align: left;
+}
+.profile-settings-heading { display: flex; align-items: center; gap: 12px; padding-bottom: 17px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.profile-settings-icon { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 42px; border-radius: 14px; color: var(--accent, #b7ff36); background: rgba(183,255,54,.10); }
+.profile-settings-heading h3 { margin: 0; font-size: 17px; }
+.profile-settings-heading p { margin: 5px 0 0; color: var(--text-3); font-size: 13px; }
+.profile-settings-form { display: grid; gap: 12px; padding-top: 18px; }
+.profile-settings-photo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.profile-settings-avatar { width: 68px; height: 68px; flex: 0 0 68px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: rgba(183,255,54,.12); color: var(--accent, #b7ff36); font-size: 25px; font-weight: 750; }
+.profile-settings-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-settings-photo-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.profile-settings-photo-copy b { font-size: 14px; }
+.profile-settings-photo-copy span { color: var(--text-3); font-size: 12px; }
+.profile-settings-photo-copy .profile-photo-picker { margin-top: 3px; }
+.profile-bio-label { margin-top: 4px; font-size: 13px; font-weight: 650; }
+.profile-settings-bio { width: 100%; min-height: 94px; resize: vertical; border: 1px solid var(--line-2); border-radius: 14px; padding: 13px; color: var(--text); background: var(--surface-2); font: inherit; line-height: 1.55; }
+@media (max-width: 480px) {
+  .profile-settings-card { padding: 16px; border-radius: 18px; }
+  .profile-settings-photo-row { align-items: flex-start; }
+}
