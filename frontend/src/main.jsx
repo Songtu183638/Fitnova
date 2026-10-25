@@ -134,6 +134,13 @@ function App() {
   const [recoveryCode, setRecoveryCode] = useState('');
   const [recoveryPassword, setRecoveryPassword] = useState('');
   const [tab, setTab] = useState('home');
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const confirmAction = (options) => new Promise(resolve => setConfirmDialog({ ...options, resolve }));
+  const resolveConfirm = (confirmed) => {
+    const pending = confirmDialog;
+    setConfirmDialog(null);
+    pending?.resolve?.(confirmed);
+  };
 
   useEffect(() => {
     let active = true;
@@ -231,7 +238,8 @@ function App() {
     setAgeConfirmed(false);
   };
   const logout = async () => {
-    if (!window.confirm('FITNOVA에서 로그아웃할까요? 저장되지 않은 작성 내용은 사라질 수 있습니다.')) return;
+    const confirmed = await confirmAction({ title: '잠시 쉬어갈까요?', message: 'FITNOVA에서 로그아웃합니다. 작성 중인 내용이 있다면 저장했는지 확인해 주세요.', confirmLabel: '로그아웃', variant: 'logout' });
+    if (!confirmed) return;
     const pushToken = localStorage.getItem('fitnova_push_token');
     const sessionToken = localStorage.getItem(TOKEN_KEY);
     if (pushToken && sessionToken) {
@@ -245,7 +253,7 @@ function App() {
   };
 
   if (booting) return <main className="boot-screen"><div className="boot-logo boot-logo-f" aria-label="FITNOVA"><span>F</span></div><b>FIT<span>NOVA</span></b><div className="boot-track"><i/></div><small>세션을 확인하고 있어요</small></main>;
-  if (user) return <DashboardErrorBoundary><Dashboard user={user} tab={tab} setTab={setTab} logout={logout} /></DashboardErrorBoundary>;
+  if (user) return <DashboardErrorBoundary><Dashboard user={user} tab={tab} setTab={setTab} logout={logout} confirmAction={confirmAction} confirmDialog={confirmDialog} resolveConfirm={resolveConfirm} /></DashboardErrorBoundary>;
 
   return <main className="auth-screen">
     <div className="auth-glow auth-glow-one" aria-hidden="true" />
@@ -321,7 +329,7 @@ class DashboardErrorBoundary extends React.Component {
   }
 }
 
-function Dashboard({ user, tab, setTab, logout }) {
+function Dashboard({ user, tab, setTab, logout, confirmAction, confirmDialog, resolveConfirm }) {
   const [posts, setPosts] = useState(() => readHomePostsCache(user.username));
   const [feedLoading, setFeedLoading] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(false);
@@ -506,7 +514,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   };
   const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice('비밀번호를 변경했습니다.');}catch(e){setError(e.message||'비밀번호를 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
   const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('이메일을 변경했습니다.');}catch(e){setError(e.message||'이메일을 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
-  const deleteAccount = async () => { if(!window.confirm('정말 회원탈퇴를 신청할까요? 계정은 즉시 비활성화되고, 30일 후 영구 삭제됩니다.'))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'회원탈퇴가 접수되었습니다. 계정은 비활성화되었으며 30일 후 영구 삭제됩니다.');}catch(e){setError((e.message||'회원탈퇴를 처리하지 못했습니다.')+' 계정 상태는 변경되지 않았습니다.');}finally{setSettingsBusy(false);} };
+  const deleteAccount = async () => { if(!await confirmAction({ title: '회원탈퇴를 진행할까요?', message: '계정이 즉시 비활성화되며, 30일 후 계정 데이터가 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.', confirmLabel: '탈퇴 예약', variant: 'danger' }))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'회원탈퇴가 접수되었습니다. 계정은 비활성화되었으며 30일 후 영구 삭제됩니다.');}catch(e){setError((e.message||'회원탈퇴를 처리하지 못했습니다.')+' 계정 상태는 변경되지 않았습니다.');}finally{setSettingsBusy(false);} };
   const loadThreads = async () => { try { const data = await api('/api/messages'); const threads = Array.isArray(data.threads) ? data.threads : []; setMessageThreads(threads); try { localStorage.setItem('fitnova_message_threads:' + (user?.username || ''), JSON.stringify(threads)); } catch {} } catch (e) { setError(e.message || '메시지를 불러오지 못했습니다.'); } };
   const enablePushNotifications = async ({ startup = false, requestPermission = true } = {}) => {
     if (!Capacitor.isNativePlatform()) { setError('푸시 알림은 FITNOVA 안드로이드 앱에서 설정할 수 있습니다.'); return; }
@@ -932,7 +940,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     } finally { pendingComments.current.delete(id); }
   };
   const deleteComment = async (postId, commentId) => {
-    if (!window.confirm('이 댓글을 삭제할까요?')) return;
+    if (!await confirmAction({ title: '댓글을 삭제할까요?', message: '삭제한 댓글은 복구할 수 없습니다.', confirmLabel: '댓글 삭제', variant: 'danger' })) return;
     const remove = items => items.map(post => post.id === postId ? {...post, comments:(post.comments||[]).filter(comment => String(comment.id) !== String(commentId))} : post);
     const snapshots = {posts, ownPosts, savedPosts};
     setPosts(remove); setOwnPosts(remove); setSavedPosts(remove);
@@ -946,7 +954,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     }
   };
   const removePost = async (id) => {
-    if (!window.confirm('이 게시물을 삭제할까요?')) return;
+    if (!await confirmAction({ title: '게시물을 삭제할까요?', message: '게시물과 첨부된 콘텐츠가 삭제됩니다. 계속 진행할까요?', confirmLabel: '게시물 삭제', variant: 'danger' })) return;
     try { await api('/api/posts/' + id, { method: 'DELETE' }); setPosts(items => items.filter(p => p.id !== id)); setNotice('게시물을 삭제했습니다.'); }
     catch (e) { setError(e.message || '게시물을 삭제하지 못했습니다.'); }
   };
@@ -955,7 +963,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     catch(e){setError(e.message||'게시물 고정 상태를 변경하지 못했습니다.');}
   };
   const toggleSuspension = async (username) => {
-    if (!window.confirm('@'+username+' 계정의 이용을 정지하거나 해제할까요?')) return;
+    if (!await confirmAction({ title: '계정 이용 상태를 변경할까요?', message: '@'+username+' 계정의 이용을 정지하거나 정지 해제합니다.', confirmLabel: '계속', variant: 'default' })) return;
     try { const result=await api('/api/users/'+encodeURIComponent(username)+'/suspend',{method:'POST'}); setNotice(result.suspended?'계정을 정지했습니다.':'계정 정지를 해제했습니다.'); if(tab==='feed'||tab==='home')loadPosts(); }
     catch(e){setError(e.message||'계정 상태를 변경하지 못했습니다.');}
   };
@@ -965,7 +973,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     <aside className="side-rail"><a className="brand" href="#feed"><span className="brand-icon"><Activity size={21}/></span><span className="rail-brand">FIT<span>NOVA</span></span></a><div className="rail-nav">{nav.map(item=><button key={item.id} className={item.id==='create'?'nav-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?'게시물 작성':undefined}><item.icon size={20}/><span>{item.label}</span></button>)}</div><div className="rail-bottom"><div className="avatar">{user.username.slice(0,1).toUpperCase()}</div><button className="rail-logout" onClick={logout} aria-label="로그아웃"><LogOut size={18}/></button></div></aside>
     <section className="dashboard-main"><header className={"dash-top "+(tab==="messages"&&activeChat?"chat-top-hidden":"")}><div><div className="eyebrow"><Sparkles size={13}/> MOVE. CONNECT. EVOLVE.</div><h1>{tab==='feed'?'함께 성장하는 피드':tab==='home'?'오늘도 한 단계 성장해요':tab==='steps'?'이번 주 걸음 수':tab==='analysis'?'운동 데이터 분석':tab==='messages'?'메시지':tab==='settings'?'설정':tab==='saved'?'저장한 게시물':tab==='moderation'?'신고 관리':'나의 FITNOVA'}</h1><span className="top-tagline">오늘의 운동을<br/>함께 기록해요</span></div><a className="top-brand" href="#top" aria-label="FITNOVA 홈" onClick={e=>{e.preventDefault();handleNav('home');window.scrollTo({top:0,behavior:'smooth'});}}>FITNOVA</a><div className="top-actions"><button className="icon-surface" aria-label="검색" title="검색" onClick={()=>{setSearchOpen(true);setNotificationsOpen(false);}}><Search size={19}/></button><button className="icon-surface notification-trigger" aria-label="알림" title="알림" onClick={()=>{setNotificationsOpen(!notificationsOpen);setSearchOpen(false);if(!notificationsOpen)loadNotifications(true);}}><Bell size={19}/>{unreadCount>0&&<i className="notification-dot">{unreadCount>9?'9+':unreadCount}</i>}</button><button className="user-chip" onClick={()=>setProfileOpen(!profileOpen)}><span className="avatar">{user.username.slice(0,1).toUpperCase()}</span><span><b>{user.username}</b><small>FITNOVA 멤버</small></span></button>{profileOpen&&<div className="profile-pop"><b>{user.username}</b><span>{user.email}</span><button onClick={logout}><LogOut size={15}/> 로그아웃</button></div>}</div></header>
     {error&&<div className="alert error feed-alert">{error}</div>}{notice&&<div className="alert success feed-alert">{notice}</div>}
-    {tab==='moderation'&&user.is_master&&<ModerationPanel/>}
+    {tab==='moderation'&&user.is_master&&<ModerationPanel confirmAction={confirmAction}/>}
     {tab==='steps'&&<StepCounterPanel />}
     {tab==='analysis'&&<WorkoutAnalysisPanel records={workoutRecords} onSaveRecord={saveWorkoutRecord} onRefresh={loadWorkoutRecords} />}
     {tab==='feed'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?'불러오는 중…':'게시물 더 불러오기'}</button>}
@@ -1013,10 +1021,24 @@ function Dashboard({ user, tab, setTab, logout }) {
 
     <footer className="dash-footer"><span>© 2026 FITNOVA</span><span>MOVE. CONNECT. EVOLVE.</span><span className="footer-dot"><i/> YOUR NEXT LEVEL</span></footer></section>
     <nav className={"mobile-nav "+(tab==="messages"&&activeChat?"chat-nav-hidden":"")} aria-label="주요 메뉴">{mobileNav.map(item=><button type="button" key={item.id} className={item.id==='create'?'mobile-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?'게시물 작성':item.label} title={item.id==='create'?'게시물 작성':item.label}><item.icon size={20}/><span>{item.id==='create'?'게시물 +':item.label}</span></button>)}</nav>
+    {confirmDialog&&<div className="interaction-confirm-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)resolveConfirm(false);}}>
+      <section className={"interaction-confirm-card "+(confirmDialog.variant==='danger'?'is-danger':'')} role="alertdialog" aria-modal="true" aria-labelledby="interaction-confirm-title" aria-describedby="interaction-confirm-message">
+        <div className={"interaction-confirm-icon "+(confirmDialog.variant==='danger'?'danger':confirmDialog.variant==='logout'?'logout':'')} aria-hidden="true">
+          {confirmDialog.variant==='danger'?<Trash2 size={23}/>:confirmDialog.variant==='logout'?<LogOut size={23}/>:<ShieldCheck size={23}/>}
+        </div>
+        <span className="interaction-confirm-kicker">FITNOVA · CONFIRMATION</span>
+        <h2 id="interaction-confirm-title">{confirmDialog.title||'계속 진행할까요?'}</h2>
+        <p id="interaction-confirm-message">{confirmDialog.message||'선택한 작업을 진행할까요?'}</p>
+        <div className="interaction-confirm-actions">
+          <button type="button" className="interaction-confirm-cancel" onClick={()=>resolveConfirm(false)}>취소</button>
+          <button type="button" className={"interaction-confirm-submit "+(confirmDialog.variant==='danger'?'danger':'')} onClick={()=>resolveConfirm(true)}>{confirmDialog.confirmLabel||'확인'}<ChevronRight size={16}/></button>
+        </div>
+      </section>
+    </div>}
   </main>;
 }
 
-function ModerationPanel() {
+function ModerationPanel({ confirmAction }) {
   const [status, setStatus] = useState('open');
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1040,7 +1062,7 @@ function ModerationPanel() {
     finally { setBusyId(null); }
   };
   const removePost = async report => {
-    if (!window.confirm('신고된 게시물을 삭제하고 신고를 검토 완료 처리할까요?')) return;
+    if (!await confirmAction({ title: '신고된 게시물을 삭제할까요?', message: '게시물을 삭제하고 해당 신고를 검토 완료 처리합니다. 삭제한 게시물은 복구할 수 없습니다.', confirmLabel: '삭제 및 완료', variant: 'danger' })) return;
     setBusyId(report.id); setError(''); setNotice('');
     try {
       await api('/api/posts/'+encodeURIComponent(report.target_id),{method:'DELETE'});
@@ -1051,7 +1073,7 @@ function ModerationPanel() {
     finally { setBusyId(null); }
   };
   const suspendUser = async report => {
-    if (!window.confirm('@'+report.target_id+' 계정의 이용을 정지할까요?')) return;
+    if (!await confirmAction({ title: '계정 이용을 정지할까요?', message: '@'+report.target_id+' 계정의 이용을 정지하고 해당 신고를 검토 완료 처리합니다.', confirmLabel: '계정 정지', variant: 'danger' })) return;
     setBusyId(report.id); setError(''); setNotice('');
     try {
       await api('/api/users/'+encodeURIComponent(report.target_id)+'/suspend',{method:'POST'});
