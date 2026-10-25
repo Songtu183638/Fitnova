@@ -1323,3 +1323,15 @@ body { background: var(--bg); }
   .home-quick button > span { width: 38px; height: 38px; flex-basis: 38px; }
   .home-quick button::after { top: 10px; right: 8px; font-size: 10px; }
 }
+
+/* Comment replies, likes and pin */
+.comment { flex-wrap: wrap; }
+.comment-reply { margin-left: 22px; padding-left: 10px; border-left: 2px solid var(--line-2); }
+.comment-pinned { background: var(--lime-soft); border-radius: var(--radius); padding: 4px 8px; }
+.comment-pin-badge { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid var(--lime-line); border-radius: 8px; color: var(--lime); font-size: 10px; font-style: normal; font-weight: 700; }
+.comment-actions { display: flex; flex: 0 0 100%; align-items: center; gap: 4px; margin-top: -2px; }
+.comment-like { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px 2px 0; border: 0; background: none; color: var(--text-3); font-size: 11px; }
+.comment-like i { font-style: normal; }
+.comment-like.liked { color: var(--lime); }
+.reply-banner { order: 9; display: flex; align-items: center; justify-content: space-between; margin: 8px 16px 0; padding: 6px 12px; border: 1px solid var(--lime-line); border-radius: var(--radius); background: var(--lime-soft); color: var(--text-2); font-size: 12px; }
+.reply-banner button { border: 0; background: none; color: var(--text-3); font-size: 12px; }

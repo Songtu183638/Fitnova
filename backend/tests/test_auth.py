@@ -10,6 +10,7 @@ def setup_function():
     auth._login_codes.clear()
     auth._posts.clear()
     auth._post_comments.clear()
+    auth._comment_likes.clear()
     auth._post_likes.clear()
     auth._follows.clear()
     auth._messages.clear()
@@ -532,3 +533,73 @@ def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch)
         if item["recipient_username"] == "master_user" and item["kind"] == "report_threshold"
     ]) == 1
     assert len(pushes) == 1
+
+
+def test_post_owner_can_pin_comments_and_pin_persists_in_feed(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token_a = _verified_user("pin_owner", "pinowner@example.com", sent)
+    token_b = _verified_user("pin_other", "pinother@example.com", sent)
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    post = client.post("/api/posts", headers=headers_a, json={
+        "title": "운동 기록", "content": "오늘 운동 완료", "media_type": "image",
+        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+    }).json()["post"]
+    first = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "첫 댓글"}).json()["comment"]
+    second = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "둘째 댓글"}).json()["comment"]
+    assert first["pinned"] is False
+
+    forbidden = client.post(f"/api/posts/{post['id']}/comments/{second['id']}/pin", headers=headers_b)
+    assert forbidden.status_code == 403
+    missing = client.post(f"/api/posts/{post['id']}/comments/9999/pin", headers=headers_a)
+    assert missing.status_code == 404
+
+    pinned = client.post(f"/api/posts/{post['id']}/comments/{second['id']}/pin", headers=headers_a)
+    assert pinned.status_code == 200
+    assert pinned.json()["pinned"] is True
+    comments = client.get("/api/posts", headers=headers_a).json()["posts"][0]["comments"]
+    assert [item["id"] for item in comments] == [second["id"], first["id"]]
+    assert comments[0]["pinned"] is True
+
+    unpinned = client.post(f"/api/posts/{post['id']}/comments/{second['id']}/pin", headers=headers_a)
+    assert unpinned.json()["pinned"] is False
+    comments = client.get("/api/posts", headers=headers_a).json()["posts"][0]["comments"]
+    assert [item["id"] for item in comments] == [first["id"], second["id"]]
+
+
+def test_comment_replies_and_likes(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token_a = _verified_user("reply_owner", "replyowner@example.com", sent)
+    token_b = _verified_user("reply_other", "replyother@example.com", sent)
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    post = client.post("/api/posts", headers=headers_a, json={
+        "title": "운동 기록", "content": "오늘 운동 완료", "media_type": "text", "hashtags": []
+    }).json()["post"]
+    root = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "첫 댓글"}).json()["comment"]
+    assert root["parent_id"] is None
+
+    reply = client.post(f"/api/posts/{post['id']}/comments", headers=headers_a, json={"content": "답글", "parent_id": root["id"]})
+    assert reply.status_code == 201
+    reply = reply.json()["comment"]
+    assert reply["parent_id"] == root["id"]
+    nested = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "답글의 답글", "parent_id": reply["id"]}).json()["comment"]
+    assert nested["parent_id"] == root["id"]  # replies stay one level deep
+    assert client.post(f"/api/posts/{post['id']}/comments", headers=headers_a, json={"content": "x", "parent_id": 9999}).status_code == 404
+
+    liked = client.post(f"/api/posts/{post['id']}/comments/{root['id']}/like", headers=headers_a)
+    assert liked.json() == {"liked": True, "like_count": 1}
+    comments = client.get("/api/posts", headers=headers_a).json()["posts"][0]["comments"]
+    by_id = {c["id"]: c for c in comments}
+    assert by_id[root["id"]]["like_count"] == 1 and by_id[root["id"]]["liked_by_me"] is True
+    other_view = client.get("/api/posts", headers=headers_b).json()["posts"][0]["comments"]
+    assert {c["id"]: c for c in other_view}[root["id"]]["liked_by_me"] is False
+    unliked = client.post(f"/api/posts/{post['id']}/comments/{root['id']}/like", headers=headers_a)
+    assert unliked.json() == {"liked": False, "like_count": 0}
+    assert client.post(f"/api/posts/{post['id']}/comments/9999/like", headers=headers_a).status_code == 404
+
+    deleted = client.delete(f"/api/posts/{post['id']}/comments/{root['id']}", headers=headers_b)
+    assert deleted.status_code == 200
+    assert client.get("/api/posts", headers=headers_a).json()["posts"][0]["comments"] == []
