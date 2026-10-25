@@ -576,7 +576,8 @@ def test_comment_replies_and_likes(monkeypatch):
     headers_a = {"Authorization": f"Bearer {token_a}"}
     headers_b = {"Authorization": f"Bearer {token_b}"}
     post = client.post("/api/posts", headers=headers_a, json={
-        "title": "운동 기록", "content": "오늘 운동 완료", "media_type": "text", "hashtags": []
+        "title": "운동 기록", "content": "오늘 운동 완료", "media_type": "image",
+        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
     }).json()["post"]
     root = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "첫 댓글"}).json()["comment"]
     assert root["parent_id"] is None
