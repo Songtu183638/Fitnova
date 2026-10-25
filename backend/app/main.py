@@ -8,7 +8,7 @@ import smtplib
 import jwt
 import psycopg
 from psycopg.rows import dict_row
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, File, Form, UploadFile, Response
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Depends, Header, Request, Query, File, Form, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from pwdlib import PasswordHash
@@ -451,6 +451,13 @@ def _verification_email_text(code: str, purpose: str = "계정 보안") -> str:
     )
 
 
+def _send_code_logged(email: str, code: str, purpose: str = "계정 보안"):
+    """Background wrapper: a delivery failure can no longer reach the client, so log it for the operator."""
+    try:
+        _send_code(email, code, purpose)
+    except Exception as exc:
+        print(f"Verification email delivery failed: {type(exc).__name__}: {getattr(exc, 'detail', '')}")
+
 def _send_code(email: str, code: str, purpose: str = "계정 보안"):
     subject = f"FITNOVA | {purpose} 인증 코드"
     html_body = _verification_email_html(code, purpose)
@@ -651,7 +658,7 @@ def health():
     return {"status": "ok", "service": "fitnova-api", "database": db_status}
 
 @app.post("/api/auth/register", status_code=202)
-def register(payload: RegisterIn, request: Request):
+def register(payload: RegisterIn, request: Request, background: BackgroundTasks):
     if not payload.age_confirmed:
         raise HTTPException(status_code=422, detail="FITNOVA 가입은 만 14세 이상이며 연령 확인이 필요합니다.")
     email = str(payload.email).lower()
@@ -664,8 +671,8 @@ def register(payload: RegisterIn, request: Request):
     if _find_username(payload.username) or _find_email(email):
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
     code = f"{secrets.randbelow(1_000_000):06d}"
-    _send_code(email, code)
     _save_pending(email, {"name": display_name, "username": payload.username, "password_hash": _password_hash.hash(payload.password), "code_hash": _hash_code(email, code), "expires": time.time()+600, "tries": 0})
+    background.add_task(_send_code_logged, email, code)  # reply immediately; mail delivery happens after the response
     return {"message": "인증 코드를 이메일로 발송했습니다. 10분 안에 인증해 주세요.", "email": email}
 
 @app.post("/api/auth/verify")
@@ -719,7 +726,7 @@ def _delete_login_challenge(email: str):
         _login_codes.pop(email.lower(), None)
 
 @app.post("/api/auth/login", status_code=202)
-def login(payload: LoginIn, request: Request):
+def login(payload: LoginIn, request: Request, background: BackgroundTasks):
     _rate_limit("login:" + (request.client.host if request.client else "unknown"), 12)
     user = _find_user(payload.identifier.strip())
     if not user or not _password_hash.verify(payload.password, user["password_hash"]):
@@ -729,8 +736,8 @@ def login(payload: LoginIn, request: Request):
     if not user["verified"]:
         raise HTTPException(status_code=403, detail="이메일 인증을 완료해 주세요.")
     code = f"{secrets.randbelow(1_000_000):06d}"
-    _send_code(user["email"], code)
     _save_login_challenge(user["email"], payload.identifier.strip(), code)
+    background.add_task(_send_code_logged, user["email"], code)  # reply immediately; mail delivery happens after the response
     return {"message": "로그인 보안 코드를 이메일로 발송했습니다.", "email": user["email"]}
 
 @app.post("/api/auth/login/verify")
