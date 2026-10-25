@@ -83,6 +83,10 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=10, max_length=128)
     age_confirmed: bool = False
 
+class ProfileUpdateIn(BaseModel):
+    bio: str = Field(default="", max_length=160)
+    avatar_data_url: str | None = Field(default=None, max_length=550000)
+
 class VerifyIn(BaseModel):
     email: EmailStr
     code: str = Field(pattern=r"^\d{6}$")
@@ -168,6 +172,8 @@ def _init_db():
         """)
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_data_url TEXT NOT NULL DEFAULT ''")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS login_challenges (
                 email TEXT PRIMARY KEY,
