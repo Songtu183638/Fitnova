@@ -1323,3 +1323,14 @@ body { background: var(--bg); }
   .home-quick button > span { width: 38px; height: 38px; flex-basis: 38px; }
   .home-quick button::after { top: 10px; right: 8px; font-size: 10px; }
 }
+
+
+/* Profile photo and bio editor */
+.profile-avatar-photo { overflow: hidden; display: grid; place-items: center; }
+.profile-avatar-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-bio { margin: 10px auto 0; max-width: 520px; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.profile-edit-inline { display: grid; gap: 10px; max-width: 520px; margin: 18px auto 0; text-align: left; }
+.profile-photo-picker { position: relative; display: inline-flex; width: fit-content; align-items: center; gap: 8px; cursor: pointer; }
+.profile-photo-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.profile-edit-inline textarea { width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--line-2); border-radius: 12px; padding: 12px; color: var(--text); background: var(--surface-2); font: inherit; }
+.profile-edit-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-3); font-size: 12px; }
