@@ -1005,7 +1005,7 @@ async def upload_post_media(
     title: str = Form(..., min_length=1, max_length=120),
     content: str = Form(..., min_length=1, max_length=2000),
     media_type: str = Form(..., pattern=r"^(image|video)$"),
-    media: UploadFile = File(...),
+    media: list[UploadFile] = File(...),
     media_duration_seconds: int | None = Form(default=None, ge=1, le=60),
     hashtags: str = Form(default="[]", max_length=5000),
     weight: float | None = Form(default=None, ge=1, le=500),
@@ -1021,19 +1021,24 @@ async def upload_post_media(
         raise HTTPException(status_code=422, detail="영상 길이 확인이 필요합니다. 영상을 다시 선택해 주세요.")
     if media_type == "image" and media_duration_seconds is not None:
         raise HTTPException(status_code=422, detail="사진 게시물에는 영상 길이를 입력할 수 없습니다.")
+    if not media or len(media) > (10 if media_type == "image" else 1):
+        raise HTTPException(status_code=422, detail="사진은 최대 10장까지, 영상은 1개만 업로드할 수 있습니다.")
+    media_items = []
     limit = (5 if media_type == "image" else 40) * 1024 * 1024
-    contents = await media.read(limit + 1)
-    if not contents:
-        raise HTTPException(status_code=422, detail="빈 파일은 업로드할 수 없습니다.")
-    if len(contents) > limit:
-        raise HTTPException(status_code=413, detail="사진은 5MB, 영상은 40MB 이하로 업로드해 주세요.")
-    guessed = mimetypes.guess_type(media.filename or "")[0]
-    mime = (media.content_type or guessed or "").lower()
-    if mime in {"application/octet-stream", "binary/octet-stream"} and guessed:
-        mime = guessed.lower()
-    if not mime.startswith(media_type + "/"):
-        raise HTTPException(status_code=415, detail="선택한 파일 형식과 미디어 종류가 일치하지 않습니다.")
-    media_data = f"data:{mime};base64,{base64.b64encode(contents).decode('ascii')}"
+    for item in media:
+        contents = await item.read(limit + 1)
+        if not contents:
+            raise HTTPException(status_code=422, detail="빈 파일은 업로드할 수 없습니다.")
+        if len(contents) > limit:
+            raise HTTPException(status_code=413, detail="사진은 각 5MB, 영상은 40MB 이하로 업로드해 주세요.")
+        guessed = mimetypes.guess_type(item.filename or "")[0]
+        mime = (item.content_type or guessed or "").lower()
+        if mime in {"application/octet-stream", "binary/octet-stream"} and guessed:
+            mime = guessed.lower()
+        if not mime.startswith(media_type + "/"):
+            raise HTTPException(status_code=415, detail="선택한 파일 형식과 미디어 종류가 일치하지 않습니다.")
+        media_items.append(f"data:{mime};base64,{base64.b64encode(contents).decode('ascii')}")
+    media_data = media_items[0] if len(media_items) == 1 else json.dumps(media_items, separators=(",", ":"))
     try:
         supplied_tags = json.loads(hashtags or "[]")
         if not isinstance(supplied_tags, list):
@@ -1074,14 +1079,56 @@ def get_post_media(post_id: int, user: dict = Depends(_current_user)):
             author = row["author_username"]
             if not _can_view_author_content(user["username"], author, conn):
                 raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-            return {"media_data": row["media_data"]}
+            raw_media = row["media_data"] or ""
+            try:
+                gallery = json.loads(raw_media)
+                if isinstance(gallery, list) and gallery:
+                    return {"media_data": gallery[0], "media_count": len(gallery)}
+            except (json.JSONDecodeError, TypeError):
+                pass
+            return {"media_data": raw_media, "media_count": 1 if raw_media else 0}
     row = _posts.get(post_id)
     if not row:
         raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     author = row["author_username"]
     if not _can_view_author_content(user["username"], author):
         raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-    return {"media_data": row.get("media_data", "")}
+    raw_media = row.get("media_data", "")
+    try:
+        gallery = json.loads(raw_media)
+        if isinstance(gallery, list) and gallery:
+            return {"media_data": gallery[0], "media_count": len(gallery)}
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return {"media_data": raw_media, "media_count": 1 if raw_media else 0}
+
+
+@app.get("/api/posts/{post_id}/media/gallery")
+def get_post_media_gallery(post_id: int, user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT author_username, media_data, media_type FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not row or not _can_view_author_content(user["username"], row["author_username"], conn):
+                raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            raw_media = row["media_data"] or ""
+            media_type = row["media_type"]
+    else:
+        row = _posts.get(post_id)
+        if not row or not _can_view_author_content(user["username"], row["author_username"]):
+            raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+        raw_media = row.get("media_data", "")
+        media_type = row.get("media_type", "text")
+    try:
+        gallery = json.loads(raw_media)
+        if isinstance(gallery, list):
+            gallery = [item for item in gallery if isinstance(item, str) and item.startswith("data:image/")]
+        else:
+            gallery = [raw_media] if raw_media.startswith("data:image/") else []
+    except (json.JSONDecodeError, TypeError):
+        gallery = [raw_media] if raw_media.startswith("data:image/") else []
+    if media_type != "image":
+        raise HTTPException(status_code=422, detail="사진 게시물이 아닙니다.")
+    return {"media": gallery, "count": len(gallery)}
 
 
 @app.get("/api/posts/{post_id}/media/playback")
