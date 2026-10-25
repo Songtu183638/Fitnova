@@ -349,7 +349,8 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
-        conn.execute("CREATE INDEX IF NOT EXISTS post_comments_post_created_idx ON post_comments(post_id, created_at)")
+        conn.execute("ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE")
+        conn.execute("CREATE INDEX IF NOT EXISTS post_comments_post_created_idx ON post_comments(post_id, pinned DESC, created_at)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS pending_registrations (
                 email TEXT PRIMARY KEY,
@@ -895,13 +896,13 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
             if not rows:
                 return {"posts": []}
             post_ids = [row["id"] for row in rows]
-            comment_rows = conn.execute("""SELECT id,post_id,author_username,content,created_at
-                FROM post_comments WHERE post_id = ANY(%s) ORDER BY created_at ASC""", (post_ids,)).fetchall()
+            comment_rows = conn.execute("""SELECT id,post_id,author_username,content,created_at,pinned
+                FROM post_comments WHERE post_id = ANY(%s) ORDER BY pinned DESC, created_at ASC""", (post_ids,)).fetchall()
             comments_by_post = {}
             for comment in comment_rows:
                 comments_by_post.setdefault(comment["post_id"], []).append({
                     "id": comment["id"], "author_username": comment["author_username"],
-                    "content": comment["content"], "created_at": comment["created_at"]
+                    "content": comment["content"], "created_at": comment["created_at"], "pinned": bool(comment["pinned"])
                 })
             result = []
             for row in rows:
@@ -1194,8 +1195,8 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
             if not conn.execute("SELECT id FROM posts WHERE id=%s", (post_id,)).fetchone():
                 raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
             row = conn.execute("""INSERT INTO post_comments(post_id,author_username,content)
-                VALUES (%s,%s,%s) RETURNING id,author_username,content,created_at""", (post_id,user["username"],content)).fetchone()
-            c = dict(row); c["created_at"] = c["created_at"].isoformat()
+                VALUES (%s,%s,%s) RETURNING id,author_username,content,created_at,pinned""", (post_id,user["username"],content)).fetchone()
+            c = dict(row); c["created_at"] = c["created_at"].isoformat(); c["pinned"] = bool(c.get("pinned", False))
             author = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()["author_username"]
             _notify(author, user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
             _send_push(author, "새 댓글", f"@{user['username']}: {content[:120]}", {"kind":"comment", "username":user["username"], "post_id":str(post_id)})
@@ -1203,11 +1204,40 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
     if post_id not in _posts: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     with _lock:
         _comment_seq += 1
-        comment = {"id": _comment_seq, "author_username": user["username"], "content": content, "created_at": datetime.now(timezone.utc).isoformat()}
+        comment = {"id": _comment_seq, "author_username": user["username"], "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "pinned": False}
         _post_comments.setdefault(post_id, []).append(comment)
     _notify(_posts[post_id]["author_username"], user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
     _send_push(_posts[post_id]["author_username"], "새 댓글", f"@{user['username']}: {content[:120]}", {"kind":"comment", "username":user["username"], "post_id":str(post_id)})
     return {"comment": comment}
+
+@app.post("/api/posts/{post_id}/comments/{comment_id}/pin")
+def toggle_comment_pin(post_id: int, comment_id: int, user: dict = Depends(_current_user)):
+    """Allow only the owner of a post to pin or unpin one of its comments."""
+    if _DATABASE_URL:
+        with _db() as conn:
+            post = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not post:
+                raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            if post["author_username"] != user["username"]:
+                raise HTTPException(status_code=403, detail="게시물 작성자만 댓글을 고정할 수 있습니다.")
+            comment = conn.execute("SELECT pinned FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id)).fetchone()
+            if not comment:
+                raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+            pinned = not bool(comment["pinned"])
+            conn.execute("UPDATE post_comments SET pinned=%s WHERE id=%s AND post_id=%s", (pinned, comment_id, post_id))
+            return {"pinned": pinned}
+    if post_id not in _posts:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    if _posts[post_id]["author_username"] != user["username"]:
+        raise HTTPException(status_code=403, detail="게시물 작성자만 댓글을 고정할 수 있습니다.")
+    comments = _post_comments.get(post_id, [])
+    target = next((item for item in comments if str(item["id"]) == str(comment_id)), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+    target["pinned"] = not bool(target.get("pinned", False))
+    comments.sort(key=lambda item: (not bool(item.get("pinned", False)), item.get("created_at", "")))
+    return {"pinned": target["pinned"]}
+
 
 @app.delete("/api/posts/{post_id}/comments/{comment_id}")
 def delete_comment(post_id: int, comment_id: int, user: dict = Depends(_current_user)):
@@ -1746,7 +1776,7 @@ def get_user_posts(username: str,user: dict = Depends(_current_user)):
                 WHERE p.author_username=%s GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""",(user["username"],target["username"])).fetchall()
             result=[]
             for row in rows:
-                comments=conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC",(row["id"],)).fetchall()
+                comments=conn.execute("SELECT id,author_username,content,created_at,pinned FROM post_comments WHERE post_id=%s ORDER BY pinned DESC, created_at ASC",(row["id"],)).fetchall()
                 post_data = _post_dict(dict(row),user["username"],[dict(c) for c in comments])
                 post_data.pop("media_data", None)
                 result.append(post_data)
@@ -1792,7 +1822,7 @@ def list_saved_posts(user: dict = Depends(_current_user)):
                 (user["username"],user["username"],user["username"],user["username"],user["username"],user["username"],user["username"])).fetchall()
             result=[]
             for row in rows:
-                comments=conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC",(row["id"],)).fetchall()
+                comments=conn.execute("SELECT id,author_username,content,created_at,pinned FROM post_comments WHERE post_id=%s ORDER BY pinned DESC, created_at ASC",(row["id"],)).fetchall()
                 post_data = _post_dict(dict(row),user["username"],[dict(c) for c in comments])
                 post_data.pop("media_data", None)
                 result.append(post_data)
@@ -1914,7 +1944,7 @@ def search_social(q: str = Query(default="", max_length=80), user: dict = Depend
                 (user["username"], pattern, pattern, pattern, user["username"], user["username"],
                  user["username"], user["username"], user["username"])).fetchall()
             for row in rows:
-                comments = conn.execute("SELECT id,author_username,content,created_at FROM post_comments WHERE post_id=%s ORDER BY created_at ASC LIMIT 20", (row["id"],)).fetchall()
+                comments = conn.execute("SELECT id,author_username,content,created_at,pinned FROM post_comments WHERE post_id=%s ORDER BY pinned DESC, created_at ASC LIMIT 20", (row["id"],)).fetchall()
                 item = _post_dict(dict(row), user["username"], [dict(c) for c in comments])
                 item.pop("media_data", None)
                 posts.append(item)

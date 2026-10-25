@@ -1323,3 +1323,9 @@ body { background: var(--bg); }
   .home-quick button > span { width: 38px; height: 38px; flex-basis: 38px; }
   .home-quick button::after { top: 10px; right: 8px; font-size: 10px; }
 }
+
+
+/* Pinned comment styling */
+.comment-pinned { border-left: 2px solid var(--lime); padding-left: 10px; }
+.comment-pinned-label { display: inline-flex; align-items: center; width: fit-content; color: var(--lime); font-size: 11px; font-weight: 800; letter-spacing: .03em; margin-right: 6px; }
+.comment-pin-action { color: var(--lime); }
