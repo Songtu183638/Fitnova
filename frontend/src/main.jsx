@@ -368,6 +368,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({users:[],posts:[],hashtags:[]});
+  const [explore, setExplore] = useState({hashtags:[],users:[]});
   const [searchBusy, setSearchBusy] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -556,6 +557,18 @@ function Dashboard({ user, tab, setTab, logout }) {
       else setError(err.message||'푸시 알림을 설정하지 못했습니다.');
     }
     finally { setPushBusy(false); }
+  };
+  useEffect(() => {
+    if (!searchOpen) return;
+    let active = true;
+    api('/api/explore').then(data => { if (active) setExplore({hashtags:data.hashtags||[], users:data.users||[]}); }).catch(() => {});
+    return () => { active = false; };
+  }, [searchOpen]);
+  const searchTag = async (tag) => {
+    setSearchQuery(tag); setSearchBusy(true); setError('');
+    try { const data = await api('/api/search?q=' + encodeURIComponent(tag)); setSearchResults({users:data.users||[],posts:data.posts||[],hashtags:data.hashtags||[]}); }
+    catch (err) { setError(err.message||'검색에 실패했습니다.'); }
+    finally { setSearchBusy(false); }
   };
   const runSearch = async (e) => {
     if (e) e.preventDefault();
@@ -997,8 +1010,10 @@ function Dashboard({ user, tab, setTab, logout }) {
       <section className="social-overlay-panel search-overlay-panel">
         <header className="social-overlay-head"><div><span className="eyebrow">DISCOVER FITNOVA</span><h2>검색</h2><p>회원, 해시태그, 운동 게시물을 찾아보세요.</p></div><button className="icon-surface" onClick={()=>setSearchOpen(false)} aria-label="검색 닫기"><X size={19}/></button></header>
         <form className="social-search-form" onSubmit={runSearch}><Search size={19}/><input autoFocus value={searchQuery} onChange={e=>setSearchQuery(e.target.value.slice(0,80))} placeholder="아이디, 게시물, #해시태그 검색" aria-label="검색어"/><button className="primary compact" disabled={searchBusy||!searchQuery.trim()}>{searchBusy?'검색 중…':'검색'}</button></form>
+        {!searchBusy&&!searchQuery.trim()&&explore.hashtags.length>0&&<section className="search-result-section"><h3>인기 해시태그</h3><div className="search-tag-results">{explore.hashtags.map(item=><button key={item.tag} onClick={()=>searchTag(item.tag)}><Hash size={15}/>{item.tag}<small> {item.count}</small></button>)}</div></section>}
+        {!searchBusy&&!searchQuery.trim()&&explore.users.length>0&&<section className="search-result-section"><h3>추천 계정</h3>{explore.users.map(item=><button className="search-user-result" key={item.username} onClick={()=>{setSearchOpen(false);openProfile(item.username);}}><span className="composer-avatar">{(item.name||item.username).slice(0,1).toUpperCase()}</span><span><b>{item.name||item.username}</b><small>@{item.username} · 팔로워 {item.followers}</small></span><ChevronLeft size={16}/></button>)}</section>}
         {searchBusy&&<div className="feed-loading"><span className="search-spinner"/><b>검색 중…</b></div>}
-        {!searchBusy&&searchResults.hashtags.length>0&&<section className="search-result-section"><h3>해시태그</h3><div className="search-tag-results">{searchResults.hashtags.map(tag=><button key={tag} onClick={()=>{setSearchQuery(tag);}}><Hash size={15}/>{tag}</button>)}</div></section>}
+        {!searchBusy&&searchResults.hashtags.length>0&&<section className="search-result-section"><h3>해시태그</h3><div className="search-tag-results">{searchResults.hashtags.map(tag=><button key={tag} onClick={()=>searchTag(tag)}><Hash size={15}/>{tag}</button>)}</div></section>}
         {!searchBusy&&searchResults.users.length>0&&<section className="search-result-section"><h3>회원</h3>{searchResults.users.map(item=><button className="search-user-result" key={item.username} onClick={()=>{setSearchOpen(false);openProfile(item.username);}}><span className="composer-avatar">{(item.name||item.username).slice(0,1).toUpperCase()}</span><span><b>{item.name||item.username}</b><small>@{item.username}</small></span><ChevronLeft size={16}/></button>)}</section>}
         {!searchBusy&&searchQuery.trim()&&searchResults.posts.length===0&&searchResults.users.length===0&&<div className="empty-feed"><div className="empty-art"><Search size={28}/></div><h3>검색 결과가 없어요</h3><p>다른 검색어나 해시태그를 입력해 보세요.</p></div>}
         {!searchBusy&&searchResults.posts.length>0&&<section className="search-result-section"><h3>게시물 {searchResults.posts.length}개</h3><div className="feed-list">{searchResults.posts.map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} priority={index<1}/>)}</div></section>}
