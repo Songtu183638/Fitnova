@@ -1122,6 +1122,8 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
  const cardRef = useRef(null);
  const videoRef = useRef(null);
  const [mediaData, setMediaData] = useState(post.media_data || '');
+ const [mediaGallery, setMediaGallery] = useState([]);
+ const [galleryIndex, setGalleryIndex] = useState(0);
  const [mediaFailed, setMediaFailed] = useState(false);
  const [mediaRetry, setMediaRetry] = useState(0);
  useEffect(() => {
