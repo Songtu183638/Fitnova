@@ -2226,30 +2226,6 @@ def update_admin_report_status(report_id: int, payload: ReportStatusIn, user: di
     return {"report": report}
 
 
-@app.patch("/api/posts/{post_id}")
-def edit_post(post_id: int, payload: PostEditIn, user: dict = Depends(_current_user)):
-    title, content = payload.title.strip(), payload.content.strip()
-    if not title or not content: raise HTTPException(status_code=422, detail="제목과 내용을 입력해 주세요.")
-    _validate_community_text(title, content)
-    hashtags = []
-    for item in payload.hashtags:
-        tag = str(item).strip().lstrip("#")
-        if tag and len(tag) <= 50 and tag not in hashtags: hashtags.append("#" + tag)
-    hashtags = hashtags[:20]
-    if _DATABASE_URL:
-        with _db() as conn:
-            row = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
-            if not row: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-            if row["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인이 작성한 게시물만 수정할 수 있습니다.")
-            conn.execute("UPDATE posts SET title=%s,content=%s,hashtags=%s WHERE id=%s", (title,content,hashtags,post_id))
-    else:
-        post = _posts.get(post_id)
-        if not post: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-        if post["author_username"] != user["username"]: raise HTTPException(status_code=403, detail="본인이 작성한 게시물만 수정할 수 있습니다.")
-        post.update({"title":title,"content":content,"hashtags":hashtags})
-    return {"updated": True, "id": post_id, "title": title, "content": content, "hashtags": hashtags}
-
-
 @app.get("/api/workout-records")
 def list_workout_records(user: dict = Depends(_current_user)):
     if _DATABASE_URL:
