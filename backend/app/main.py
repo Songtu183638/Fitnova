@@ -499,7 +499,11 @@ def _send_code(email: str, code: str, purpose: str = "계정 보안"):
 
     # Compatibility fallback: Google Apps Script receives both MIME variants.
     # Resend is used automatically when RESEND_API_KEY is configured.
-    script_url = os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
+    # Prefer the configured direct SMTP connection (Gmail SMTP) when present.
+    # This ensures the multipart message above delivers the branded HTML template,
+    # instead of routing through a legacy Apps Script relay that may send plain text only.
+    smtp_host = os.getenv("SMTP_HOST", "").strip()
+    script_url = "" if smtp_host else os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
     script_secret = os.getenv("GOOGLE_APPS_SCRIPT_SECRET", "").strip()
     if script_url:
         if not script_secret:
