@@ -538,6 +538,14 @@ def _send_code(email: str, code: str, purpose: str = "계정 보안"):
     except Exception:
         raise HTTPException(status_code=503, detail="인증 이메일을 발송하지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
+def _client_ip(request: Request) -> str:
+    """Real caller IP. Behind Render/Vercel proxies request.client is the proxy, which would put every
+    user into one shared rate-limit bucket, so prefer the first X-Forwarded-For hop."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if forwarded:
+        return forwarded[:64]
+    return request.client.host if request.client else "unknown"
+
 def _rate_limit(key: str, limit: int = 8, window: int = 900):
     now = time.time()
     with _lock:
@@ -655,7 +663,7 @@ def register(payload: RegisterIn, request: Request):
     if not payload.age_confirmed:
         raise HTTPException(status_code=422, detail="FITNOVA 가입은 만 14세 이상이며 연령 확인이 필요합니다.")
     email = str(payload.email).lower()
-    _rate_limit("register:" + (request.client.host if request.client else "unknown"), 5)
+    _rate_limit("register:" + _client_ip(request), 5)
     display_name = payload.name.strip() if payload.name is not None else payload.username
     if not display_name:
         raise HTTPException(status_code=422, detail="이름을 입력해 주세요.")
@@ -671,7 +679,7 @@ def register(payload: RegisterIn, request: Request):
 @app.post("/api/auth/verify")
 def verify(payload: VerifyIn, request: Request):
     email = str(payload.email).lower()
-    _rate_limit("verify:" + (request.client.host if request.client else "unknown"), 15)
+    _rate_limit("verify:" + _client_ip(request), 15)
     record = _increment_pending_tries(email)
     if not record or record["expires"] < time.time():
         _delete_pending(email)
@@ -720,7 +728,8 @@ def _delete_login_challenge(email: str):
 
 @app.post("/api/auth/login", status_code=202)
 def login(payload: LoginIn, request: Request):
-    _rate_limit("login:" + (request.client.host if request.client else "unknown"), 12)
+    _rate_limit("login:" + _client_ip(request), 12)
+    _rate_limit("login-account:" + payload.identifier.strip().lower()[:80], 10)  # per-account brute-force guard
     user = _find_user(payload.identifier.strip())
     if not user or not _password_hash.verify(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="아이디/이메일 또는 비밀번호를 확인해 주세요.")
@@ -736,7 +745,7 @@ def login(payload: LoginIn, request: Request):
 @app.post("/api/auth/login/verify")
 def verify_login(payload: LoginVerifyIn, request: Request):
     email = str(payload.email).lower()
-    _rate_limit("login-verify:" + (request.client.host if request.client else "unknown"), 15)
+    _rate_limit("login-verify:" + _client_ip(request), 15)
     record = _get_login_challenge(email)
     if not record or record["expires"] < time.time():
         _delete_login_challenge(email)
@@ -773,7 +782,7 @@ def _save_password_reset(email: str, code: str):
 @app.post("/api/auth/password/reset/request", status_code=202)
 def request_password_reset(payload: PasswordResetRequestIn, request: Request):
     email = str(payload.email).strip().lower()
-    host = request.client.host if request.client else "unknown"
+    host = _client_ip(request)
     _rate_limit("password-reset-email:" + email, 3, 3600)
     _rate_limit("password-reset-ip:" + host, 10, 3600)
     account = _find_email(email)
@@ -790,7 +799,7 @@ def request_password_reset(payload: PasswordResetRequestIn, request: Request):
 @app.post("/api/auth/password/reset/confirm")
 def confirm_password_reset(payload: PasswordResetConfirmIn, request: Request):
     email = str(payload.email).strip().lower()
-    host = request.client.host if request.client else "unknown"
+    host = _client_ip(request)
     _rate_limit("password-reset-confirm:" + host, 20, 3600)
     digest = _hash_code("password-reset:" + email, payload.code)
     if _DATABASE_URL:
@@ -1695,7 +1704,14 @@ def _consume_account_code(username: str, purpose: str, code: str):
     _account_codes.pop((username,purpose),None)
     return row["target_email"]
 
+_last_account_purge = 0.0
+
 def _purge_expired_accounts():
+    # Called from every authenticated request; hit the database for it at most once every 10 minutes.
+    global _last_account_purge
+    if time.time() - _last_account_purge < 600:
+        return
+    _last_account_purge = time.time()
     cutoff=datetime.now(timezone.utc)-timedelta(days=30)
     if _DATABASE_URL:
         with _db() as conn:
@@ -1711,6 +1727,13 @@ def _purge_expired_accounts():
                 conn.execute("DELETE FROM saved_posts WHERE username=%s",(name,))
                 conn.execute("DELETE FROM user_settings WHERE username=%s",(name,))
                 conn.execute("DELETE FROM account_security_codes WHERE username=%s",(name,))
+                conn.execute("DELETE FROM workout_analysis_sessions WHERE username=%s",(name,))
+                conn.execute("DELETE FROM user_blocks WHERE blocker_username=%s OR blocked_username=%s",(name,name))
+                conn.execute("DELETE FROM user_mutes WHERE muter_username=%s OR muted_username=%s",(name,name))
+                conn.execute("DELETE FROM notifications WHERE recipient_username=%s OR actor_username=%s",(name,name))
+                conn.execute("DELETE FROM post_comment_likes WHERE username=%s",(name,))
+                conn.execute("DELETE FROM content_reports WHERE reporter_username=%s",(name,))
+                conn.execute("DELETE FROM account_report_alerts WHERE target_username=%s",(name,))
                 conn.execute("DELETE FROM users WHERE username_key=%s",(name.lower(),))
     else:
         for name, account in list(_users.items()):
