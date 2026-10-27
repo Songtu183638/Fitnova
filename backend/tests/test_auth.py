@@ -4,6 +4,7 @@ import app.main as auth
 client = TestClient(auth.app)
 
 def setup_function():
+    auth._last_account_purge = 0.0
     auth._users.clear()
     auth._codes.clear()
     auth._attempts.clear()
@@ -232,6 +233,7 @@ def test_account_deletion_deactivates_account_for_grace_period(monkeypatch):
     assert client.get("/api/account/settings", headers=headers).status_code == 401
     assert "delete_me" in auth._users
     auth._users["delete_me"]["deletion_requested_at"] = (auth.datetime.now(auth.timezone.utc) - auth.timedelta(days=31)).isoformat()
+    auth._last_account_purge = 0.0
     auth._purge_expired_accounts()
     assert "delete_me" not in auth._users
 
@@ -532,3 +534,15 @@ def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch)
         if item["recipient_username"] == "master_user" and item["kind"] == "report_threshold"
     ]) == 1
     assert len(pushes) == 1
+
+
+def test_rate_limit_uses_forwarded_client_ip_not_the_shared_proxy(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    _verified_user("ratelimit_a", "ratelimita@example.com", sent)
+    body = {"identifier": "ratelimit_a", "password": "wrong-password-123"}
+    for _ in range(9):
+        client.post("/api/auth/login", json=body, headers={"x-forwarded-for": "203.0.113.5"})
+    # A different real client behind the same proxy is not locked out by the first one's attempts.
+    other = client.post("/api/auth/login", json={"identifier": "someone_else", "password": "wrong-password-123"}, headers={"x-forwarded-for": "198.51.100.7"})
+    assert other.status_code == 401
