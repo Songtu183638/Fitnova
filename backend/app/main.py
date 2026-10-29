@@ -1484,6 +1484,7 @@ def _send_push(username: str, title: str, body: str, data: dict | None = None):
     try:
         credential_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
         if not credential_json:
+            print("Push skipped: FIREBASE_SERVICE_ACCOUNT_JSON is not set on the server.")
             return
         global _firebase_app
         with _firebase_init_lock:
@@ -1498,6 +1499,8 @@ def _send_push(username: str, title: str, body: str, data: dict | None = None):
             tokens = [row["token"] for row in rows]
         else:
             tokens = [token for token, owner in _push_devices.items() if owner == username]
+        if not tokens:
+            print(f"Push skipped: no registered device for @{username} (the app has not registered an FCM token).")
         for token in tokens:
             try:
                 messaging.send(messaging.Message(
@@ -1514,11 +1517,23 @@ def _send_push(username: str, title: str, body: str, data: dict | None = None):
                     else:
                         _push_devices.pop(token, None)
                 else:
-                    print(f"Push delivery failed: {type(exc).__name__}")
+                    print(f"Push delivery failed: {type(exc).__name__}: {str(exc)[:200]}")
     except Exception as exc:
-        print(f"Push service unavailable: {type(exc).__name__}")
+        print(f"Push service unavailable: {type(exc).__name__}: {str(exc)[:200]}")
 
 _push_devices = {}  # token -> authenticated username, development adapter only
+
+@app.get("/api/push/status")
+def push_status(user: dict = Depends(_current_user)):
+    """Non-secret push diagnostics for the signed-in user: is the server configured, is this account's phone registered."""
+    if _DATABASE_URL:
+        with _db() as conn:
+            devices = conn.execute("SELECT COUNT(*)::int AS n FROM push_devices WHERE username=%s", (user["username"],)).fetchone()["n"]
+    else:
+        devices = sum(1 for owner in _push_devices.values() if owner == user["username"])
+    return {"server_configured": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()),
+            "registered_devices": devices,
+            "messages_enabled": _notification_preference_enabled(user["username"], "message")}
 
 @app.post("/api/push/devices", status_code=201)
 def register_push_device(payload: PushDeviceIn, user: dict = Depends(_current_user)):

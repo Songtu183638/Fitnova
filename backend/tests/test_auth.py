@@ -532,3 +532,15 @@ def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch)
         if item["recipient_username"] == "master_user" and item["kind"] == "report_threshold"
     ]) == 1
     assert len(pushes) == 1
+
+
+def test_push_status_reports_configuration_and_registered_devices(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token = _verified_user("push_diag", "pushdiag@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+    monkeypatch.delenv("FIREBASE_SERVICE_ACCOUNT_JSON", raising=False)
+    before = client.get("/api/push/status", headers=headers).json()
+    assert before == {"server_configured": False, "registered_devices": 0, "messages_enabled": True}
+    client.post("/api/push/devices", headers=headers, json={"token": "x" * 40, "platform": "android"})
+    assert client.get("/api/push/status", headers=headers).json()["registered_devices"] == 1
