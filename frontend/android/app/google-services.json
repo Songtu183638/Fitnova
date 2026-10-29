@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1029356563331",
+    "project_id": "fitnova-e8d3e",
+    "storage_bucket": "fitnova-e8d3e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1029356563331:android:8944319075d203c545e4b6",
+        "android_client_info": {
+          "package_name": "com.fitnova.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwylvbVzP57RXadRLgnn8UuUxp2vvWGWM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
