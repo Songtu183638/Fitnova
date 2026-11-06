@@ -576,8 +576,10 @@ def _create_user(user: dict):
         _users[user["username"]] = user
 
 def _token(user: dict) -> str:
+    # Keep the session valid until the user logs out, uninstalls/clears app data,
+    # or the account token version / server signing secret is changed.
     now = datetime.now(timezone.utc)
-    return jwt.encode({"sub": user["username"], "ver": int(user.get("token_version", 0)), "iat": now, "exp": now + timedelta(days=365)}, _SECRET, algorithm="HS256")
+    return jwt.encode({"sub": user["username"], "ver": int(user.get("token_version", 0)), "iat": now}, _SECRET, algorithm="HS256")
 
 def _public(user: dict) -> dict:
     return {"name": user.get("name") or user["username"], "username": user["username"], "email": user["email"], "verified": user["verified"], "is_master": _is_master(user)}
