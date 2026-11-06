@@ -169,12 +169,13 @@ def test_hashtag_search_follow_profile_and_direct_messages(monkeypatch):
     assert threads.status_code == 200
     assert threads.json()["threads"][0]["username"] == "member_a"
 
-def test_auth_token_is_persistent_for_one_year(monkeypatch):
+def test_auth_token_has_no_expiry_until_logout(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token = _verified_user("long_session", "longsession@example.com", sent)
     payload = auth.jwt.decode(token, auth._SECRET, algorithms=["HS256"])
-    assert payload["exp"] - payload["iat"] >= 364 * 24 * 60 * 60
+    assert "exp" not in payload
+    assert payload["sub"] == "long_session"
 
 
 def test_saved_posts_account_settings_email_password_and_message_privacy(monkeypatch):
