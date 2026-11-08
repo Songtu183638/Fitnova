@@ -15,7 +15,7 @@ from pwdlib import PasswordHash
 
 app = FastAPI(title="FITNOVA API", version="0.2.0")
 origins = list(dict.fromkeys([x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:4173,capacitor://localhost,https://localhost,http://localhost").split(",") if x.strip()] + ["https://localhost", "capacitor://localhost"]))
-app.add_middleware(CORSMiddleware, allow_origins=origins + ["https://fitnova-songtu183638.vercel.app", "https://fitnova-iota.vercel.app"], allow_origin_regex=r"https://fitnova(?:-[a-z0-9-]+)*\.vercel\.app", allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type"])
+app.add_middleware(CORSMiddleware, allow_origins=origins + ["https://fitnova-songtu183638.vercel.app", "https://fitnova-iota.vercel.app"], allow_origin_regex=r"https://fitnova(?:-[a-z0-9-]+)*\.vercel\.app", allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type","X-App-Locale"])
 
 _password_hash = PasswordHash.recommended()
 _lock = Lock()
@@ -59,6 +59,29 @@ if not _SECRET:
     print("WARNING: JWT_SECRET is unset; sessions will be invalidated on restart.")
 _CODE_SECRET = os.getenv("VERIFICATION_CODE_SECRET", _SECRET)
 
+# --- Locale (English for US launch; Korean remains the default text) ---
+from contextvars import ContextVar
+_request_locale: ContextVar[str] = ContextVar("fitnova_locale", default="ko")
+
+def _normalize_locale(value) -> str:
+    return "en" if str(value or "").strip().lower().startswith("en") else "ko"
+
+@app.middleware("http")
+async def _locale_middleware(request, call_next):
+    token = _request_locale.set(_normalize_locale(request.headers.get("x-app-locale")))
+    try:
+        return await call_next(request)
+    finally:
+        _request_locale.reset(token)
+
+_MODERATION_TERMS_EN = (
+    "fuck", "shit", "bitch", "asshole", "bastard", "cunt", "dick", "pussy",
+    "slut", "whore", "nigger", "nigga", "faggot", "retard", "porn", "blowjob",
+    "handjob", "cumshot", "rape", "rapist", "nude", "nudes", "bullshit", "shithead", "motherfucker",
+)
+
+_MODERATION_SUBSTRINGS_EN = ("fuck", "bitch", "nigger", "faggot", "blowjob", "handjob", "cumshot")
+
 _MODERATION_TERMS = (
     "씨발", "시발", "ㅅㅂ", "씨바", "병신", "븅신", "개새끼", "씹새끼",
     "좆같", "좆", "지랄", "염병", "애미뒤", "애비뒤", "개자식", "개같",
@@ -73,8 +96,15 @@ def _moderation_normalize(value: str) -> str:
     return re.sub(r"[^0-9a-z가-힣]", "", value)
 
 def _validate_community_text(*values: str) -> None:
-    normalized = _moderation_normalize(" ".join(str(value or "") for value in values))
-    if any(term in normalized for term in _MODERATION_TERMS):
+    joined = " ".join(str(value or "") for value in values)
+    normalized = _moderation_normalize(joined)
+    blocked = any(term in normalized for term in _MODERATION_TERMS)
+    if not blocked:
+        folded = joined.casefold()
+        words = set(re.findall(r"[a-z]+", folded))
+        squashed = re.sub(r"[^a-z]", "", folded)
+        blocked = bool(words & set(_MODERATION_TERMS_EN)) or any(term in squashed for term in _MODERATION_SUBSTRINGS_EN)
+    if blocked:
         raise HTTPException(status_code=422, detail="욕설이나 성적으로 부적절한 표현은 사용할 수 없습니다. 내용을 수정해 주세요.")
 
 class RegisterIn(BaseModel):
@@ -340,6 +370,7 @@ def _init_db():
                 platform TEXT NOT NULL DEFAULT 'android', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("ALTER TABLE push_devices ADD COLUMN IF NOT EXISTS locale TEXT NOT NULL DEFAULT 'ko'")
         conn.execute("CREATE INDEX IF NOT EXISTS push_devices_username_idx ON push_devices(username)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_comments (
@@ -441,7 +472,37 @@ def _verification_email_html(code: str, purpose: str = "계정 보안") -> str:
 </html>'''
 
 
+_EN_PURPOSE = {"계정 보안": "Account security", "비밀번호 재설정": "Password reset", "비밀번호 변경": "Password change", "이메일 변경": "Email change"}
+
+_EN_EMAIL_HTML = (
+    ('<html lang="ko">', '<html lang="en">'),
+    ("FITNOVA 인증 코드", "FITNOVA verification code"),
+    ("인증 코드입니다. 10분 안에 입력해 주세요.", "verification code. Please enter it within 10 minutes."),
+    ("계정 보안 확인", "Account security check"),
+    (" 인증 코드</h1>", " verification code</h1>"),
+    ("FITNOVA에서 요청한 절차를 완료하려면 아래 인증 코드를 입력해 주세요.", "Enter the code below to complete the request you made on FITNOVA."),
+    (">인증 코드</div>", ">VERIFICATION CODE</div>"),
+    ("숫자 6자리 · 10분 동안 유효", "6 digits · valid for 10 minutes"),
+    ("이 메일은 FITNOVA 계정 보안을 위해 자동으로 발송되었습니다.", "This email was sent automatically to help keep your FITNOVA account secure."),
+)
+
+def _en_email_html(html: str) -> str:
+    import re as _re
+    for ko, en in _EN_EMAIL_HTML:
+        html = html.replace(ko, en)
+    html = _re.sub(r"인증 코드는 발송 후 <strong([^>]*)>10분 동[^<]*</strong>[^<]*", lambda m: f"This code is valid for <strong{m.group(1)}>10 minutes</strong> after it is sent. Do not share it with anyone.", html)
+    html = html.replace("본인이 요청하지 않았다면 코드를 입력하거나 다른 사람에게 전달하지 말고 이 메일을 무시해 주세요.", "If you didn't request this, don't enter or forward the code \u2014 just ignore this email.")
+    return html
+
 def _verification_email_text(code: str, purpose: str = "계정 보안") -> str:
+    if _request_locale.get() == "en":
+        return (
+            f"FITNOVA | {_EN_PURPOSE.get(purpose, purpose)} verification\n\n"
+            f"Verification code: {code}\n\n"
+            "This code is valid for 10 minutes after it is sent.\n"
+            "Do not share it with anyone.\n"
+            "If you didn't request this, you can ignore this email."
+        )
     return (
         f"FITNOVA | {purpose} 인증\n\n"
         f"인증 코드: {code}\n\n"
@@ -461,14 +522,19 @@ def _send_code(email: str, code: str, purpose: str = "계정 보안"):
             detail="이메일 발송 설정이 완료되지 않았습니다. 서버의 Google Apps Script 주소를 확인해 주세요."
         )
 
-    subject = f"FITNOVA | {purpose} 인증 코드"
+    english = _request_locale.get() == "en"
+    subject = f"FITNOVA | {_EN_PURPOSE.get(purpose, purpose)} verification code" if english else f"FITNOVA | {purpose} 인증 코드"
+    html_body = _verification_email_html(code, purpose)
+    if english:
+        html_body = _en_email_html(html_body.replace(purpose, _EN_PURPOSE.get(purpose, purpose)))
+    text_body = _verification_email_text(code, purpose)
     payload = {
         "to": email,
         "subject": subject,
-        "htmlBody": _verification_email_html(code, purpose),
-        "textBody": _verification_email_text(code, purpose),
-        "html": _verification_email_html(code, purpose),
-        "text": _verification_email_text(code, purpose),
+        "htmlBody": html_body,
+        "textBody": text_body,
+        "html": html_body,
+        "text": text_body,
         "fromName": "FITNOVA",
     }
     request_data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1479,6 +1545,23 @@ def _notification_preference_enabled(username: str, kind: str) -> bool:
         return True
 
 
+_EN_PUSH_TITLES = {"새 좋아요": "New like", "새 댓글": "New comment", "새 팔로워": "New follower", "새 메시지": "New message", "FITNOVA 신고 알림": "FITNOVA report alert"}
+
+def _push_text(title: str, body: str, locale: str) -> tuple[str, str]:
+    """Translate the fixed Korean push templates for English devices."""
+    if locale != "en":
+        return title, body
+    title = _EN_PUSH_TITLES.get(title, title)
+    patterns = (
+        (r"^(@\S+)님이 게시물에 좋아요를 눌렀습니다\.$", r"\1 liked your post."),
+        (r"^(@\S+)님이 회원님을 팔로우하기 시작했습니다\.$", r"\1 started following you."),
+        (r"^(@\S+) 계정에 신고가 5건 이상 접수되었습니다\.$", r"\1 has received 5 or more reports."),
+    )
+    for pattern, repl in patterns:
+        if re.match(pattern, body):
+            return title, re.sub(pattern, repl, body)
+    return title, body
+
 def _send_push(username: str, title: str, body: str, data: dict | None = None):
     """Send best-effort FCM notifications when production credentials are configured."""
     if not _notification_preference_enabled(username, str((data or {}).get("kind", (data or {}).get("type", "")))):
@@ -1496,15 +1579,16 @@ def _send_push(username: str, title: str, body: str, data: dict | None = None):
         from firebase_admin import messaging
         if _DATABASE_URL:
             with _db() as conn:
-                rows = conn.execute("SELECT token FROM push_devices WHERE username=%s", (username,)).fetchall()
-            tokens = [row["token"] for row in rows]
+                rows = conn.execute("SELECT token, locale FROM push_devices WHERE username=%s", (username,)).fetchall()
+            tokens = [(row["token"], row.get("locale") or "ko") for row in rows]
         else:
-            tokens = [token for token, owner in _push_devices.items() if owner == username]
-        for token in tokens:
+            tokens = [(token, _push_locales.get(token, "ko")) for token, owner in _push_devices.items() if owner == username]
+        for token, device_locale in tokens:
             try:
+                push_title, push_body = _push_text(title, body, device_locale)
                 messaging.send(messaging.Message(
                     token=token,
-                    notification=messaging.Notification(title=title, body=body),
+                    notification=messaging.Notification(title=push_title, body=push_body),
                     data={key: str(value) for key, value in (data or {}).items()},
                     android=messaging.AndroidConfig(priority="high", notification=messaging.AndroidNotification(channel_id="fitnova_messages")),
                 ), app=_firebase_app)
@@ -1521,15 +1605,17 @@ def _send_push(username: str, title: str, body: str, data: dict | None = None):
         print(f"Push service unavailable: {type(exc).__name__}")
 
 _push_devices = {}  # token -> authenticated username, development adapter only
+_push_locales = {}  # token -> locale, development adapter only
 
 @app.post("/api/push/devices", status_code=201)
 def register_push_device(payload: PushDeviceIn, user: dict = Depends(_current_user)):
     if _DATABASE_URL:
         with _db() as conn:
-            conn.execute("INSERT INTO push_devices(token,username,platform) VALUES (%s,%s,%s) ON CONFLICT(token) DO UPDATE SET username=EXCLUDED.username, platform=EXCLUDED.platform, created_at=NOW()",
-                         (payload.token, user["username"], payload.platform))
+            conn.execute("INSERT INTO push_devices(token,username,platform,locale) VALUES (%s,%s,%s,%s) ON CONFLICT(token) DO UPDATE SET username=EXCLUDED.username, platform=EXCLUDED.platform, locale=EXCLUDED.locale, created_at=NOW()",
+                         (payload.token, user["username"], payload.platform, _request_locale.get()))
     else:
         _push_devices[payload.token] = user["username"]
+        _push_locales[payload.token] = _request_locale.get()
     return {"registered": True}
 
 @app.delete("/api/push/devices/{token}")

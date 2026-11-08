@@ -12,6 +12,7 @@ import './style.css';
 import WorkoutAnalysisPanel from './WorkoutAnalysisPanel.jsx';
 import './workout-analysis.css';
 import LegalPages from './LegalPages.jsx';
+import { tr, trf, LOCALE, LOCALE_TAG, setLocale } from './i18n.js';
 
 // Keep localhost as a development convenience only. Production builds should use
 // an explicit API origin or a same-origin reverse proxy, never the developer's host.
@@ -61,6 +62,10 @@ function invalidateApiCache() {
   apiGetInFlight.clear();
 }
 
+function LanguageSwitch() {
+  return <button type="button" className="language-switch" onClick={() => setLocale(LOCALE === 'ko' ? 'en' : 'ko')} aria-label="Change language / 언어 변경">{LOCALE === 'ko' ? 'English' : '한국어'}</button>;
+}
+
 async function api(path, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   const method = (options.method || 'GET').toUpperCase();
@@ -73,11 +78,11 @@ async function api(path, options = {}) {
   }
   const requestGeneration = apiCacheGeneration;
   const run = async () => {
-    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    const headers = { 'Content-Type': 'application/json', 'X-App-Locale': LOCALE, ...(options.headers || {}) };
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(API + path, { ...options, headers });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || '요청에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    if (!res.ok) throw new Error(tr(typeof data.detail === 'string' ? data.detail : '') || tr("요청에 실패했습니다. 잠시 후 다시 시도해 주세요."));
     if (method !== 'GET') invalidateApiCache();
     if (cacheable && requestGeneration === apiCacheGeneration) {
       const ttl = path.startsWith('/api/messages/') ? 2500 :
@@ -99,13 +104,13 @@ async function api(path, options = {}) {
 }
 
 const MOTIVATION = [
-  ['오늘도', '한 세트 더.'],
-  ['어제보다', '조금만 더.'],
-  ['꾸준함이', '이깁니다.'],
-  ['오늘의 땀이', '내일의 나.'],
-  ['한 번 더,', '그게 전부예요.'],
-  ['지금 움직이면', '기분이 달라져요.'],
-  ['작은 기록이', '큰 변화가 돼요.'],
+  [tr("오늘도"), tr("한 세트 더.")],
+  [tr("어제보다"), tr("조금만 더.")],
+  [tr("꾸준함이"), tr("이깁니다.")],
+  [tr("오늘의 땀이"), tr("내일의 나.")],
+  [tr("한 번 더,"), tr("그게 전부예요.")],
+  [tr("지금 움직이면"), tr("기분이 달라져요.")],
+  [tr("작은 기록이"), tr("큰 변화가 돼요.")],
 ];
 function dailyMotivation() {
   const now = new Date();
@@ -150,21 +155,21 @@ function App() {
     let res;
     try {
       res = await fetch(API + path, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Locale': LOCALE }, body: JSON.stringify(body)
       });
     } catch (err) {
       if (err instanceof TypeError && /fetch/i.test(err.message || '')) {
-        throw new Error('서버 연결에 실패했습니다. 잠시 후 다시 시도해 주세요. 반복되면 서버 연결 또는 CORS 설정을 확인해야 합니다.');
+        throw new Error(tr("서버 연결에 실패했습니다. 잠시 후 다시 시도해 주세요. 반복되면 서버 연결 또는 CORS 설정을 확인해야 합니다."));
       }
       throw err;
     }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || '요청에 실패했습니다. 서버 설정을 확인해 주세요.');
+    if (!res.ok) throw new Error(tr(typeof data.detail === 'string' ? data.detail : '') || tr("요청에 실패했습니다. 서버 설정을 확인해 주세요."));
     return data;
   };
 
   const acceptSession = (data) => {
-    if (!data.access_token || !data.user) throw new Error('로그인 응답이 올바르지 않습니다. 서버 배포 상태를 확인해 주세요.');
+    if (!data.access_token || !data.user) throw new Error(tr("로그인 응답이 올바르지 않습니다. 서버 배포 상태를 확인해 주세요."));
     localStorage.setItem(TOKEN_KEY, data.access_token);
     setUser(data.user);
     setTab('home');
@@ -179,9 +184,9 @@ function App() {
     try {
       if (mode === 'register' && step === 'form') {
         setStep('verify');
-        setNotice('인증 코드를 보내고 있어요...');
+        setNotice(tr("인증 코드를 보내고 있어요..."));
         await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password, age_confirmed: ageConfirmed });
-        setNotice('인증 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요.');
+        setNotice(tr("인증 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요."));
       } else if (mode === 'register') {
         const data = await request('/api/auth/verify', { email, code });
         acceptSession(data);
@@ -189,30 +194,30 @@ function App() {
         setEmail(identifier.includes('@') ? identifier.trim() : '');
         setCode('');
         setStep('verify');
-        setNotice('로그인 보안 코드를 요청하고 있어요...');
+        setNotice(tr("로그인 보안 코드를 요청하고 있어요..."));
         const data = await request('/api/auth/login', { identifier: identifier.trim(), password });
         setEmail(data.email || (identifier.includes('@') ? identifier.trim() : ''));
-        setNotice('로그인 보안 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요.');
+        setNotice(tr("로그인 보안 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요."));
       } else {
         const data = await request('/api/auth/login/verify', { email, code });
         acceptSession(data);
       }
     } catch (err) {
       if (startingStep === 'form' && startingMode === mode) setStep('form');
-      setError(err.message || '오류가 발생했습니다.');
+      setError(err.message || tr("오류가 발생했습니다."));
       setNotice('');
     } finally { setBusy(false); }
   };
 
   const requestPasswordReset = async (e) => {
     e.preventDefault(); setBusy(true); setError(''); setNotice('');
-    setRecoveryStep('verify'); setNotice('비밀번호 재설정 코드를 요청하고 있어요...');
+    setRecoveryStep('verify'); setNotice(tr("비밀번호 재설정 코드를 요청하고 있어요..."));
     try {
       const data = await request('/api/auth/password/reset/request', {email:recoveryEmail.trim()});
-      setNotice(data.message||'재설정 코드를 이메일로 발송했습니다.');
+      setNotice(data.message||tr("재설정 코드를 이메일로 발송했습니다."));
     } catch (err) {
       setRecoveryStep('request'); setNotice('');
-      setError(err.message||'재설정 코드를 요청하지 못했습니다.');
+      setError(err.message||tr("재설정 코드를 요청하지 못했습니다."));
     } finally { setBusy(false); }
   };
 
@@ -221,8 +226,8 @@ function App() {
     try {
       const data = await request('/api/auth/password/reset/confirm', {email:recoveryEmail.trim(),code:recoveryCode,new_password:recoveryPassword});
       setRecoveryStep(''); setRecoveryCode(''); setRecoveryPassword(''); setPassword(''); setIdentifier(recoveryEmail.trim()); setMode('login'); setStep('form');
-      setNotice((data.message||'비밀번호를 변경했습니다.')+' 새 비밀번호로 로그인해 주세요.');
-    } catch (err) { setError(err.message||'비밀번호를 재설정하지 못했습니다.'); }
+      setNotice(trf("{0} 새 비밀번호로 로그인해 주세요.", (data.message||tr("비밀번호를 변경했습니다."))));
+    } catch (err) { setError(err.message||tr("비밀번호를 재설정하지 못했습니다.")); }
     finally { setBusy(false); }
   };
 
@@ -231,7 +236,7 @@ function App() {
     setAgeConfirmed(false);
   };
   const logout = async () => {
-    if (!window.confirm('FITNOVA에서 로그아웃할까요? 저장되지 않은 작성 내용은 사라질 수 있습니다.')) return;
+    if (!window.confirm(tr("FITNOVA에서 로그아웃할까요? 저장되지 않은 작성 내용은 사라질 수 있습니다."))) return;
     const pushToken = localStorage.getItem('fitnova_push_token');
     const sessionToken = localStorage.getItem(TOKEN_KEY);
     if (pushToken && sessionToken) {
@@ -241,69 +246,69 @@ function App() {
     }
     localStorage.removeItem(TOKEN_KEY);
     setUser(null); setTab('feed'); setMode('login'); setStep('form');
-    setPassword(''); setError(''); setNotice('안전하게 로그아웃했습니다.');
+    setPassword(''); setError(''); setNotice(tr("안전하게 로그아웃했습니다."));
   };
 
-  if (booting) return <main className="boot-screen"><div className="boot-logo boot-logo-f" aria-label="FITNOVA"><span>F</span></div><b>FIT<span>NOVA</span></b><div className="boot-track"><i/></div><small>세션을 확인하고 있어요</small></main>;
+  if (booting) return <main className="boot-screen"><div className="boot-logo boot-logo-f" aria-label="FITNOVA"><span>F</span></div><b>FIT<span>NOVA</span></b><div className="boot-track"><i/></div><small>{tr("세션을 확인하고 있어요")}</small></main>;
   if (user) return <DashboardErrorBoundary><Dashboard user={user} tab={tab} setTab={setTab} logout={logout} /></DashboardErrorBoundary>;
 
   return <main className="auth-screen">
     <div className="auth-glow auth-glow-one" aria-hidden="true" />
     <div className="auth-glow auth-glow-two" aria-hidden="true" />
     <header className="auth-app-header">
-      <a className="auth-app-brand" href="#top" aria-label="FITNOVA 홈">
+      <a className="auth-app-brand" href="#top" aria-label={tr("FITNOVA 홈")}>
         <span className="auth-app-mark"><Activity size={24} strokeWidth={2.5}/></span>
         <span>FIT<span>NOVA</span></span>
       </a>
     </header>
     <section className="auth-layout" id="top">
       <div className="auth-welcome">
-        <h1>{mode==='register' ? <>오늘부터<br/><em>함께 움직여요.</em></> : <>다시 돌아온 걸<br/><em>환영해요.</em></>}</h1>
-        <p>{mode==='register' ? '운동을 기록하고, 친구와 연결하고\n매일의 변화를 쌓아 보세요.' : '당신의 운동 기록과 피트니스 커뮤니티가\n여기서 기다리고 있어요.'}</p>
+        <h1>{mode==='register' ? <>{tr("오늘부터")}<br/><em>{tr("함께 움직여요.")}</em></> : <>{tr("다시 돌아온 걸")}<br/><em>{tr("환영해요.")}</em></>}</h1>
+        <p>{mode==='register' ? tr("운동을 기록하고, 친구와 연결하고\n매일의 변화를 쌓아 보세요.") : tr("당신의 운동 기록과 피트니스 커뮤니티가\n여기서 기다리고 있어요.")}</p>
         <div className="auth-benefits">
-          <span><Activity size={16}/> 운동 기록</span>
-          <span><Users size={16}/> 함께 성장</span>
-          <span><Heart size={16}/> 동기 부여</span>
+          <span><Activity size={16}/> {tr("운동 기록")}</span>
+          <span><Users size={16}/> {tr("함께 성장")}</span>
+          <span><Heart size={16}/> {tr("동기 부여")}</span>
         </div>
       </div>
       <section className="auth-card">
         <div className="card-head">
           <div className="mini-mark"><Activity size={20}/></div>
-          <h2>{recoveryStep?'비밀번호 재설정':mode==='register'?(step==='verify'?'이메일을 확인해 주세요':'FITNOVA 시작하기'):'다시 만나 반가워요'}</h2>
-          <p>{recoveryStep?(recoveryStep==='request'?'가입한 이메일로 재설정 코드를 보내드릴게요.':'이메일로 받은 코드를 입력하고 새 비밀번호를 정해 주세요.'):mode==='register'?(step==='verify'?'이메일로 받은 6자리 코드를 입력해 주세요.':'계정을 만들고 나만의 운동 여정을 시작하세요.'):'로그인하고 오늘의 활동을 이어가세요.'}</p>
+          <h2>{recoveryStep?tr("비밀번호 재설정"):mode==='register'?(step==='verify'?tr("이메일을 확인해 주세요"):tr("FITNOVA 시작하기")):tr("다시 만나 반가워요")}</h2>
+          <p>{recoveryStep?(recoveryStep==='request'?tr("가입한 이메일로 재설정 코드를 보내드릴게요."):tr("이메일로 받은 코드를 입력하고 새 비밀번호를 정해 주세요.")):mode==='register'?(step==='verify'?tr("이메일로 받은 6자리 코드를 입력해 주세요."):tr("계정을 만들고 나만의 운동 여정을 시작하세요.")):tr("로그인하고 오늘의 활동을 이어가세요.")}</p>
         </div>
         {!recoveryStep&&<div className="tabs">
-          <button type="button" className={mode==='login'?'active':''} onClick={()=>switchMode('login')}>로그인</button>
-          <button type="button" className={mode==='register'?'active':''} onClick={()=>switchMode('register')}>회원가입</button>
+          <button type="button" className={mode==='login'?'active':''} onClick={()=>switchMode('login')}>{tr("로그인")}</button>
+          <button type="button" className={mode==='register'?'active':''} onClick={()=>switchMode('register')}>{tr("회원가입")}</button>
         </div>}
         <form onSubmit={recoveryStep==='request'?requestPasswordReset:recoveryStep==='verify'?confirmPasswordReset:submit}>
-          {recoveryStep&&<label>가입한 이메일<div className="input-wrap"><Mail size={17}/><input required type="email" value={recoveryEmail} onChange={e=>setRecoveryEmail(e.target.value)} placeholder="가입할 때 사용한 이메일" autoComplete="email" readOnly={recoveryStep==='verify'}/></div></label>}
-          {recoveryStep==='verify'&&<><label>6자리 재설정 코드<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={recoveryCode} onChange={e=>setRecoveryCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="이메일에서 받은 코드" className="code-input"/></div></label><label>새 비밀번호<div className="input-wrap"><LockKeyhole size={17}/><input required minLength="10" maxLength="128" type="password" value={recoveryPassword} onChange={e=>setRecoveryPassword(e.target.value)} placeholder="새 비밀번호 10자 이상" autoComplete="new-password"/></div></label></>}
-          {!recoveryStep&&mode==='register'&&step==='form'&&<label>이름<div className="input-wrap"><UserRound size={17}/><input required minLength="1" maxLength="40" value={name} onChange={e=>setName(e.target.value)} placeholder="이름" autoComplete="name"/></div></label>}
-          {!recoveryStep&&mode==='register'&&step==='form'&&<label>아이디<div className="input-wrap"><UserRound size={17}/><input required minLength="3" maxLength="24" pattern="[A-Za-z0-9_]+" value={username} onChange={e=>setUsername(e.target.value)} placeholder="아이디 (영문·숫자·밑줄)" autoComplete="username"/></div></label>}
-          {!recoveryStep&&mode==='register'&&step==='form'&&<label>이메일<div className="input-wrap"><Mail size={17}/><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 주소" autoComplete="email"/></div></label>}
-          {!recoveryStep&&mode==='login'&&step==='form'&&<label>아이디 또는 이메일<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="아이디 또는 이메일" autoComplete="username"/></div></label>}
-          {!recoveryStep&&((mode==='register'||mode==='login')&&step==='verify')&&<><label>{mode==='register'?'인증 이메일':'보안 코드 발송 이메일'}<div className="input-wrap"><Mail size={17}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div></label><label>6자리 인증 코드<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="이메일 인증 코드" className="code-input"/></div></label></>}
-          {!recoveryStep&&((mode==='register'&&step==='form')||(mode==='login'&&step==='form'))&&<label>비밀번호<div className="input-wrap"><LockKeyhole size={17}/><input required minLength={mode==='register'?10:1} maxLength="128" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='register'?'비밀번호 10자 이상':'비밀번호'} autoComplete={mode==='register'?'new-password':'current-password'}/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label="비밀번호 표시">{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>{mode==='register'&&<small className="hint">영문, 숫자 등을 조합해 10자 이상 입력해 주세요.</small>}</label>}
-          {!recoveryStep&&mode==='register'&&step==='form'&&<label className="age-confirmation"><input type="checkbox" required checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} /><span><strong>만 14세 이상입니다.</strong><small>FITNOVA의 최소 이용 연령을 확인했습니다.</small></span></label>}
+          {recoveryStep&&<label>{tr("가입한 이메일")}<div className="input-wrap"><Mail size={17}/><input required type="email" value={recoveryEmail} onChange={e=>setRecoveryEmail(e.target.value)} placeholder={tr("가입할 때 사용한 이메일")} autoComplete="email" readOnly={recoveryStep==='verify'}/></div></label>}
+          {recoveryStep==='verify'&&<><label>{tr("6자리 재설정 코드")}<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={recoveryCode} onChange={e=>setRecoveryCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder={tr("이메일에서 받은 코드")} className="code-input"/></div></label><label>{tr("새 비밀번호")}<div className="input-wrap"><LockKeyhole size={17}/><input required minLength="10" maxLength="128" type="password" value={recoveryPassword} onChange={e=>setRecoveryPassword(e.target.value)} placeholder={tr("새 비밀번호 10자 이상")} autoComplete="new-password"/></div></label></>}
+          {!recoveryStep&&mode==='register'&&step==='form'&&<label>{tr("이름")}<div className="input-wrap"><UserRound size={17}/><input required minLength="1" maxLength="40" value={name} onChange={e=>setName(e.target.value)} placeholder={tr("이름")} autoComplete="name"/></div></label>}
+          {!recoveryStep&&mode==='register'&&step==='form'&&<label>{tr("아이디")}<div className="input-wrap"><UserRound size={17}/><input required minLength="3" maxLength="24" pattern="[A-Za-z0-9_]+" value={username} onChange={e=>setUsername(e.target.value)} placeholder={tr("아이디 (영문·숫자·밑줄)")} autoComplete="username"/></div></label>}
+          {!recoveryStep&&mode==='register'&&step==='form'&&<label>{tr("이메일")}<div className="input-wrap"><Mail size={17}/><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder={tr("이메일 주소")} autoComplete="email"/></div></label>}
+          {!recoveryStep&&mode==='login'&&step==='form'&&<label>{tr("아이디 또는 이메일")}<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder={tr("아이디 또는 이메일")} autoComplete="username"/></div></label>}
+          {!recoveryStep&&((mode==='register'||mode==='login')&&step==='verify')&&<><label>{mode==='register'?tr("인증 이메일"):tr("보안 코드 발송 이메일")}<div className="input-wrap"><Mail size={17}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div></label><label>{tr("6자리 인증 코드")}<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder={tr("이메일 인증 코드")} className="code-input"/></div></label></>}
+          {!recoveryStep&&((mode==='register'&&step==='form')||(mode==='login'&&step==='form'))&&<label>{tr("비밀번호")}<div className="input-wrap"><LockKeyhole size={17}/><input required minLength={mode==='register'?10:1} maxLength="128" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='register'?tr("비밀번호 10자 이상"):tr("비밀번호")} autoComplete={mode==='register'?'new-password':'current-password'}/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label={tr("비밀번호 표시")}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>{mode==='register'&&<small className="hint">{tr("영문, 숫자 등을 조합해 10자 이상 입력해 주세요.")}</small>}</label>}
+          {!recoveryStep&&mode==='register'&&step==='form'&&<label className="age-confirmation"><input type="checkbox" required checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} /><span><strong>{tr("만 14세 이상입니다.")}</strong><small>{tr("FITNOVA의 최소 이용 연령을 확인했습니다.")}</small></span></label>}
           {error&&<div className="alert error">{error}</div>}
           {notice&&<div className="alert success"><CheckCircle2 size={16}/>{notice}</div>}
-          <button className="primary" disabled={busy}>{busy?'처리 중...':recoveryStep==='request'?'재설정 코드 받기':recoveryStep==='verify'?'비밀번호 변경':mode==='register'?(step==='verify'?'인증하고 시작하기':'인증 코드 받기'):(step==='verify'?'보안 코드 확인 후 로그인':'로그인하기')}<ArrowRight size={17}/></button>
-          {!recoveryStep&&step==='verify'&&<button type="button" className="text-button" onClick={()=>{setStep('form');setCode('');setError('');setNotice('');}}>정보 다시 입력</button>}
-          {!recoveryStep&&mode==='login'&&step==='form'&&<button type="button" className="text-button" onClick={()=>{setRecoveryEmail(identifier.includes('@')?identifier.trim():'');setRecoveryCode('');setRecoveryPassword('');setRecoveryStep('request');setError('');setNotice('');}}>비밀번호를 잊으셨나요?</button>}
-          {recoveryStep==='verify'&&<button type="button" className="text-button" onClick={()=>{setRecoveryStep('request');setRecoveryCode('');setError('');setNotice('');}}>코드 다시 요청</button>}
-          {recoveryStep&&<button type="button" className="text-button" onClick={()=>{setRecoveryStep('');setRecoveryCode('');setRecoveryPassword('');setError('');setNotice('');}}>로그인으로 돌아가기</button>}
+          <button className="primary" disabled={busy}>{busy?tr("처리 중..."):recoveryStep==='request'?tr("재설정 코드 받기"):recoveryStep==='verify'?tr("비밀번호 변경"):mode==='register'?(step==='verify'?tr("인증하고 시작하기"):tr("인증 코드 받기")):(step==='verify'?tr("보안 코드 확인 후 로그인"):tr("로그인하기"))}<ArrowRight size={17}/></button>
+          {!recoveryStep&&step==='verify'&&<button type="button" className="text-button" onClick={()=>{setStep('form');setCode('');setError('');setNotice('');}}>{tr("정보 다시 입력")}</button>}
+          {!recoveryStep&&mode==='login'&&step==='form'&&<button type="button" className="text-button" onClick={()=>{setRecoveryEmail(identifier.includes('@')?identifier.trim():'');setRecoveryCode('');setRecoveryPassword('');setRecoveryStep('request');setError('');setNotice('');}}>{tr("비밀번호를 잊으셨나요?")}</button>}
+          {recoveryStep==='verify'&&<button type="button" className="text-button" onClick={()=>{setRecoveryStep('request');setRecoveryCode('');setError('');setNotice('');}}>{tr("코드 다시 요청")}</button>}
+          {recoveryStep&&<button type="button" className="text-button" onClick={()=>{setRecoveryStep('');setRecoveryCode('');setRecoveryPassword('');setError('');setNotice('');}}>{tr("로그인으로 돌아가기")}</button>}
         </form>
-        <div className="secure-note"><ShieldCheck size={15}/><span>안전한 인증 · 비밀번호 보호</span></div>
+        <div className="secure-note"><ShieldCheck size={15}/><span>{tr("안전한 인증 · 비밀번호 보호")}</span></div>
       </section>
     </section>
-    <nav className="auth-legal-links" aria-label="서비스 정책"><a href="/privacy">개인정보 처리방침</a><a href="/terms">이용약관</a><a href="/community-guidelines">커뮤니티 운영정책</a></nav>
+    <nav className="auth-legal-links" aria-label={tr("서비스 정책")}><LanguageSwitch/><a href="/privacy">{tr("개인정보 처리방침")}</a><a href="/terms">{tr("이용약관")}</a><a href="/community-guidelines">{tr("커뮤니티 운영정책")}</a></nav>
   </main>;
 }
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { failed: false, message: '' }; }
-  static getDerivedStateFromError(error) { return { failed: true, message: String(error?.message || error || '알 수 없는 렌더링 오류') }; }
+  static getDerivedStateFromError(error) { return { failed: true, message: String(error?.message || error || tr("알 수 없는 렌더링 오류")) }; }
   componentDidCatch(error, info) {
     console.error('FITNOVA dashboard render failed:', error, info);
   }
@@ -311,10 +316,10 @@ class DashboardErrorBoundary extends React.Component {
     if (this.state.failed) return <main role="alert" style={{position:'fixed',inset:0,zIndex:99999,boxSizing:'border-box',width:'100vw',minHeight:'100dvh',overflowY:'auto',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',background:'#080a08',color:'#f4f7f2',fontFamily:'system-ui,sans-serif'}}>
       <section style={{boxSizing:'border-box',width:'min(100%,560px)',padding:'28px',border:'1px solid #303a2c',borderRadius:'20px',background:'#111610',textAlign:'center'}}>
         <div style={{width:'48px',height:'48px',margin:'0 auto 18px',display:'grid',placeItems:'center',borderRadius:'14px',background:'#25351b',color:'#b7f34a'}}><Activity size={25}/></div>
-        <h2 style={{margin:'0 0 12px',fontSize:'22px',lineHeight:1.4}}>FITNOVA 화면 오류</h2>
-        <p style={{margin:'0 0 16px',color:'#b8c0b2',lineHeight:1.7}}>앱 화면을 표시하는 중 오류가 발생했어요. 오류 내용을 확인하면 원인을 더 정확히 고칠 수 있어요.</p>
+        <h2 style={{margin:'0 0 12px',fontSize:'22px',lineHeight:1.4}}>{tr("FITNOVA 화면 오류")}</h2>
+        <p style={{margin:'0 0 16px',color:'#b8c0b2',lineHeight:1.7}}>{tr("앱 화면을 표시하는 중 오류가 발생했어요. 오류 내용을 확인하면 원인을 더 정확히 고칠 수 있어요.")}</p>
         <pre style={{boxSizing:'border-box',whiteSpace:'pre-wrap',overflowWrap:'anywhere',textAlign:'left',padding:'12px',borderRadius:'10px',background:'#090c08',color:'#d4e5c7',fontSize:'12px',lineHeight:1.5}}>{this.state.message}</pre>
-        <button type="button" style={{width:'100%',minHeight:'46px',marginTop:'12px',border:0,borderRadius:'12px',background:'#b7f34a',color:'#11160b',fontWeight:700,cursor:'pointer'}} onClick={() => window.location.reload()}>화면 다시 열기</button>
+        <button type="button" style={{width:'100%',minHeight:'46px',marginTop:'12px',border:0,borderRadius:'12px',background:'#b7f34a',color:'#11160b',fontWeight:700,cursor:'pointer'}} onClick={() => window.location.reload()}>{tr("화면 다시 열기")}</button>
       </section>
     </main>;
     return this.props.children;
@@ -390,14 +395,14 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [postMediaName, setPostMediaName] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const nav = [
-    { id: 'home', label: '홈', icon: Home },
-    { id: 'analysis', label: '운동 분석', icon: TrendingUp },
-    { id: 'steps', label: '만보기', icon: Footprints },
-    { id: 'feed', label: '피드', icon: Compass },
-    { id: 'create', label: '작성', icon: Plus },
-    { id: 'messages', label: '메시지', icon: MessageCircle },
-    { id: 'profile', label: '프로필', icon: UserRound },
-    ...(user.is_master ? [{ id: 'moderation', label: '신고 관리', icon: ClipboardList }] : [])
+    { id: 'home', label: tr("홈"), icon: Home },
+    { id: 'analysis', label: tr("운동 분석"), icon: TrendingUp },
+    { id: 'steps', label: tr("만보기"), icon: Footprints },
+    { id: 'feed', label: tr("피드"), icon: Compass },
+    { id: 'create', label: tr("작성"), icon: Plus },
+    { id: 'messages', label: tr("메시지"), icon: MessageCircle },
+    { id: 'profile', label: tr("프로필"), icon: UserRound },
+    ...(user.is_master ? [{ id: 'moderation', label: tr("신고 관리"), icon: ClipboardList }] : [])
   ];
   // Keep the create action in the exact middle slot on mobile; moderation remains desktop-only.
   const mobileNav = ['home', 'feed', 'steps', 'create', 'messages', 'analysis', 'profile']
@@ -431,7 +436,7 @@ function Dashboard({ user, tab, setTab, logout }) {
         setError('');
       }
     } catch (e) {
-      if (requestId === postsRequestId.current) setError(e.message || '게시물을 불러오지 못했습니다.');
+      if (requestId === postsRequestId.current) setError(e.message || tr("게시물을 불러오지 못했습니다."));
     } finally {
       if (requestId === postsRequestId.current) setFeedLoading(false);
     }
@@ -448,28 +453,28 @@ function Dashboard({ user, tab, setTab, logout }) {
       try { localStorage.setItem(cacheKey, JSON.stringify(users)); } catch {}
       setRelationshipList({open:true,type,username,users,loading:false});
     } catch (e) {
-      setRelationshipList({open:true,type,username,users:cachedUsers,loading:false,error:cachedUsers.length ? '' : (e.message||'목록을 불러오지 못했습니다.')});
+      setRelationshipList({open:true,type,username,users:cachedUsers,loading:false,error:cachedUsers.length ? '' : (e.message||tr("목록을 불러오지 못했습니다."))});
     }
   };
   const loadProfile = async (username = selectedProfile || user.username) => {
     try { const data = await api('/api/users/' + encodeURIComponent(username)); setProfileData(data.profile); }
-    catch (e) { setError(e.message || '프로필을 불러오지 못했습니다.'); }
+    catch (e) { setError(e.message || tr("프로필을 불러오지 못했습니다.")); }
   };
-  const loadOwnPosts = async (username=user.username) => { try { const d=await api('/api/users/'+encodeURIComponent(username)+'/posts'); setOwnPosts(d.posts||[]); } catch(e){setError(e.message||'게시물을 불러오지 못했습니다.');} };
-  const loadWorkoutRecords = async () => { try { const d=await api('/api/workout-records'); setWorkoutRecords(d.records||[]); } catch(e) { setError(e.message||'운동 기록을 불러오지 못했습니다.'); } };
+  const loadOwnPosts = async (username=user.username) => { try { const d=await api('/api/users/'+encodeURIComponent(username)+'/posts'); setOwnPosts(d.posts||[]); } catch(e){setError(e.message||tr("게시물을 불러오지 못했습니다."));} };
+  const loadWorkoutRecords = async () => { try { const d=await api('/api/workout-records'); setWorkoutRecords(d.records||[]); } catch(e) { setError(e.message||tr("운동 기록을 불러오지 못했습니다.")); } };
   const saveWorkoutRecord = async (payload) => { const d=await api('/api/workout-records',{method:'POST',body:JSON.stringify(payload)}); setWorkoutRecords(items=>[d.record,...items]); return d.record; };
-  const loadSavedPosts = async () => { try { const d=await api('/api/saved-posts'); setSavedPosts(d.posts||[]); setSavedPostIds(new Set((d.posts||[]).map(p=>p.id))); } catch(e){setError(e.message||'저장한 게시물을 불러오지 못했습니다.');} };
-  const loadSettings = async () => { try { const d=await api('/api/account/settings'); setAccountSettings(d.settings); setAccountEmail(d.email||user.email); setSettingsEmailInput(d.email||user.email); } catch(e){setError(e.message||'설정을 불러오지 못했습니다.');} };
-  const loadSafetyLists = async () => { setSafetyListsBusy(true); try { const d=await api('/api/account/safety'); setSafetyLists({blocked_users:Array.isArray(d.blocked_users)?d.blocked_users:[],muted_users:Array.isArray(d.muted_users)?d.muted_users:[]}); } catch(e) { setError(e.message||'차단 및 숨김 목록을 불러오지 못했습니다.'); } finally { setSafetyListsBusy(false); } };
+  const loadSavedPosts = async () => { try { const d=await api('/api/saved-posts'); setSavedPosts(d.posts||[]); setSavedPostIds(new Set((d.posts||[]).map(p=>p.id))); } catch(e){setError(e.message||tr("저장한 게시물을 불러오지 못했습니다."));} };
+  const loadSettings = async () => { try { const d=await api('/api/account/settings'); setAccountSettings(d.settings); setAccountEmail(d.email||user.email); setSettingsEmailInput(d.email||user.email); } catch(e){setError(e.message||tr("설정을 불러오지 못했습니다."));} };
+  const loadSafetyLists = async () => { setSafetyListsBusy(true); try { const d=await api('/api/account/safety'); setSafetyLists({blocked_users:Array.isArray(d.blocked_users)?d.blocked_users:[],muted_users:Array.isArray(d.muted_users)?d.muted_users:[]}); } catch(e) { setError(e.message||tr("차단 및 숨김 목록을 불러오지 못했습니다.")); } finally { setSafetyListsBusy(false); } };
   const saveSettings = async (next=accountSettings) => {
     const requestId = ++settingsRequestId.current;
     const previous = accountSettings;
-    setAccountSettings(next); setError(''); setNotice('설정을 저장하는 중…');
+    setAccountSettings(next); setError(''); setNotice(tr("설정을 저장하는 중…"));
     try {
       const d = await api('/api/account/settings', {method:'PATCH', body:JSON.stringify(next)});
-      if (requestId === settingsRequestId.current) { setAccountSettings(d.settings); setNotice('설정을 저장했습니다.'); }
+      if (requestId === settingsRequestId.current) { setAccountSettings(d.settings); setNotice(tr("설정을 저장했습니다.")); }
     } catch(e) {
-      if (requestId === settingsRequestId.current) { setAccountSettings(previous); setError((e.message||'설정을 저장하지 못했습니다.')+' 설정 변경이 저장되지 않아 이전 값으로 되돌렸습니다.'); setNotice(''); }
+      if (requestId === settingsRequestId.current) { setAccountSettings(previous); setError(trf("{0} 설정 변경이 저장되지 않아 이전 값으로 되돌렸습니다.", (e.message||tr("설정을 저장하지 못했습니다.")))); setNotice(''); }
     }
   };
   const toggleSavePost = async (id) => {
@@ -489,28 +494,28 @@ function Dashboard({ user, tab, setTab, logout }) {
       setSavedPostIds(prev=>{const n=new Set(prev);if(wasSaved)n.add(id);else n.delete(id);return n;});
       if(wasSaved && post) setSavedPosts(prev=>[post,...prev.filter(x=>x.id!==id)]);
       if(!wasSaved) setSavedPosts(prev=>prev.filter(x=>x.id!==id));
-      setError(e.message||'게시물을 저장하지 못했습니다.');
+      setError(e.message||tr("게시물을 저장하지 못했습니다."));
     } finally { pendingSaves.current.delete(id); }
   };
   const requestSettingsCode = async (kind) => {
     setSettingsBusy(true); setError(''); setNotice('');
     const wasSent = kind === 'password' ? settingsPasswordCodeSent : settingsEmailCodeSent;
     if (kind === 'password') setSettingsPasswordCodeSent(true); else setSettingsEmailCodeSent(true);
-    setNotice('보안 코드를 요청하고 있어요...');
+    setNotice(tr("보안 코드를 요청하고 있어요..."));
     try {
-      if(kind==='password'){await api('/api/account/password/request-code',{method:'POST'});setNotice('현재 이메일로 비밀번호 변경 보안 코드를 보냈습니다.');}
-      else {await api('/api/account/email/request-code',{method:'POST',body:JSON.stringify({email:settingsEmailInput})});setNotice('새 이메일로 인증 코드를 보냈습니다.');}
+      if(kind==='password'){await api('/api/account/password/request-code',{method:'POST'});setNotice(tr("현재 이메일로 비밀번호 변경 보안 코드를 보냈습니다."));}
+      else {await api('/api/account/email/request-code',{method:'POST',body:JSON.stringify({email:settingsEmailInput})});setNotice(tr("새 이메일로 인증 코드를 보냈습니다."));}
     } catch(e){
       if (kind === 'password') setSettingsPasswordCodeSent(wasSent); else setSettingsEmailCodeSent(wasSent);
-      setNotice(''); setError(e.message||'보안 코드를 보내지 못했습니다.');
+      setNotice(''); setError(e.message||tr("보안 코드를 보내지 못했습니다."));
     } finally {setSettingsBusy(false);}
   };
-  const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice('비밀번호를 변경했습니다.');}catch(e){setError(e.message||'비밀번호를 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
-  const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('이메일을 변경했습니다.');}catch(e){setError(e.message||'이메일을 변경하지 못했습니다.');}finally{setSettingsBusy(false);} };
-  const deleteAccount = async () => { if(!window.confirm('정말 회원탈퇴를 신청할까요? 계정은 즉시 비활성화되고, 30일 후 영구 삭제됩니다.'))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'회원탈퇴가 접수되었습니다. 계정은 비활성화되었으며 30일 후 영구 삭제됩니다.');}catch(e){setError((e.message||'회원탈퇴를 처리하지 못했습니다.')+' 계정 상태는 변경되지 않았습니다.');}finally{setSettingsBusy(false);} };
-  const loadThreads = async () => { try { const data = await api('/api/messages'); const threads = Array.isArray(data.threads) ? data.threads : []; setMessageThreads(threads); try { localStorage.setItem('fitnova_message_threads:' + (user?.username || ''), JSON.stringify(threads)); } catch {} } catch (e) { setError(e.message || '메시지를 불러오지 못했습니다.'); } };
+  const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice(tr("비밀번호를 변경했습니다."));}catch(e){setError(e.message||tr("비밀번호를 변경하지 못했습니다."));}finally{setSettingsBusy(false);} };
+  const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice(tr("이메일을 변경했습니다."));}catch(e){setError(e.message||tr("이메일을 변경하지 못했습니다."));}finally{setSettingsBusy(false);} };
+  const deleteAccount = async () => { if(!window.confirm(tr("정말 회원탈퇴를 신청할까요? 계정은 즉시 비활성화되고, 30일 후 영구 삭제됩니다.")))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||tr("회원탈퇴가 접수되었습니다. 계정은 비활성화되었으며 30일 후 영구 삭제됩니다."));}catch(e){setError(trf("{0} 계정 상태는 변경되지 않았습니다.", (e.message||tr("회원탈퇴를 처리하지 못했습니다."))));}finally{setSettingsBusy(false);} };
+  const loadThreads = async () => { try { const data = await api('/api/messages'); const threads = Array.isArray(data.threads) ? data.threads : []; setMessageThreads(threads); try { localStorage.setItem('fitnova_message_threads:' + (user?.username || ''), JSON.stringify(threads)); } catch {} } catch (e) { setError(e.message || tr("메시지를 불러오지 못했습니다.")); } };
   const enablePushNotifications = async ({ startup = false, requestPermission = true } = {}) => {
-    if (!Capacitor.isNativePlatform()) { setError('푸시 알림은 FITNOVA 안드로이드 앱에서 설정할 수 있습니다.'); return; }
+    if (!Capacitor.isNativePlatform()) { setError(tr("푸시 알림은 FITNOVA 안드로이드 앱에서 설정할 수 있습니다.")); return; }
     setPushBusy(true); setError('');
     try {
       let permission = await PushNotifications.checkPermissions();
@@ -521,25 +526,25 @@ function Dashboard({ user, tab, setTab, logout }) {
       if (permission.receive !== 'granted') {
         setPushEnabled(false);
         localStorage.removeItem('fitnova_push_enabled');
-        if (!startup) setError('휴대폰 알림 권한을 허용해 주세요. Android 설정에서 FITNOVA 알림을 켤 수 있습니다.');
+        if (!startup) setError(tr("휴대폰 알림 권한을 허용해 주세요. Android 설정에서 FITNOVA 알림을 켤 수 있습니다."));
         return;
       }
       if (startup) localStorage.setItem('fitnova_notification_prompted', 'true');
-      await PushNotifications.createChannel({id:'fitnova_messages',name:'FITNOVA 메시지',description:'새 다이렉트 메시지 알림',importance:5,visibility:1});
+      await PushNotifications.createChannel({id:'fitnova_messages',name:tr("FITNOVA 메시지"),description:tr("새 다이렉트 메시지 알림"),importance:5,visibility:1});
       await PushNotifications.addListener('registration', async token => {
         try { await api('/api/push/devices', {method:'POST', body:JSON.stringify({token:token.value, platform:'android'})}); localStorage.setItem('fitnova_push_token', token.value); setPushEnabled(true); localStorage.setItem('fitnova_push_enabled','true'); }
-        catch (err) { setError(err.message||'알림 기기를 등록하지 못했습니다.'); }
+        catch (err) { setError(err.message||tr("알림 기기를 등록하지 못했습니다.")); }
       });
       await PushNotifications.addListener('registrationError', err => {
-        const message = err?.error || '푸시 알림 등록에 실패했습니다.';
-        if (startup) setNotice('알림 등록에 실패했습니다. 설정에서 다시 시도할 수 있어요.');
+        const message = err?.error || tr("푸시 알림 등록에 실패했습니다.");
+        if (startup) setNotice(tr("알림 등록에 실패했습니다. 설정에서 다시 시도할 수 있어요."));
         else setError(message);
       });
       await PushNotifications.addListener('pushNotificationReceived', notification => {
         loadThreads();
         const sender = notification?.data?.username;
         if (notification?.data?.kind === 'message' && accountSettings.notify_messages !== false && sender && activeChatRef.current !== sender) {
-          LocalNotifications.schedule({notifications:[{id:Date.now()%2147483647,title:notification?.title||'새 메시지',body:notification?.body||'새 메시지가 도착했습니다.',channelId:'fitnova_messages',extra:notification?.data||{}}]}).catch(()=>{});
+          LocalNotifications.schedule({notifications:[{id:Date.now()%2147483647,title:notification?.title||tr("새 메시지"),body:notification?.body||tr("새 메시지가 도착했습니다."),channelId:'fitnova_messages',extra:notification?.data||{}}]}).catch(()=>{});
         }
       });
       await LocalNotifications.addListener('localNotificationActionPerformed', action => {
@@ -553,8 +558,8 @@ function Dashboard({ user, tab, setTab, logout }) {
       await PushNotifications.register();
       // Registration runs quietly; do not interrupt the user with a success toast.
     } catch (err) {
-      if (startup) setNotice('알림을 설정하지 못했습니다. 설정에서 다시 시도할 수 있어요.');
-      else setError(err.message||'푸시 알림을 설정하지 못했습니다.');
+      if (startup) setNotice(tr("알림을 설정하지 못했습니다. 설정에서 다시 시도할 수 있어요."));
+      else setError(err.message||tr("푸시 알림을 설정하지 못했습니다."));
     }
     finally { setPushBusy(false); }
   };
@@ -564,7 +569,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     if (!q) { setSearchResults({users:[],posts:[],hashtags:[]}); return; }
     setSearchBusy(true); setError('');
     try { const data = await api('/api/search?q=' + encodeURIComponent(q)); setSearchResults({users:data.users||[],posts:data.posts||[],hashtags:data.hashtags||[]}); }
-    catch (err) { setError(err.message||'검색에 실패했습니다.'); }
+    catch (err) { setError(err.message||tr("검색에 실패했습니다.")); }
     finally { setSearchBusy(false); }
   };
   const loadNotifications = async (markRead = false) => {
@@ -581,26 +586,26 @@ function Dashboard({ user, tab, setTab, logout }) {
         await api('/api/notifications/read',{method:'POST'});
         setNotifications(items=>items.map(item=>({...item,read:true}))); setUnreadCount(0);
       }
-    } catch (err) { setError(err.message||'알림을 불러오지 못했습니다.'); }
+    } catch (err) { setError(err.message||tr("알림을 불러오지 못했습니다.")); }
   };
   const reportTarget = async (target_type, target_id) => {
-    const reason = window.prompt('신고 사유를 입력해 주세요. (스팸, 괴롭힘, 부적절한 콘텐츠 등)');
+    const reason = window.prompt(tr("신고 사유를 입력해 주세요. (스팸, 괴롭힘, 부적절한 콘텐츠 등)"));
     if (!reason || !reason.trim()) return;
-    try { await api('/api/reports',{method:'POST',body:JSON.stringify({target_type,target_id:String(target_id),reason:reason.trim()})}); setNotice('신고가 접수되었습니다. 검토하겠습니다.'); setError(''); }
-    catch (err) { setError(err.message||'신고를 접수하지 못했습니다.'); }
+    try { await api('/api/reports',{method:'POST',body:JSON.stringify({target_type,target_id:String(target_id),reason:reason.trim()})}); setNotice(tr("신고가 접수되었습니다. 검토하겠습니다.")); setError(''); }
+    catch (err) { setError(err.message||tr("신고를 접수하지 못했습니다.")); }
   };
   const toggleSafetyAction = async (username, action) => {
     try {
       const result = await api('/api/users/'+encodeURIComponent(username)+'/'+action,{method:'POST'});
-      if (action==='block') setNotice(result.blocked ? '@'+username+' 계정을 차단했습니다.' : '@'+username+' 계정 차단을 해제했습니다.');
-      else setNotice(result.muted ? '@'+username+' 게시물을 숨겼습니다.' : '@'+username+' 게시물 숨김을 해제했습니다.');
+      if (action==='block') setNotice(result.blocked ? trf("@{0} 계정을 차단했습니다.", username) : trf("@{0} 계정 차단을 해제했습니다.", username));
+      else setNotice(result.muted ? trf("@{0} 게시물을 숨겼습니다.", username) : trf("@{0} 게시물 숨김을 해제했습니다.", username));
       setError('');
       if (action==='block' && result.blocked && activeChat===username) { setActiveChat(''); setChatMessages([]); }
       if (tab==='feed'||tab==='home') loadPosts();
       if (tab==='settings') await loadSafetyLists();
-    } catch(err) { setError(err.message||'계정 설정을 변경하지 못했습니다.'); }
+    } catch(err) { setError(err.message||tr("계정 설정을 변경하지 못했습니다.")); }
   };
-  const loadConversation = async (username) => { activeChatRef.current = username; setActiveChat(username); try { const data = await api('/api/messages/' + encodeURIComponent(username)); if (username === activeChatRef.current) setChatMessages(data.messages || []); } catch (e) { if (username === activeChatRef.current) setError(e.message || '대화 내용을 불러오지 못했습니다.'); } };
+  const loadConversation = async (username) => { activeChatRef.current = username; setActiveChat(username); try { const data = await api('/api/messages/' + encodeURIComponent(username)); if (username === activeChatRef.current) setChatMessages(data.messages || []); } catch (e) { if (username === activeChatRef.current) setError(e.message || tr("대화 내용을 불러오지 못했습니다.")); } };
   const toggleFollow = async () => {
     if (!profileData || profileData.is_me) return;
     const target = profileData.username;
@@ -608,11 +613,11 @@ function Dashboard({ user, tab, setTab, logout }) {
     pendingFollows.current.add(target);
     const before = profileData, nextFollowing = !profileData.following_by_me;
     setProfileData(prev=>prev?({...prev,following_by_me:nextFollowing,is_mutual:nextFollowing&&prev.followed_by_me,follower_count:Math.max(0,(prev.follower_count||0)+(nextFollowing?1:-1))}):prev);
-    setNotice(nextFollowing?'팔로우했어요.':'팔로우를 취소했어요.'); setError('');
+    setNotice(nextFollowing?tr("팔로우했어요."):tr("팔로우를 취소했어요.")); setError('');
     try {
       const data = await api('/api/users/' + encodeURIComponent(target) + '/follow', { method: 'POST' });
-      setProfileData(data.profile); setNotice(data.following ? '팔로우했습니다.' : '언팔로우했습니다.');
-    } catch (e) { setProfileData(before); setNotice(''); setError(e.message || '팔로우를 변경하지 못했습니다.'); }
+      setProfileData(data.profile); setNotice(data.following ? tr("팔로우했습니다.") : tr("언팔로우했습니다."));
+    } catch (e) { setProfileData(before); setNotice(''); setError(e.message || tr("팔로우를 변경하지 못했습니다.")); }
     finally { pendingFollows.current.delete(target); }
   };
   const sendMessage = async (e) => {
@@ -643,7 +648,7 @@ function Dashboard({ user, tab, setTab, logout }) {
         return previousThread ? [previousThread,...remaining] : remaining;
       });
       setMessageDraft(content);
-      setError(e.message || '메시지를 보내지 못했습니다.');
+      setError(e.message || tr("메시지를 보내지 못했습니다."));
     } finally { setMessageBusy(false); }
   };
   useEffect(() => {
@@ -821,18 +826,18 @@ function Dashboard({ user, tab, setTab, logout }) {
   const chooseMedia = async (file, selectedFiles = null) => {
     setError(''); const files = Array.from(selectedFiles || (file ? [file] : [])); if (!files.length) return;
     const isImage=files[0].type.startsWith('image/'), isVideo=files[0].type.startsWith('video/');
-    if (!isImage&&!isVideo) { setError('사진 또는 영상 파일만 선택할 수 있습니다.'); return; }
-    if (files.some(item=>item.type.startsWith('image/')!==isImage || item.type.startsWith('video/')!==isVideo)) { setError('사진과 영상은 한 게시물에 함께 올릴 수 없습니다.'); return; }
-    if (isImage && files.length > 10) { setError('사진은 한 게시물에 최대 10장까지 올릴 수 있습니다.'); return; }
-    if (isVideo && files.length > 1) { setError('영상은 한 게시물에 1개만 올릴 수 있습니다.'); return; }
-    const limit=(isImage?5:40)*1024*1024; if (files.some(item=>item.size>limit)) { setError(isImage?'사진은 각각 5MB 이하로 선택해 주세요.':'영상은 40MB 이하로 선택해 주세요.'); return; }
+    if (!isImage&&!isVideo) { setError(tr("사진 또는 영상 파일만 선택할 수 있습니다.")); return; }
+    if (files.some(item=>item.type.startsWith('image/')!==isImage || item.type.startsWith('video/')!==isVideo)) { setError(tr("사진과 영상은 한 게시물에 함께 올릴 수 없습니다.")); return; }
+    if (isImage && files.length > 10) { setError(tr("사진은 한 게시물에 최대 10장까지 올릴 수 있습니다.")); return; }
+    if (isVideo && files.length > 1) { setError(tr("영상은 한 게시물에 1개만 올릴 수 있습니다.")); return; }
+    const limit=(isImage?5:40)*1024*1024; if (files.some(item=>item.size>limit)) { setError(isImage?tr("사진은 각각 5MB 이하로 선택해 주세요."):tr("영상은 40MB 이하로 선택해 주세요.")); return; }
     postMediaFiles.forEach(item=>{if(item.previewUrl)URL.revokeObjectURL(item.previewUrl);}); if(postMedia?.previewUrl&&!postMediaFiles.some(item=>item.previewUrl===postMedia.previewUrl))URL.revokeObjectURL(postMedia.previewUrl);
     const selected = files.map(item=>({type:isImage?'image':'video',file:item,previewUrl:URL.createObjectURL(item),durationSeconds:null}));
-    if (isVideo) { try { const durationSeconds = await new Promise((resolve, reject) => { const probe = document.createElement('video'); probe.preload='metadata'; probe.onloadedmetadata=()=>resolve(probe.duration); probe.onerror=()=>reject(new Error('영상 정보를 읽을 수 없습니다. 다른 파일을 선택해 주세요.')); probe.src=selected[0].previewUrl; }); if (!Number.isFinite(durationSeconds)||durationSeconds<=0) throw new Error('영상 길이를 확인할 수 없습니다.'); if (durationSeconds>60) throw new Error('영상은 최대 1분(60초)까지 업로드할 수 있습니다.'); selected[0].durationSeconds=Math.ceil(durationSeconds); } catch(err) { selected.forEach(item=>URL.revokeObjectURL(item.previewUrl)); setError(err.message||'영상 정보를 읽지 못했습니다.'); return; } }
-    setPostMediaFiles(selected); setPostMedia(selected[0]); setPostMediaName(isImage?('사진 '+selected.length+'장 선택됨'):files[0].name);
+    if (isVideo) { try { const durationSeconds = await new Promise((resolve, reject) => { const probe = document.createElement('video'); probe.preload='metadata'; probe.onloadedmetadata=()=>resolve(probe.duration); probe.onerror=()=>reject(new Error(tr("영상 정보를 읽을 수 없습니다. 다른 파일을 선택해 주세요."))); probe.src=selected[0].previewUrl; }); if (!Number.isFinite(durationSeconds)||durationSeconds<=0) throw new Error(tr("영상 길이를 확인할 수 없습니다.")); if (durationSeconds>60) throw new Error(tr("영상은 최대 1분(60초)까지 업로드할 수 있습니다.")); selected[0].durationSeconds=Math.ceil(durationSeconds); } catch(err) { selected.forEach(item=>URL.revokeObjectURL(item.previewUrl)); setError(err.message||tr("영상 정보를 읽지 못했습니다.")); return; } }
+    setPostMediaFiles(selected); setPostMedia(selected[0]); setPostMediaName(isImage?(trf("사진 {0}장 선택됨", selected.length)):files[0].name);
   };
   const createPost = async (e) => {
-    e.preventDefault(); if(!postTitle.trim()||!postContent.trim()||!postMediaFiles.length){setError('제목, 내용, 사진 또는 영상을 모두 입력해 주세요.');return;}
+    e.preventDefault(); if(!postTitle.trim()||!postContent.trim()||!postMediaFiles.length){setError(tr("제목, 내용, 사진 또는 영상을 모두 입력해 주세요."));return;}
     setBusy(true);setUploadProgress(0);setError('');setNotice('');
     const hashtags=postHashtags.split(/[\\s,]+/).map(x=>x.trim().replace(/^#/,'')).filter(Boolean).map(x=>'#'+x).slice(0,20);
     const mediaType=postMedia.type;
@@ -846,11 +851,11 @@ function Dashboard({ user, tab, setTab, logout }) {
         const xhr=new XMLHttpRequest(); xhr.open('POST',API+'/api/posts/upload');
         const token=localStorage.getItem(TOKEN_KEY); if(token) xhr.setRequestHeader('Authorization','Bearer '+token);
         xhr.upload.onprogress=(event)=>{if(event.lengthComputable)setUploadProgress(Math.min(99,Math.round(event.loaded/event.total*100)));};
-        xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText||'{}');}catch{} if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(data.detail||'게시물을 올리지 못했습니다. 잠시 후 다시 시도해 주세요.'));};
-        xhr.onerror=()=>reject(new Error('네트워크 연결을 확인한 뒤 다시 시도해 주세요.')); xhr.onabort=()=>reject(new Error('업로드가 취소되었습니다.')); xhr.send(form);
+        xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText||'{}');}catch{} if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(data.detail||tr("게시물을 올리지 못했습니다. 잠시 후 다시 시도해 주세요.")));};
+        xhr.onerror=()=>reject(new Error(tr("네트워크 연결을 확인한 뒤 다시 시도해 주세요."))); xhr.onabort=()=>reject(new Error(tr("업로드가 취소되었습니다."))); xhr.send(form);
       });
-      setUploadProgress(100); resetPostForm();setPostFormOpen(false);await loadPosts();setNotice(mediaType==='image'?'사진 게시물을 홈에 올렸습니다.':'영상 게시물을 피드에 올렸습니다.');setTab(mediaType==='image'?'home':'feed');
-    } catch(e){setError(e.message||'게시물을 올리지 못했습니다.');} finally{setBusy(false);}
+      setUploadProgress(100); resetPostForm();setPostFormOpen(false);await loadPosts();setNotice(mediaType==='image'?tr("사진 게시물을 홈에 올렸습니다."):tr("영상 게시물을 피드에 올렸습니다."));setTab(mediaType==='image'?'home':'feed');
+    } catch(e){setError(e.message||tr("게시물을 올리지 못했습니다."));} finally{setBusy(false);}
   };
   const toggleLike = async (id) => {
     if (pendingLikes.current.has(id)) return;
@@ -872,7 +877,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
       setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
       setSavedPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
-      setError(e.message||'좋아요를 처리하지 못했습니다.');
+      setError(e.message||tr("좋아요를 처리하지 못했습니다."));
     } finally { pendingLikes.current.delete(id); }
   };
   const toggleCommentLike = async (postId, commentId) => {
@@ -890,7 +895,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setPosts(apply); setOwnPosts(apply); setSavedPosts(apply);
     } catch(err) {
       const rollback=(items)=>items.map(post=>post.id!==postId?post:{...post,comments:(post.comments||[]).map(item=>String(item.id)!==String(commentId)?item:{...item,liked_by_me:before,like_count:comment.like_count||0})});
-      setPosts(rollback); setOwnPosts(rollback); setSavedPosts(rollback); setError(err.message||'댓글 좋아요를 처리하지 못했습니다.');
+      setPosts(rollback); setOwnPosts(rollback); setSavedPosts(rollback); setError(err.message||tr("댓글 좋아요를 처리하지 못했습니다."));
     }
   };
   const addComment = async (id) => {
@@ -910,93 +915,93 @@ function Dashboard({ user, tab, setTab, logout }) {
     } catch(e) {
       const remove=items=>items.map(p=>p.id===id?{...p,comments:(p.comments||[]).filter(comment=>comment.id!==tempId)}:p);
       setPosts(remove); setOwnPosts(remove); setSavedPosts(remove); setCommentDrafts(items=>({...items,[id]:content}));
-      setError(e.message||'댓글을 등록하지 못했습니다.');
+      setError(e.message||tr("댓글을 등록하지 못했습니다."));
     } finally { pendingComments.current.delete(id); }
   };
   const deleteComment = async (postId, commentId) => {
-    if (!window.confirm('이 댓글을 삭제할까요?')) return;
+    if (!window.confirm(tr("이 댓글을 삭제할까요?"))) return;
     const remove = items => items.map(post => post.id === postId ? {...post, comments:(post.comments||[]).filter(comment => String(comment.id) !== String(commentId))} : post);
     const snapshots = {posts, ownPosts, savedPosts};
     setPosts(remove); setOwnPosts(remove); setSavedPosts(remove);
     setError(''); setNotice('');
     try {
       await api('/api/posts/' + postId + '/comments/' + commentId, {method:'DELETE'});
-      setNotice('댓글을 삭제했습니다.');
+      setNotice(tr("댓글을 삭제했습니다."));
     } catch (e) {
       setPosts(snapshots.posts); setOwnPosts(snapshots.ownPosts); setSavedPosts(snapshots.savedPosts);
-      setError(e.message || '댓글을 삭제하지 못했습니다.');
+      setError(e.message || tr("댓글을 삭제하지 못했습니다."));
     }
   };
   const removePost = async (id) => {
-    if (!window.confirm('이 게시물을 삭제할까요?')) return;
-    try { await api('/api/posts/' + id, { method: 'DELETE' }); setPosts(items => items.filter(p => p.id !== id)); setNotice('게시물을 삭제했습니다.'); }
-    catch (e) { setError(e.message || '게시물을 삭제하지 못했습니다.'); }
+    if (!window.confirm(tr("이 게시물을 삭제할까요?"))) return;
+    try { await api('/api/posts/' + id, { method: 'DELETE' }); setPosts(items => items.filter(p => p.id !== id)); setNotice(tr("게시물을 삭제했습니다.")); }
+    catch (e) { setError(e.message || tr("게시물을 삭제하지 못했습니다.")); }
   };
   const togglePostPin = async (post) => {
-    try { const result = await api('/api/posts/'+post.id+'/pin',{method:'POST'}); const update=items=>items.map(item=>item.id===post.id?{...item,pinned:result.pinned}:item); setPosts(update); setOwnPosts(update); setSavedPosts(update); setNotice(result.pinned?'게시물을 피드 상단에 고정했습니다.':'게시물 고정을 해제했습니다.'); if(tab==='home'||tab==='feed') loadPosts(); }
-    catch(e){setError(e.message||'게시물 고정 상태를 변경하지 못했습니다.');}
+    try { const result = await api('/api/posts/'+post.id+'/pin',{method:'POST'}); const update=items=>items.map(item=>item.id===post.id?{...item,pinned:result.pinned}:item); setPosts(update); setOwnPosts(update); setSavedPosts(update); setNotice(result.pinned?tr("게시물을 피드 상단에 고정했습니다."):tr("게시물 고정을 해제했습니다.")); if(tab==='home'||tab==='feed') loadPosts(); }
+    catch(e){setError(e.message||tr("게시물 고정 상태를 변경하지 못했습니다."));}
   };
   const toggleSuspension = async (username) => {
-    if (!window.confirm('@'+username+' 계정의 이용을 정지하거나 해제할까요?')) return;
-    try { const result=await api('/api/users/'+encodeURIComponent(username)+'/suspend',{method:'POST'}); setNotice(result.suspended?'계정을 정지했습니다.':'계정 정지를 해제했습니다.'); if(tab==='feed'||tab==='home')loadPosts(); }
-    catch(e){setError(e.message||'계정 상태를 변경하지 못했습니다.');}
+    if (!window.confirm(trf("@{0} 계정의 이용을 정지하거나 해제할까요?", username))) return;
+    try { const result=await api('/api/users/'+encodeURIComponent(username)+'/suspend',{method:'POST'}); setNotice(result.suspended?tr("계정을 정지했습니다."):tr("계정 정지를 해제했습니다.")); if(tab==='feed'||tab==='home')loadPosts(); }
+    catch(e){setError(e.message||tr("계정 상태를 변경하지 못했습니다."));}
   };
-  const prettyDate = (value) => { try { return new Date(value).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+  const prettyDate = (value) => { try { return new Date(value).toLocaleString(LOCALE_TAG, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
   return <main className={"app-shell "+(tab==="messages"&&activeChat?"chat-active":"")}>
     <div className="fitnova-entry-mark" aria-hidden="true"><span>F</span></div>
-    <aside className="side-rail"><a className="brand" href="#feed"><span className="brand-icon"><Activity size={21}/></span><span className="rail-brand">FIT<span>NOVA</span></span></a><div className="rail-nav">{nav.map(item=><button key={item.id} className={item.id==='create'?'nav-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?'게시물 작성':undefined}><item.icon size={20}/><span>{item.label}</span></button>)}</div><div className="rail-bottom"><div className="avatar">{user.username.slice(0,1).toUpperCase()}</div><button className="rail-logout" onClick={logout} aria-label="로그아웃"><LogOut size={18}/></button></div></aside>
-    <section className="dashboard-main"><header className={"dash-top "+(tab==="messages"&&activeChat?"chat-top-hidden":"")}><div><div className="eyebrow"><Sparkles size={13}/> MOVE. CONNECT. EVOLVE.</div><h1>{tab==='feed'?'함께 성장하는 피드':tab==='home'?'오늘도 한 단계 성장해요':tab==='steps'?'이번 주 걸음 수':tab==='analysis'?'운동 데이터 분석':tab==='messages'?'메시지':tab==='settings'?'설정':tab==='saved'?'저장한 게시물':tab==='moderation'?'신고 관리':'나의 FITNOVA'}</h1><span className="top-tagline">오늘의 운동을<br/>함께 기록해요</span></div><a className="top-brand" href="#top" aria-label="FITNOVA 홈" onClick={e=>{e.preventDefault();handleNav('home');window.scrollTo({top:0,behavior:'smooth'});}}>FITNOVA</a><div className="top-actions"><button className="icon-surface" aria-label="검색" title="검색" onClick={()=>{setSearchOpen(true);setNotificationsOpen(false);}}><Search size={19}/></button><button className="icon-surface notification-trigger" aria-label="알림" title="알림" onClick={()=>{setNotificationsOpen(!notificationsOpen);setSearchOpen(false);if(!notificationsOpen)loadNotifications(true);}}><Bell size={19}/>{unreadCount>0&&<i className="notification-dot">{unreadCount>9?'9+':unreadCount}</i>}</button><button className="user-chip" onClick={()=>setProfileOpen(!profileOpen)}><span className="avatar">{user.username.slice(0,1).toUpperCase()}</span><span><b>{user.username}</b><small>FITNOVA 멤버</small></span></button>{profileOpen&&<div className="profile-pop"><b>{user.username}</b><span>{user.email}</span><button onClick={logout}><LogOut size={15}/> 로그아웃</button></div>}</div></header>
+    <aside className="side-rail"><a className="brand" href="#feed"><span className="brand-icon"><Activity size={21}/></span><span className="rail-brand">FIT<span>NOVA</span></span></a><div className="rail-nav">{nav.map(item=><button key={item.id} className={item.id==='create'?'nav-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?tr("게시물 작성"):undefined}><item.icon size={20}/><span>{item.label}</span></button>)}</div><div className="rail-bottom"><div className="avatar">{user.username.slice(0,1).toUpperCase()}</div><button className="rail-logout" onClick={logout} aria-label={tr("로그아웃")}><LogOut size={18}/></button></div></aside>
+    <section className="dashboard-main"><header className={"dash-top "+(tab==="messages"&&activeChat?"chat-top-hidden":"")}><div><div className="eyebrow"><Sparkles size={13}/> MOVE. CONNECT. EVOLVE.</div><h1>{tab==='feed'?tr("함께 성장하는 피드"):tab==='home'?tr("오늘도 한 단계 성장해요"):tab==='steps'?tr("이번 주 걸음 수"):tab==='analysis'?tr("운동 데이터 분석"):tab==='messages'?tr("메시지"):tab==='settings'?tr("설정"):tab==='saved'?tr("저장한 게시물"):tab==='moderation'?tr("신고 관리"):tr("나의 FITNOVA")}</h1><span className="top-tagline">{tr("오늘의 운동을")}<br/>{tr("함께 기록해요")}</span></div><a className="top-brand" href="#top" aria-label={tr("FITNOVA 홈")} onClick={e=>{e.preventDefault();handleNav('home');window.scrollTo({top:0,behavior:'smooth'});}}>FITNOVA</a><div className="top-actions"><button className="icon-surface" aria-label={tr("검색")} title={tr("검색")} onClick={()=>{setSearchOpen(true);setNotificationsOpen(false);}}><Search size={19}/></button><button className="icon-surface notification-trigger" aria-label={tr("알림")} title={tr("알림")} onClick={()=>{setNotificationsOpen(!notificationsOpen);setSearchOpen(false);if(!notificationsOpen)loadNotifications(true);}}><Bell size={19}/>{unreadCount>0&&<i className="notification-dot">{unreadCount>9?'9+':unreadCount}</i>}</button><button className="user-chip" onClick={()=>setProfileOpen(!profileOpen)}><span className="avatar">{user.username.slice(0,1).toUpperCase()}</span><span><b>{user.username}</b><small>{tr("FITNOVA 멤버")}</small></span></button>{profileOpen&&<div className="profile-pop"><b>{user.username}</b><span>{user.email}</span><button onClick={logout}><LogOut size={15}/> {tr("로그아웃")}</button></div>}</div></header>
     <div className="page-transition" key={tab}>
     {error&&<div className="alert error feed-alert">{error}</div>}{notice&&<div className="alert success feed-alert">{notice}</div>}
     {tab==='moderation'&&user.is_master&&<ModerationPanel/>}
     {tab==='steps'&&<StepCounterPanel />}
     {tab==='analysis'&&<WorkoutAnalysisPanel records={workoutRecords} onSaveRecord={saveWorkoutRecord} onRefresh={loadWorkoutRecords} />}
-    {tab==='feed'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?'불러오는 중…':'게시물 더 불러오기'}</button>}
-    {tab==='feed'&&<section className="feed-layout"><div className="feed-heading"><div><span className="eyebrow">FITNOVA VIDEO FEED</span><h2>운동의 순간을 영상으로.</h2><p>영상 게시물만 모아보는 피드입니다.</p></div><button className="refresh-button" onClick={()=>loadPosts()}><Activity size={16}/> 새로고침</button></div><div className="feed-list">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>게시물을 불러오는 중…</b></div>:posts.filter(p=>p.media_type==='video').length===0?<div className="empty-feed"><div className="empty-art"><Video size={34}/></div><h3>아직 영상 게시물이 없어요</h3><p>옆의 + 버튼으로 운동 영상을 공유해 보세요.</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> 영상 게시물 작성</button></div>:posts.filter(p=>p.media_type==='video').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} priority={index<2}/>)}</div></section>}
+    {tab==='feed'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?tr("불러오는 중…"):tr("게시물 더 불러오기")}</button>}
+    {tab==='feed'&&<section className="feed-layout"><div className="feed-heading"><div><span className="eyebrow">FITNOVA VIDEO FEED</span><h2>{tr("운동의 순간을 영상으로.")}</h2><p>{tr("영상 게시물만 모아보는 피드입니다.")}</p></div><button className="refresh-button" onClick={()=>loadPosts()}><Activity size={16}/> {tr("새로고침")}</button></div><div className="feed-list">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>{tr("게시물을 불러오는 중…")}</b></div>:posts.filter(p=>p.media_type==='video').length===0?<div className="empty-feed"><div className="empty-art"><Video size={34}/></div><h3>{tr("아직 영상 게시물이 없어요")}</h3><p>{tr("옆의 + 버튼으로 운동 영상을 공유해 보세요.")}</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> {tr("영상 게시물 작성")}</button></div>:posts.filter(p=>p.media_type==='video').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} priority={index<2}/>)}</div></section>}
     {tab==='home'&&<section className="feed-layout home-feed-layout">
       <div className="home-left">
-      <section className="home-hero" aria-label="오늘의 한마디">
-        <h2>오늘의 땀이<em>내일의 나를 만든다.</em></h2>
-        <p>오늘의 운동, 기록으로 남겨요.</p>
+      <section className="home-hero" aria-label={tr("오늘의 한마디")}>
+        <h2>{tr("오늘의 땀이")}<em>{tr("내일의 나를 만든다.")}</em></h2>
+        <p>{tr("오늘의 운동, 기록으로 남겨요.")}</p>
       </section>
-      <div className="home-quick" role="group" aria-label="바로가기">
-        <button type="button" onClick={()=>setTab('analysis')}><span><TrendingUp size={20}/></span>운동 기록</button>
-        <button type="button" onClick={openComposer}><span><Plus size={20}/></span>게시물</button>
-        <button type="button" onClick={()=>setTab('steps')}><span><Footprints size={20}/></span>만보기</button>
-        <button type="button" onClick={()=>setTab('messages')}><span><MessageCircle size={20}/></span>메시지</button>
+      <div className="home-quick" role="group" aria-label={tr("바로가기")}>
+        <button type="button" onClick={()=>setTab('analysis')}><span><TrendingUp size={20}/></span>{tr("운동 기록")}</button>
+        <button type="button" onClick={openComposer}><span><Plus size={20}/></span>{tr("게시물")}</button>
+        <button type="button" onClick={()=>setTab('steps')}><span><Footprints size={20}/></span>{tr("만보기")}</button>
+        <button type="button" onClick={()=>setTab('messages')}><span><MessageCircle size={20}/></span>{tr("메시지")}</button>
       </div>
       </div>
-      <div className="home-section-head"><h3>최근 게시물</h3><button className="refresh-button" onClick={()=>loadPosts()} aria-label="새로고침"><RefreshCw size={15}/> 새로고침</button></div>
-      <div className="feed-list photo-feed">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>게시물을 불러오는 중…</b></div>:posts.filter(p=>p.media_type==='image').length===0?<div className="empty-feed"><div className="empty-art"><ImageIcon size={34}/></div><h3>아직 사진 게시물이 없어요</h3><p>운동 기록 사진이나 오늘의 변화를 공유해 보세요.</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> 사진 게시물 작성</button></div>:posts.filter(p=>p.media_type==='image').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} priority={index<2}/>)}</div></section>}
-    {tab==='home'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?'불러오는 중…':'게시물 더 불러오기'}</button>}
-    {tab==='saved'&&<section className="feed-layout"><div className="feed-heading"><div><span className="eyebrow">YOUR COLLECTION</span><h2>저장한 게시물</h2><p>나중에 다시 보고 싶은 운동 기록을 모아뒀어요.</p></div><button className="refresh-button" onClick={loadSavedPosts}><Activity size={16}/> 새로고침</button></div><div className="feed-list">{savedPosts.length===0?<div className="empty-feed"><Bookmark size={30}/><h3>아직 저장한 게시물이 없어요</h3><p>게시물의 책갈피 버튼을 눌러 저장해 보세요.</p></div>:savedPosts.map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}</div></section>}
-    {tab==='settings'&&<section className="settings-page"><div className="settings-heading"><span className="eyebrow">YOUR SPACE · SETTINGS</span><h2>설정 및 개인정보</h2><p>FITNOVA 경험과 계정 정보를 원하는 방식으로 관리하세요.</p></div><div className="settings-account-banner"><div className="settings-account-avatar">{(user.name||user.username).slice(0,1).toUpperCase()}</div><div className="settings-account-copy"><span>로그인한 계정</span><b>{user.name||user.username}</b><small>@{user.username} · {accountEmail||user.email}</small></div><span className="settings-account-status"><CheckCircle2 size={15}/> 인증된 계정</span></div><div className="settings-grid"><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>개인정보 및 소통</h3><p>다른 회원에게 보이는 범위와 연락 방법을 정하세요.</p></div></div>{[['private_account','비공개 계정','프로필 공개 범위를 제한하는 설정'],['show_activity','활동 정보 표시','프로필에 운동 활동 관련 정보를 표시'],['show_workout_details','운동 세부 정보 표시','게시물에 작성한 운동 세부 정보를 표시']].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={!!accountSettings[key]} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<label className="setting-select"><span><b>메시지 수신 범위</b><small>팔로우하지 않은 계정의 메시지를 차단할 수 있어요.</small></span><select value={accountSettings.allow_messages_from} onChange={e=>saveSettings({...accountSettings,allow_messages_from:e.target.value})}><option value="everyone">모든 계정</option><option value="following">내가 팔로우한 계정만</option></select></label></section><section className="settings-card"><div className="settings-card-title"><Bell size={20}/><div><h3>알림 설정</h3><p>받고 싶은 알림만 선택하세요. 변경 사항은 계정에 저장됩니다.</p></div></div>{[["notify_messages","DM 메시지 알림","새 다이렉트 메시지의 휴대폰 푸시 및 앱 알림"],["notify_comments","댓글 알림","내 게시물에 새 댓글이 달렸을 때"],["notify_likes","좋아요 알림","내 게시물에 좋아요가 눌렸을 때"],["notify_follows","팔로우 알림","새 팔로워가 생겼을 때"]].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={accountSettings[key] !== false} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<div className="notification-push-actions"><button className="secondary-action" onClick={enablePushNotifications} disabled={pushBusy||pushEnabled}><Bell size={16}/>{pushBusy?"알림 등록 중…":pushEnabled?"휴대폰 푸시 연결됨":"휴대폰 푸시 켜기"}</button><small className="setting-help">푸시 알림은 Android 알림 권한과 서버의 Firebase 설정이 필요합니다. 권한 허용 후 별도의 성공 팝업은 표시하지 않습니다.</small></div></section><section className="settings-card"><div className="settings-card-title"><KeyRound size={20}/><div><h3>비밀번호 변경</h3><p>현재 계정 이메일로 보안 코드를 보내 인증합니다.</p></div></div>{!settingsPasswordCodeSent?<button className="secondary-action" onClick={()=>requestSettingsCode('password')} disabled={settingsBusy}><MailCheck size={16}/> 보안 코드 받기</button>:<form className="settings-form" onSubmit={confirmSettingsPassword}><label>이메일 보안 코드<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsPasswordCode} onChange={e=>setSettingsPasswordCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6자리 코드"/></label><label>새 비밀번호<input required type="password" minLength={10} maxLength={128} value={settingsPassword} onChange={e=>setSettingsPassword(e.target.value)} placeholder="10자 이상"/></label><button className="primary compact" disabled={settingsBusy}>비밀번호 변경</button></form>}</section><section className="settings-card"><div className="settings-card-title"><MailCheck size={20}/><div><h3>이메일 변경</h3><p>새 이메일로 받은 보안 코드를 확인해야 변경됩니다.</p></div></div><label className="settings-form">현재 이메일<input value={accountEmail} readOnly/></label>{!settingsEmailCodeSent?<form className="settings-form" onSubmit={e=>{e.preventDefault();requestSettingsCode('email');}}><label>새 이메일<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)} placeholder="new@example.com"/></label><button className="secondary-action" disabled={settingsBusy}>새 이메일로 코드 받기</button></form>:<form className="settings-form" onSubmit={confirmSettingsEmail}><label>새 이메일<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)}/></label><label>인증 코드<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsEmailCode} onChange={e=>setSettingsEmailCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6자리 코드"/></label><button className="primary compact" disabled={settingsBusy}>이메일 변경 확인</button></form>}</section><section className="settings-card settings-danger"><div className="settings-card-title"><UserX size={20}/><div><h3>계정 관리</h3><p>로그아웃하거나 계정을 비활성화할 수 있습니다.</p></div></div><button className="secondary-action" onClick={logout}><LogOut size={16}/> 로그아웃</button><div className="deletion-note"><b>회원탈퇴 · 30일 유예</b><p>탈퇴 요청 시 계정은 비활성화됩니다. 30일이 지나면 게시물, 팔로우, 메시지 등 계정 데이터가 영구 삭제됩니다.</p><button className="danger-button" onClick={deleteAccount} disabled={settingsBusy}><Trash2 size={16}/> 회원탈퇴 예약</button></div></section><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>차단 및 게시물 숨김 관리</h3><p>차단하거나 숨긴 계정을 확인하고 언제든 해제할 수 있어요.</p></div><button className="icon-surface" type="button" onClick={loadSafetyLists} disabled={safetyListsBusy} aria-label="차단 및 숨김 목록 새로고침"><RefreshCw size={15}/></button></div>{safetyListsBusy?<p className="safety-list-empty">목록을 불러오는 중…</p>:<div className="safety-list-groups"><div className="safety-list-group"><b>차단한 계정 <span>{safetyLists.blocked_users.length}</span></b>{safetyLists.blocked_users.length===0?<p className="safety-list-empty">차단한 계정이 없어요.</p>:safetyLists.blocked_users.map(username=><div className="safety-list-row" key={'block-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'block')}>차단 해제</button></div>)}</div><div className="safety-list-group"><b>숨긴 계정 <span>{safetyLists.muted_users.length}</span></b>{safetyLists.muted_users.length===0?<p className="safety-list-empty">숨긴 계정이 없어요.</p>:safetyLists.muted_users.map(username=><div className="safety-list-row" key={'mute-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'mute')}>숨김 해제</button></div>)}</div></div>}</section><section className="settings-card legal-links-card"><div className="settings-card-title"><FileText size={20}/><div><h3>서비스 정책</h3><p>개인정보 처리, 서비스 이용 규칙과 커뮤니티 기준을 확인하세요.</p></div></div><nav className="settings-legal-links" aria-label="서비스 정책"><a href="/privacy">개인정보 처리방침 <ChevronRight size={16}/></a><a href="/terms">이용약관 <ChevronRight size={16}/></a><a href="/community-guidelines">커뮤니티 운영정책 <ChevronRight size={16}/></a></nav></section></div></section>}
-    {tab==='profile'&&<section className="module-view">{selectedProfile&&selectedProfile!==user.username?<><button className="back-link" onClick={()=>{setSelectedProfile(null);setProfileData(null);}}><ChevronLeft size={17}/> 내 프로필로</button><div className="profile-card public-profile"><div className="profile-avatar">{(profileData?.name||profileData?.username||selectedProfile).slice(0,1).toUpperCase()}</div><span className="eyebrow">FITNOVA 회원</span><h2>{profileData?.name||profileData?.username||selectedProfile}</h2><p>@{profileData?.username||selectedProfile}</p><div className="profile-stats"><div><b>{profileData?.post_count??'—'}</b><span>게시물</span></div><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("followers",selectedProfile)}><b>{profileData?.follower_count??'—'}</b><span>팔로워</span></button><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("following",selectedProfile)}><b>{profileData?.following_count??'—'}</b><span>팔로잉</span></button></div><div className="profile-actions">{!profileData?.is_me&&<button className="primary compact" onClick={toggleFollow} disabled={!profileData}>{profileData?.is_mutual?<><UserCheck size={16}/> 맞팔 중 · 언팔로우</>:profileData?.following_by_me?<><UserCheck size={16}/> 팔로잉 · 언팔로우</>:<><UserPlus size={16}/> 팔로우</>}</button>}<button className="secondary-action" onClick={()=>{setTab('messages');activeChatRef.current=selectedProfile;setChatMessages([]);setActiveChat(selectedProfile);}}><MessageSquare size={16}/> 메시지 보내기</button><button className="secondary-action" onClick={()=>toggleSafetyAction(selectedProfile,'mute')}><VolumeX size={16}/> 게시물 숨기기</button><button className="secondary-action" onClick={()=>toggleSafetyAction(selectedProfile,'block')}><Ban size={16}/> 계정 차단</button><button className="secondary-action" onClick={()=>reportTarget('user',selectedProfile)}><Flag size={16}/> 계정 신고</button></div></div><div className="profile-posts"><h3>{selectedProfile}님의 게시물</h3>{ownPosts.filter(p=>p.author_username===(selectedProfile||user.username)).map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}{posts.filter(p=>p.author_username===selectedProfile).length===0&&<div className="empty-feed"><p>아직 표시할 게시물이 없어요.</p></div>}</div></>:<> <div className="profile-card"><div className="profile-avatar">{(user.name||user.username).slice(0,1).toUpperCase()}</div><span className="eyebrow">내 계정</span><h2>{user.name||user.username}</h2><p>@{user.username} · {accountEmail||user.email}</p><span className="verified-pill"><CheckCircle2 size={14}/> 이메일 인증 완료</span><div className="profile-stats"><div><b>{profileData?.post_count??ownPosts.length}</b><span>게시물</span></div><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("followers",user.username)}><b>{profileData?.follower_count??'—'}</b><span>팔로워</span></button><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("following",user.username)}><b>{profileData?.following_count??'—'}</b><span>팔로잉</span></button></div><div className="profile-details"><div><span>계정 상태</span><b>활성</b></div><div><span>회원 유형</span><b>FITNOVA 멤버</b></div><div><span>로그인 보안</span><b>로그인 유지</b></div></div><div className="profile-actions"><button className="secondary-action" onClick={()=>setTab('settings')}><Settings size={16}/> 프로필 설정</button><button className="secondary-action" onClick={()=>setTab('saved')}><Bookmark size={16}/> 저장한 게시물</button></div></div><div className="profile-posts"><h3>내 게시물</h3>{ownPosts.length===0?<div className="empty-feed"><p>아직 작성한 게시물이 없어요.</p></div>:ownPosts.map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}</div></>}</section>}
-    {tab==='messages'&&<section className={"messages-view "+(activeChat?"chat-open":"")}>{activeChat?<section className="conversation-screen"><div className="conversation-head"><button className="conversation-back" onClick={()=>{setActiveChat('');setChatMessages([]);setError('');}} aria-label="대화 목록으로 돌아가기"><ChevronLeft size={24}/></button><button className="author-link conversation-person" onClick={()=>openProfile(activeChat)}><span className="chat-avatar-wrap"><span className="composer-avatar">{activeChat.slice(0,1).toUpperCase()}</span></span><span className="conversation-identity"><b>{activeChat}</b><small>@{activeChat} · FITNOVA 회원</small></span></button><span className="conversation-secure"><ShieldCheck size={14}/> 1:1 대화</span><button className="icon-surface conversation-refresh" onClick={()=>loadConversation(activeChat)} aria-label="대화 새로고침" title="대화 새로고침"><Activity size={16}/></button></div><div className="conversation-context"><span className="context-line"/><span>여기서부터 @{activeChat}님과의 대화입니다</span><span className="context-line"/></div><div className="conversation-messages" ref={chatMessagesRef}>{chatMessages.length===0?<div className="chat-empty-state"><div className="chat-empty-icon"><MessageCircle size={27}/></div><b>아직 주고받은 메시지가 없어요</b><p>가벼운 인사로 대화를 시작해 보세요.</p></div>:chatMessages.map(msg=><div key={msg.id} className={'chat-message-row '+(msg.sender_username===user.username?'message-row-mine':'message-row-theirs')}>{msg.sender_username!==user.username&&<span className="message-mini-avatar">{activeChat.slice(0,1).toUpperCase()}</span>}<div className={'chat-bubble '+(msg.sender_username===user.username?'mine':'theirs')}><p>{msg.content}</p><small>{prettyDate(msg.created_at)}{msg.sender_username===user.username&&<span className="message-read-receipt"> · {msg.read_at?"읽음":"전송됨"}</span>}</small></div></div>)}</div>{error&&<div className="chat-inline-error" role="alert">{error}</div>}<form className="message-compose" onSubmit={sendMessage}><div className="message-compose-field"><input value={messageDraft} onChange={e=>setMessageDraft(e.target.value.slice(0,2000))} placeholder="메시지 입력..." maxLength={2000} aria-label="메시지 내용"/></div><button type="submit" className="message-send-button" disabled={messageBusy||!messageDraft.trim()} aria-label="메시지 보내기" title="메시지 보내기">{messageBusy?<span className="send-loading-dot"/>:<Send size={18}/>}</button></form></section>:<><div className="messages-heading"><span className="eyebrow">YOUR CONNECTIONS · DIRECT</span><h2>메시지 <span className="message-count-pill">{messageThreads.length}</span></h2><p>운동 이야기를 나누고 서로의 성장을 응원해 보세요.</p></div><section className="thread-list"><div className="thread-list-head"><div><h3>대화 목록</h3><p>대화를 누르면 전체 화면 채팅으로 열립니다.</p></div><span className="thread-list-mark"><MessageCircle size={18}/></span></div>{messageThreads.length===0?<div className="thread-empty"><div className="thread-empty-art"><Users size={27}/></div><b>대화를 시작해 보세요</b><p>관심 있는 회원의 프로필에서 <strong>메시지 보내기</strong>를 누르면 여기에 대화가 표시됩니다.</p></div>:messageThreads.map(thread=><button className="thread-item" key={thread.username} onClick={()=>{activeChatRef.current=thread.username;setChatMessages([]);setActiveChat(thread.username);}}><span className="thread-avatar">{thread.username.slice(0,1).toUpperCase()}<i/></span><span className="thread-copy"><b>{thread.username}</b><small>{thread.content||'대화를 시작해 보세요'}</small></span>{thread.unread_count>0&&<span className="thread-unread-badge">{thread.unread_count>99?'99+':thread.unread_count}</span>}<span className="thread-open"><ChevronLeft size={18}/></span></button>)}</section></>}</section>}
-    {relationshipList.open&&<div className="modal-backdrop relationship-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setRelationshipList(v=>({...v,open:false}));}}><section className="relationship-modal" role="dialog" aria-modal="true" aria-labelledby="relationship-title"><header className="relationship-modal-head"><div><h2 id="relationship-title">{relationshipList.type==="followers"?"팔로워":"팔로잉"}</h2><p>@{relationshipList.username}</p></div><button className="icon-surface" type="button" aria-label="닫기" onClick={()=>setRelationshipList(v=>({...v,open:false}))}><X size={19}/></button></header>{relationshipList.loading?<div className="relationship-state"><span className="search-spinner"/>목록을 불러오는 중…</div>:relationshipList.error?<div className="relationship-state">{relationshipList.error}</div>:relationshipList.users.length===0?<div className="relationship-state">아직 {relationshipList.type==="followers"?"팔로워":"팔로잉"}이 없어요.</div>:<div className="relationship-users">{relationshipList.users.map(person=><button type="button" className="relationship-user" key={person.username} onClick={()=>{setRelationshipList(v=>({...v,open:false}));openProfile(person.username);}}><span className="relationship-avatar">{(person.name||person.username).slice(0,1).toUpperCase()}</span><span className="relationship-user-copy"><b>{person.name||person.username}</b><small>@{person.username}</small></span><ChevronRight size={17}/></button>)}</div>}</section></div>}
-    {postFormOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setPostFormOpen(false);}}><section className="post-modal" role="dialog" aria-modal="true" aria-labelledby="post-modal-title"><div className="post-modal-head"><div><span className="eyebrow">CREATE YOUR MOMENT</span><h2 id="post-modal-title">게시물 작성</h2><p>작성한 초안은 게시하기 전까지 공개되지 않습니다.</p></div><button className="icon-surface" type="button" onClick={()=>setPostFormOpen(false)} aria-label="닫기"><X size={19}/></button></div><form className="post-draft-form" onSubmit={createPost}><label>제목 *<input value={postTitle} onChange={e=>setPostTitle(e.target.value.slice(0,120))} maxLength={120} required placeholder="예: 하체 운동 4주차 기록"/></label><label>내용 *<textarea value={postContent} onChange={e=>setPostContent(e.target.value.slice(0,2000))} maxLength={2000} required rows={4} placeholder="운동하면서 느낀 점, 목표, 성취를 적어주세요."/></label><div className="draft-media-row"><label className="media-pick"><FileImage size={19}/> 사진 여러 장<input type="file" accept="image/*" multiple onChange={e=>chooseMedia(e.target.files?.[0],e.target.files)}/></label><label className="media-pick"><FileVideo size={19}/> 영상 첨부<input type="file" accept="video/*" onChange={e=>chooseMedia(e.target.files?.[0])}/></label><span className="media-hint">{postMediaName||'사진 최대 10장(각 5MB) / 영상 40MB · 최대 1분'}</span></div>{postMediaFiles.length>0&&<div className="media-preview">{postMedia.type==='image'?<div className="media-preview-grid">{postMediaFiles.map((item,index)=><img key={item.previewUrl} src={item.previewUrl} alt={"게시물 사진 미리보기 "+(index+1)}/>)}</div>:<video src={postMedia.previewUrl} controls muted playsInline/>}<button type="button" className="text-button" onClick={()=>{postMediaFiles.forEach(item=>URL.revokeObjectURL(item.previewUrl));setPostMediaFiles([]);setPostMedia(null);setPostMediaName('');}}>첨부 삭제</button></div>}<label><span className="field-icon"><Hash size={15}/> 해시태그</span><input value={postHashtags} onChange={e=>setPostHashtags(e.target.value.slice(0,300))} placeholder="#헬스 #운동기록 #오늘의운동"/></label><div className="draft-grid"><label><span className="field-icon"><Weight size={15}/> 체중 (kg)</span><input type="number" min="1" max="500" step="0.1" value={postWeight} onChange={e=>setPostWeight(e.target.value)} placeholder="예: 68.5"/></label><label><span className="field-icon"><Dumbbell size={15}/> 운동 세트 수</span><input type="number" min="0" max="500" value={postSets} onChange={e=>setPostSets(e.target.value)} placeholder="예: 4"/></label><label><span className="field-icon"><Activity size={15}/> 운동 종류</span><input value={postExercise} onChange={e=>setPostExercise(e.target.value.slice(0,100))} placeholder="예: 벤치프레스"/></label><label><span className="field-icon"><TrendingUp size={15}/> 횟수 / 중량</span><input value={postReps} onChange={e=>setPostReps(e.target.value.slice(0,100))} placeholder="예: 10회 × 60kg"/></label><label><span className="field-icon"><Clock3 size={15}/> 운동 시간 (분)</span><input type="number" min="0" max="1440" value={postDuration} onChange={e=>setPostDuration(e.target.value)} placeholder="예: 45"/></label></div><label>추가 운동 정보<textarea value={postNotes} onChange={e=>setPostNotes(e.target.value.slice(0,1000))} maxLength={1000} rows={3} placeholder="휴식 시간, 루틴, 개인 기록, 운동 팁 등"/></label><div className="draft-privacy-note"><ShieldCheck size={15}/> 체중 등 입력한 정보는 게시물에 함께 공개됩니다. 공개할 정보만 입력하세요.</div>{busy&&<div className="upload-progress-wrap"><div className="upload-progress-track"><span style={{width:uploadProgress+'%'}}/></div><small>{uploadProgress>=100?'업로드 완료 · 게시물을 저장하고 있어요':`${postMedia?.type==='video'?'영상':'사진'} 업로드 중 ${uploadProgress}%`}</small></div>}<div className="post-modal-actions"><button type="button" className="text-button" onClick={()=>{resetPostForm();setPostFormOpen(false);}}>초안 취소</button><button className="primary compact" disabled={busy||!postTitle.trim()||!postContent.trim()||!postMediaFiles.length}><Upload size={16}/>{busy?(uploadProgress>=100?'저장 중...':`업로드 ${uploadProgress}%`):'게시하기'}</button></div></form></section></div>}
+      <div className="home-section-head"><h3>{tr("최근 게시물")}</h3><button className="refresh-button" onClick={()=>loadPosts()} aria-label={tr("새로고침")}><RefreshCw size={15}/> {tr("새로고침")}</button></div>
+      <div className="feed-list photo-feed">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>{tr("게시물을 불러오는 중…")}</b></div>:posts.filter(p=>p.media_type==='image').length===0?<div className="empty-feed"><div className="empty-art"><ImageIcon size={34}/></div><h3>{tr("아직 사진 게시물이 없어요")}</h3><p>{tr("운동 기록 사진이나 오늘의 변화를 공유해 보세요.")}</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> {tr("사진 게시물 작성")}</button></div>:posts.filter(p=>p.media_type==='image').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} priority={index<2}/>)}</div></section>}
+    {tab==='home'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?tr("불러오는 중…"):tr("게시물 더 불러오기")}</button>}
+    {tab==='saved'&&<section className="feed-layout"><div className="feed-heading"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{tr("저장한 게시물")}</h2><p>{tr("나중에 다시 보고 싶은 운동 기록을 모아뒀어요.")}</p></div><button className="refresh-button" onClick={loadSavedPosts}><Activity size={16}/> {tr("새로고침")}</button></div><div className="feed-list">{savedPosts.length===0?<div className="empty-feed"><Bookmark size={30}/><h3>{tr("아직 저장한 게시물이 없어요")}</h3><p>{tr("게시물의 책갈피 버튼을 눌러 저장해 보세요.")}</p></div>:savedPosts.map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}</div></section>}
+    {tab==='settings'&&<section className="settings-page"><div className="settings-heading"><span className="eyebrow">YOUR SPACE · SETTINGS</span><h2>{tr("설정 및 개인정보")}</h2><p>{tr("FITNOVA 경험과 계정 정보를 원하는 방식으로 관리하세요.")}</p></div><div className="settings-account-banner"><div className="settings-account-avatar">{(user.name||user.username).slice(0,1).toUpperCase()}</div><div className="settings-account-copy"><span>{tr("로그인한 계정")}</span><b>{user.name||user.username}</b><small>@{user.username} · {accountEmail||user.email}</small></div><span className="settings-account-status"><CheckCircle2 size={15}/> {tr("인증된 계정")}</span></div><div className="settings-grid"><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>{tr("개인정보 및 소통")}</h3><p>{tr("다른 회원에게 보이는 범위와 연락 방법을 정하세요.")}</p></div></div>{[['private_account',tr("비공개 계정"),tr("프로필 공개 범위를 제한하는 설정")],['show_activity',tr("활동 정보 표시"),tr("프로필에 운동 활동 관련 정보를 표시")],['show_workout_details',tr("운동 세부 정보 표시"),tr("게시물에 작성한 운동 세부 정보를 표시")]].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={!!accountSettings[key]} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<label className="setting-select"><span><b>{tr("메시지 수신 범위")}</b><small>{tr("팔로우하지 않은 계정의 메시지를 차단할 수 있어요.")}</small></span><select value={accountSettings.allow_messages_from} onChange={e=>saveSettings({...accountSettings,allow_messages_from:e.target.value})}><option value="everyone">{tr("모든 계정")}</option><option value="following">{tr("내가 팔로우한 계정만")}</option></select></label></section><section className="settings-card"><div className="settings-card-title"><Bell size={20}/><div><h3>{tr("알림 설정")}</h3><p>{tr("받고 싶은 알림만 선택하세요. 변경 사항은 계정에 저장됩니다.")}</p></div></div>{[["notify_messages",tr("DM 메시지 알림"),tr("새 다이렉트 메시지의 휴대폰 푸시 및 앱 알림")],["notify_comments",tr("댓글 알림"),tr("내 게시물에 새 댓글이 달렸을 때")],["notify_likes",tr("좋아요 알림"),tr("내 게시물에 좋아요가 눌렸을 때")],["notify_follows",tr("팔로우 알림"),tr("새 팔로워가 생겼을 때")]].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={accountSettings[key] !== false} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<div className="notification-push-actions"><button className="secondary-action" onClick={enablePushNotifications} disabled={pushBusy||pushEnabled}><Bell size={16}/>{pushBusy?tr("알림 등록 중…"):pushEnabled?tr("휴대폰 푸시 연결됨"):tr("휴대폰 푸시 켜기")}</button><small className="setting-help">{tr("푸시 알림은 Android 알림 권한과 서버의 Firebase 설정이 필요합니다. 권한 허용 후 별도의 성공 팝업은 표시하지 않습니다.")}</small></div></section><section className="settings-card"><div className="settings-card-title"><KeyRound size={20}/><div><h3>{tr("비밀번호 변경")}</h3><p>{tr("현재 계정 이메일로 보안 코드를 보내 인증합니다.")}</p></div></div>{!settingsPasswordCodeSent?<button className="secondary-action" onClick={()=>requestSettingsCode('password')} disabled={settingsBusy}><MailCheck size={16}/> {tr("보안 코드 받기")}</button>:<form className="settings-form" onSubmit={confirmSettingsPassword}><label>{tr("이메일 보안 코드")}<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsPasswordCode} onChange={e=>setSettingsPasswordCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder={tr("6자리 코드")}/></label><label>{tr("새 비밀번호")}<input required type="password" minLength={10} maxLength={128} value={settingsPassword} onChange={e=>setSettingsPassword(e.target.value)} placeholder={tr("10자 이상")}/></label><button className="primary compact" disabled={settingsBusy}>{tr("비밀번호 변경")}</button></form>}</section><section className="settings-card"><div className="settings-card-title"><MailCheck size={20}/><div><h3>{tr("이메일 변경")}</h3><p>{tr("새 이메일로 받은 보안 코드를 확인해야 변경됩니다.")}</p></div></div><label className="settings-form">{tr("현재 이메일")}<input value={accountEmail} readOnly/></label>{!settingsEmailCodeSent?<form className="settings-form" onSubmit={e=>{e.preventDefault();requestSettingsCode('email');}}><label>{tr("새 이메일")}<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)} placeholder="new@example.com"/></label><button className="secondary-action" disabled={settingsBusy}>{tr("새 이메일로 코드 받기")}</button></form>:<form className="settings-form" onSubmit={confirmSettingsEmail}><label>{tr("새 이메일")}<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)}/></label><label>{tr("인증 코드")}<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsEmailCode} onChange={e=>setSettingsEmailCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder={tr("6자리 코드")}/></label><button className="primary compact" disabled={settingsBusy}>{tr("이메일 변경 확인")}</button></form>}</section><section className="settings-card settings-danger"><div className="settings-card-title"><UserX size={20}/><div><h3>{tr("계정 관리")}</h3><p>{tr("로그아웃하거나 계정을 비활성화할 수 있습니다.")}</p></div></div><button className="secondary-action" onClick={logout}><LogOut size={16}/> {tr("로그아웃")}</button><div className="deletion-note"><b>{tr("회원탈퇴 · 30일 유예")}</b><p>{tr("탈퇴 요청 시 계정은 비활성화됩니다. 30일이 지나면 게시물, 팔로우, 메시지 등 계정 데이터가 영구 삭제됩니다.")}</p><button className="danger-button" onClick={deleteAccount} disabled={settingsBusy}><Trash2 size={16}/> {tr("회원탈퇴 예약")}</button></div></section><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>{tr("차단 및 게시물 숨김 관리")}</h3><p>{tr("차단하거나 숨긴 계정을 확인하고 언제든 해제할 수 있어요.")}</p></div><button className="icon-surface" type="button" onClick={loadSafetyLists} disabled={safetyListsBusy} aria-label={tr("차단 및 숨김 목록 새로고침")}><RefreshCw size={15}/></button></div>{safetyListsBusy?<p className="safety-list-empty">{tr("목록을 불러오는 중…")}</p>:<div className="safety-list-groups"><div className="safety-list-group"><b>{tr("차단한 계정")} <span>{safetyLists.blocked_users.length}</span></b>{safetyLists.blocked_users.length===0?<p className="safety-list-empty">{tr("차단한 계정이 없어요.")}</p>:safetyLists.blocked_users.map(username=><div className="safety-list-row" key={'block-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'block')}>{tr("차단 해제")}</button></div>)}</div><div className="safety-list-group"><b>{tr("숨긴 계정")} <span>{safetyLists.muted_users.length}</span></b>{safetyLists.muted_users.length===0?<p className="safety-list-empty">{tr("숨긴 계정이 없어요.")}</p>:safetyLists.muted_users.map(username=><div className="safety-list-row" key={'mute-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'mute')}>{tr("숨김 해제")}</button></div>)}</div></div>}</section><section className="settings-card legal-links-card"><div className="settings-card-title"><FileText size={20}/><div><h3>{tr("서비스 정책")}</h3><p>{tr("개인정보 처리, 서비스 이용 규칙과 커뮤니티 기준을 확인하세요.")}</p></div></div><nav className="settings-legal-links" aria-label={tr("서비스 정책")}><LanguageSwitch/><a href="/privacy">{tr("개인정보 처리방침")} <ChevronRight size={16}/></a><a href="/terms">{tr("이용약관")} <ChevronRight size={16}/></a><a href="/community-guidelines">{tr("커뮤니티 운영정책")} <ChevronRight size={16}/></a></nav></section></div></section>}
+    {tab==='profile'&&<section className="module-view">{selectedProfile&&selectedProfile!==user.username?<><button className="back-link" onClick={()=>{setSelectedProfile(null);setProfileData(null);}}><ChevronLeft size={17}/> {tr("내 프로필로")}</button><div className="profile-card public-profile"><div className="profile-avatar">{(profileData?.name||profileData?.username||selectedProfile).slice(0,1).toUpperCase()}</div><span className="eyebrow">{tr("FITNOVA 회원")}</span><h2>{profileData?.name||profileData?.username||selectedProfile}</h2><p>@{profileData?.username||selectedProfile}</p><div className="profile-stats"><div><b>{profileData?.post_count??'—'}</b><span>{tr("게시물")}</span></div><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("followers",selectedProfile)}><b>{profileData?.follower_count??'—'}</b><span>{tr("팔로워")}</span></button><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("following",selectedProfile)}><b>{profileData?.following_count??'—'}</b><span>{tr("팔로잉")}</span></button></div><div className="profile-actions">{!profileData?.is_me&&<button className="primary compact" onClick={toggleFollow} disabled={!profileData}>{profileData?.is_mutual?<><UserCheck size={16}/> {tr("맞팔 중 · 언팔로우")}</>:profileData?.following_by_me?<><UserCheck size={16}/> {tr("팔로잉 · 언팔로우")}</>:<><UserPlus size={16}/> {tr("팔로우")}</>}</button>}<button className="secondary-action" onClick={()=>{setTab('messages');activeChatRef.current=selectedProfile;setChatMessages([]);setActiveChat(selectedProfile);}}><MessageSquare size={16}/> {tr("메시지 보내기")}</button><button className="secondary-action" onClick={()=>toggleSafetyAction(selectedProfile,'mute')}><VolumeX size={16}/> {tr("게시물 숨기기")}</button><button className="secondary-action" onClick={()=>toggleSafetyAction(selectedProfile,'block')}><Ban size={16}/> {tr("계정 차단")}</button><button className="secondary-action" onClick={()=>reportTarget('user',selectedProfile)}><Flag size={16}/> {tr("계정 신고")}</button></div></div><div className="profile-posts"><h3>{trf("{0}님의 게시물", selectedProfile)}</h3>{ownPosts.filter(p=>p.author_username===(selectedProfile||user.username)).map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}{posts.filter(p=>p.author_username===selectedProfile).length===0&&<div className="empty-feed"><p>{tr("아직 표시할 게시물이 없어요.")}</p></div>}</div></>:<> <div className="profile-card"><div className="profile-avatar">{(user.name||user.username).slice(0,1).toUpperCase()}</div><span className="eyebrow">{tr("내 계정")}</span><h2>{user.name||user.username}</h2><p>@{user.username} · {accountEmail||user.email}</p><span className="verified-pill"><CheckCircle2 size={14}/> {tr("이메일 인증 완료")}</span><div className="profile-stats"><div><b>{profileData?.post_count??ownPosts.length}</b><span>{tr("게시물")}</span></div><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("followers",user.username)}><b>{profileData?.follower_count??'—'}</b><span>{tr("팔로워")}</span></button><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("following",user.username)}><b>{profileData?.following_count??'—'}</b><span>{tr("팔로잉")}</span></button></div><div className="profile-details"><div><span>{tr("계정 상태")}</span><b>{tr("활성")}</b></div><div><span>{tr("회원 유형")}</span><b>{tr("FITNOVA 멤버")}</b></div><div><span>{tr("로그인 보안")}</span><b>{tr("로그인 유지")}</b></div></div><div className="profile-actions"><button className="secondary-action" onClick={()=>setTab('settings')}><Settings size={16}/> {tr("프로필 설정")}</button><button className="secondary-action" onClick={()=>setTab('saved')}><Bookmark size={16}/> {tr("저장한 게시물")}</button></div></div><div className="profile-posts"><h3>{tr("내 게시물")}</h3>{ownPosts.length===0?<div className="empty-feed"><p>{tr("아직 작성한 게시물이 없어요.")}</p></div>:ownPosts.map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}</div></>}</section>}
+    {tab==='messages'&&<section className={"messages-view "+(activeChat?"chat-open":"")}>{activeChat?<section className="conversation-screen"><div className="conversation-head"><button className="conversation-back" onClick={()=>{setActiveChat('');setChatMessages([]);setError('');}} aria-label={tr("대화 목록으로 돌아가기")}><ChevronLeft size={24}/></button><button className="author-link conversation-person" onClick={()=>openProfile(activeChat)}><span className="chat-avatar-wrap"><span className="composer-avatar">{activeChat.slice(0,1).toUpperCase()}</span></span><span className="conversation-identity"><b>{activeChat}</b><small>{trf("@{0} · FITNOVA 회원", activeChat)}</small></span></button><span className="conversation-secure"><ShieldCheck size={14}/> {tr("1:1 대화")}</span><button className="icon-surface conversation-refresh" onClick={()=>loadConversation(activeChat)} aria-label={tr("대화 새로고침")} title={tr("대화 새로고침")}><Activity size={16}/></button></div><div className="conversation-context"><span className="context-line"/><span>{trf("여기서부터 @{0}님과의 대화입니다", activeChat)}</span><span className="context-line"/></div><div className="conversation-messages" ref={chatMessagesRef}>{chatMessages.length===0?<div className="chat-empty-state"><div className="chat-empty-icon"><MessageCircle size={27}/></div><b>{tr("아직 주고받은 메시지가 없어요")}</b><p>{tr("가벼운 인사로 대화를 시작해 보세요.")}</p></div>:chatMessages.map(msg=><div key={msg.id} className={'chat-message-row '+(msg.sender_username===user.username?'message-row-mine':'message-row-theirs')}>{msg.sender_username!==user.username&&<span className="message-mini-avatar">{activeChat.slice(0,1).toUpperCase()}</span>}<div className={'chat-bubble '+(msg.sender_username===user.username?'mine':'theirs')}><p>{msg.content}</p><small>{prettyDate(msg.created_at)}{msg.sender_username===user.username&&<span className="message-read-receipt"> · {msg.read_at?tr("읽음"):tr("전송됨")}</span>}</small></div></div>)}</div>{error&&<div className="chat-inline-error" role="alert">{error}</div>}<form className="message-compose" onSubmit={sendMessage}><div className="message-compose-field"><input value={messageDraft} onChange={e=>setMessageDraft(e.target.value.slice(0,2000))} placeholder={tr("메시지 입력...")} maxLength={2000} aria-label={tr("메시지 내용")}/></div><button type="submit" className="message-send-button" disabled={messageBusy||!messageDraft.trim()} aria-label={tr("메시지 보내기")} title={tr("메시지 보내기")}>{messageBusy?<span className="send-loading-dot"/>:<Send size={18}/>}</button></form></section>:<><div className="messages-heading"><span className="eyebrow">YOUR CONNECTIONS · DIRECT</span><h2>{tr("메시지")} <span className="message-count-pill">{messageThreads.length}</span></h2><p>{tr("운동 이야기를 나누고 서로의 성장을 응원해 보세요.")}</p></div><section className="thread-list"><div className="thread-list-head"><div><h3>{tr("대화 목록")}</h3><p>{tr("대화를 누르면 전체 화면 채팅으로 열립니다.")}</p></div><span className="thread-list-mark"><MessageCircle size={18}/></span></div>{messageThreads.length===0?<div className="thread-empty"><div className="thread-empty-art"><Users size={27}/></div><b>{tr("대화를 시작해 보세요")}</b><p>{tr("관심 있는 회원의 프로필에서")} <strong>{tr("메시지 보내기")}</strong>{tr("를 누르면 여기에 대화가 표시됩니다.")}</p></div>:messageThreads.map(thread=><button className="thread-item" key={thread.username} onClick={()=>{activeChatRef.current=thread.username;setChatMessages([]);setActiveChat(thread.username);}}><span className="thread-avatar">{thread.username.slice(0,1).toUpperCase()}<i/></span><span className="thread-copy"><b>{thread.username}</b><small>{thread.content||tr("대화를 시작해 보세요")}</small></span>{thread.unread_count>0&&<span className="thread-unread-badge">{thread.unread_count>99?'99+':thread.unread_count}</span>}<span className="thread-open"><ChevronLeft size={18}/></span></button>)}</section></>}</section>}
+    {relationshipList.open&&<div className="modal-backdrop relationship-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setRelationshipList(v=>({...v,open:false}));}}><section className="relationship-modal" role="dialog" aria-modal="true" aria-labelledby="relationship-title"><header className="relationship-modal-head"><div><h2 id="relationship-title">{relationshipList.type==="followers"?tr("팔로워"):tr("팔로잉")}</h2><p>@{relationshipList.username}</p></div><button className="icon-surface" type="button" aria-label={tr("닫기")} onClick={()=>setRelationshipList(v=>({...v,open:false}))}><X size={19}/></button></header>{relationshipList.loading?<div className="relationship-state"><span className="search-spinner"/>{tr("목록을 불러오는 중…")}</div>:relationshipList.error?<div className="relationship-state">{relationshipList.error}</div>:relationshipList.users.length===0?<div className="relationship-state">{trf("아직 {0}이 없어요.", relationshipList.type==="followers"?tr("팔로워"):tr("팔로잉"))}</div>:<div className="relationship-users">{relationshipList.users.map(person=><button type="button" className="relationship-user" key={person.username} onClick={()=>{setRelationshipList(v=>({...v,open:false}));openProfile(person.username);}}><span className="relationship-avatar">{(person.name||person.username).slice(0,1).toUpperCase()}</span><span className="relationship-user-copy"><b>{person.name||person.username}</b><small>@{person.username}</small></span><ChevronRight size={17}/></button>)}</div>}</section></div>}
+    {postFormOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setPostFormOpen(false);}}><section className="post-modal" role="dialog" aria-modal="true" aria-labelledby="post-modal-title"><div className="post-modal-head"><div><span className="eyebrow">CREATE YOUR MOMENT</span><h2 id="post-modal-title">{tr("게시물 작성")}</h2><p>{tr("작성한 초안은 게시하기 전까지 공개되지 않습니다.")}</p></div><button className="icon-surface" type="button" onClick={()=>setPostFormOpen(false)} aria-label={tr("닫기")}><X size={19}/></button></div><form className="post-draft-form" onSubmit={createPost}><label>{tr("제목 *")}<input value={postTitle} onChange={e=>setPostTitle(e.target.value.slice(0,120))} maxLength={120} required placeholder={tr("예: 하체 운동 4주차 기록")}/></label><label>{tr("내용 *")}<textarea value={postContent} onChange={e=>setPostContent(e.target.value.slice(0,2000))} maxLength={2000} required rows={4} placeholder={tr("운동하면서 느낀 점, 목표, 성취를 적어주세요.")}/></label><div className="draft-media-row"><label className="media-pick"><FileImage size={19}/> {tr("사진 여러 장")}<input type="file" accept="image/*" multiple onChange={e=>chooseMedia(e.target.files?.[0],e.target.files)}/></label><label className="media-pick"><FileVideo size={19}/> {tr("영상 첨부")}<input type="file" accept="video/*" onChange={e=>chooseMedia(e.target.files?.[0])}/></label><span className="media-hint">{postMediaName||tr("사진 최대 10장(각 5MB) / 영상 40MB · 최대 1분")}</span></div>{postMediaFiles.length>0&&<div className="media-preview">{postMedia.type==='image'?<div className="media-preview-grid">{postMediaFiles.map((item,index)=><img key={item.previewUrl} src={item.previewUrl} alt={trf("게시물 사진 미리보기 {0}", (index+1))}/>)}</div>:<video src={postMedia.previewUrl} controls muted playsInline/>}<button type="button" className="text-button" onClick={()=>{postMediaFiles.forEach(item=>URL.revokeObjectURL(item.previewUrl));setPostMediaFiles([]);setPostMedia(null);setPostMediaName('');}}>{tr("첨부 삭제")}</button></div>}<label><span className="field-icon"><Hash size={15}/> {tr("해시태그")}</span><input value={postHashtags} onChange={e=>setPostHashtags(e.target.value.slice(0,300))} placeholder={tr("#헬스 #운동기록 #오늘의운동")}/></label><div className="draft-grid"><label><span className="field-icon"><Weight size={15}/> {tr("체중 (kg)")}</span><input type="number" min="1" max="500" step="0.1" value={postWeight} onChange={e=>setPostWeight(e.target.value)} placeholder={tr("예: 68.5")}/></label><label><span className="field-icon"><Dumbbell size={15}/> {tr("운동 세트 수")}</span><input type="number" min="0" max="500" value={postSets} onChange={e=>setPostSets(e.target.value)} placeholder={tr("예: 4")}/></label><label><span className="field-icon"><Activity size={15}/> {tr("운동 종류")}</span><input value={postExercise} onChange={e=>setPostExercise(e.target.value.slice(0,100))} placeholder={tr("예: 벤치프레스")}/></label><label><span className="field-icon"><TrendingUp size={15}/> {tr("횟수 / 중량")}</span><input value={postReps} onChange={e=>setPostReps(e.target.value.slice(0,100))} placeholder={tr("예: 10회 × 60kg")}/></label><label><span className="field-icon"><Clock3 size={15}/> {tr("운동 시간 (분)")}</span><input type="number" min="0" max="1440" value={postDuration} onChange={e=>setPostDuration(e.target.value)} placeholder={tr("예: 45")}/></label></div><label>{tr("추가 운동 정보")}<textarea value={postNotes} onChange={e=>setPostNotes(e.target.value.slice(0,1000))} maxLength={1000} rows={3} placeholder={tr("휴식 시간, 루틴, 개인 기록, 운동 팁 등")}/></label><div className="draft-privacy-note"><ShieldCheck size={15}/> {tr("체중 등 입력한 정보는 게시물에 함께 공개됩니다. 공개할 정보만 입력하세요.")}</div>{busy&&<div className="upload-progress-wrap"><div className="upload-progress-track"><span style={{width:uploadProgress+'%'}}/></div><small>{uploadProgress>=100?tr("업로드 완료 · 게시물을 저장하고 있어요"):trf("{0} 업로드 중 {1}%", postMedia?.type==='video'?tr("영상"):tr("사진"), uploadProgress)}</small></div>}<div className="post-modal-actions"><button type="button" className="text-button" onClick={()=>{resetPostForm();setPostFormOpen(false);}}>{tr("초안 취소")}</button><button className="primary compact" disabled={busy||!postTitle.trim()||!postContent.trim()||!postMediaFiles.length}><Upload size={16}/>{busy?(uploadProgress>=100?tr("저장 중..."):trf("업로드 {0}%", uploadProgress)):tr("게시하기")}</button></div></form></section></div>}
 
-    {searchOpen&&<div className="social-overlay" role="dialog" aria-modal="true" aria-label="FITNOVA 검색">
+    {searchOpen&&<div className="social-overlay" role="dialog" aria-modal="true" aria-label={tr("FITNOVA 검색")}>
       <section className="social-overlay-panel search-overlay-panel">
-        <header className="social-overlay-head"><div><span className="eyebrow">DISCOVER FITNOVA</span><h2>검색</h2><p>회원, 해시태그, 운동 게시물을 찾아보세요.</p></div><button className="icon-surface" onClick={()=>setSearchOpen(false)} aria-label="검색 닫기"><X size={19}/></button></header>
-        <form className="social-search-form" onSubmit={runSearch}><Search size={19}/><input autoFocus value={searchQuery} onChange={e=>setSearchQuery(e.target.value.slice(0,80))} placeholder="아이디, 게시물, #해시태그 검색" aria-label="검색어"/><button className="primary compact" disabled={searchBusy||!searchQuery.trim()}>{searchBusy?'검색 중…':'검색'}</button></form>
-        {searchBusy&&<div className="feed-loading"><span className="search-spinner"/><b>검색 중…</b></div>}
-        {!searchBusy&&searchResults.hashtags.length>0&&<section className="search-result-section"><h3>해시태그</h3><div className="search-tag-results">{searchResults.hashtags.map(tag=><button key={tag} onClick={()=>{setSearchQuery(tag);}}><Hash size={15}/>{tag}</button>)}</div></section>}
-        {!searchBusy&&searchResults.users.length>0&&<section className="search-result-section"><h3>회원</h3>{searchResults.users.map(item=><button className="search-user-result" key={item.username} onClick={()=>{setSearchOpen(false);openProfile(item.username);}}><span className="composer-avatar">{(item.name||item.username).slice(0,1).toUpperCase()}</span><span><b>{item.name||item.username}</b><small>@{item.username}</small></span><ChevronLeft size={16}/></button>)}</section>}
-        {!searchBusy&&searchQuery.trim()&&searchResults.posts.length===0&&searchResults.users.length===0&&<div className="empty-feed"><div className="empty-art"><Search size={28}/></div><h3>검색 결과가 없어요</h3><p>다른 검색어나 해시태그를 입력해 보세요.</p></div>}
-        {!searchBusy&&searchResults.posts.length>0&&<section className="search-result-section"><h3>게시물 {searchResults.posts.length}개</h3><div className="feed-list">{searchResults.posts.map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} priority={index<1}/>)}</div></section>}
+        <header className="social-overlay-head"><div><span className="eyebrow">DISCOVER FITNOVA</span><h2>{tr("검색")}</h2><p>{tr("회원, 해시태그, 운동 게시물을 찾아보세요.")}</p></div><button className="icon-surface" onClick={()=>setSearchOpen(false)} aria-label={tr("검색 닫기")}><X size={19}/></button></header>
+        <form className="social-search-form" onSubmit={runSearch}><Search size={19}/><input autoFocus value={searchQuery} onChange={e=>setSearchQuery(e.target.value.slice(0,80))} placeholder={tr("아이디, 게시물, #해시태그 검색")} aria-label={tr("검색어")}/><button className="primary compact" disabled={searchBusy||!searchQuery.trim()}>{searchBusy?tr("검색 중…"):tr("검색")}</button></form>
+        {searchBusy&&<div className="feed-loading"><span className="search-spinner"/><b>{tr("검색 중…")}</b></div>}
+        {!searchBusy&&searchResults.hashtags.length>0&&<section className="search-result-section"><h3>{tr("해시태그")}</h3><div className="search-tag-results">{searchResults.hashtags.map(tag=><button key={tag} onClick={()=>{setSearchQuery(tag);}}><Hash size={15}/>{tag}</button>)}</div></section>}
+        {!searchBusy&&searchResults.users.length>0&&<section className="search-result-section"><h3>{tr("회원")}</h3>{searchResults.users.map(item=><button className="search-user-result" key={item.username} onClick={()=>{setSearchOpen(false);openProfile(item.username);}}><span className="composer-avatar">{(item.name||item.username).slice(0,1).toUpperCase()}</span><span><b>{item.name||item.username}</b><small>@{item.username}</small></span><ChevronLeft size={16}/></button>)}</section>}
+        {!searchBusy&&searchQuery.trim()&&searchResults.posts.length===0&&searchResults.users.length===0&&<div className="empty-feed"><div className="empty-art"><Search size={28}/></div><h3>{tr("검색 결과가 없어요")}</h3><p>{tr("다른 검색어나 해시태그를 입력해 보세요.")}</p></div>}
+        {!searchBusy&&searchResults.posts.length>0&&<section className="search-result-section"><h3>{trf("게시물 {0}개", searchResults.posts.length)}</h3><div className="feed-list">{searchResults.posts.map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} reportPost={reportTarget} priority={index<1}/>)}</div></section>}
       </section>
     </div>}
-    {notificationsOpen&&<div className="social-overlay notification-overlay" role="dialog" aria-modal="true" aria-label="알림">
-      <section className="social-overlay-panel notification-panel"><header className="social-overlay-head"><div><span className="eyebrow">YOUR ACTIVITY</span><h2>알림</h2><p>팔로우, 좋아요, 댓글, 메시지 알림을 확인하세요.</p></div><button className="icon-surface" onClick={()=>setNotificationsOpen(false)} aria-label="알림 닫기"><X size={19}/></button></header>
-      {notifications.length===0?<div className="empty-feed"><div className="empty-art"><Bell size={28}/></div><h3>새로운 알림이 없어요</h3><p>다른 회원과 소통하면 이곳에 알림이 표시됩니다.</p></div>:<div className="notification-list">{notifications.map(item=><button key={item.id} className={'notification-item '+(!item.read?'unread':'')} onClick={()=>{setNotificationsOpen(false);if(item.kind==='report_threshold')setTab('moderation');else if(item.kind==='message')setTab('messages');else if(item.actor_username)openProfile(item.actor_username);}}><span className="notification-icon">{item.kind==='like'?<Heart size={17}/>:item.kind==='comment'?<MessageCircle size={17}/>:item.kind==='follow'?<UserPlus size={17}/>:<Send size={17}/>}</span><span><b>@{item.actor_username}</b><small>{item.message}</small></span><time>{prettyDate(item.created_at)}</time></button>)}</div>}
-      <button className="secondary-action notification-refresh" onClick={()=>loadNotifications(true)}><Activity size={15}/> 알림 새로고침</button>
+    {notificationsOpen&&<div className="social-overlay notification-overlay" role="dialog" aria-modal="true" aria-label={tr("알림")}>
+      <section className="social-overlay-panel notification-panel"><header className="social-overlay-head"><div><span className="eyebrow">YOUR ACTIVITY</span><h2>{tr("알림")}</h2><p>{tr("팔로우, 좋아요, 댓글, 메시지 알림을 확인하세요.")}</p></div><button className="icon-surface" onClick={()=>setNotificationsOpen(false)} aria-label={tr("알림 닫기")}><X size={19}/></button></header>
+      {notifications.length===0?<div className="empty-feed"><div className="empty-art"><Bell size={28}/></div><h3>{tr("새로운 알림이 없어요")}</h3><p>{tr("다른 회원과 소통하면 이곳에 알림이 표시됩니다.")}</p></div>:<div className="notification-list">{notifications.map(item=><button key={item.id} className={'notification-item '+(!item.read?'unread':'')} onClick={()=>{setNotificationsOpen(false);if(item.kind==='report_threshold')setTab('moderation');else if(item.kind==='message')setTab('messages');else if(item.actor_username)openProfile(item.actor_username);}}><span className="notification-icon">{item.kind==='like'?<Heart size={17}/>:item.kind==='comment'?<MessageCircle size={17}/>:item.kind==='follow'?<UserPlus size={17}/>:<Send size={17}/>}</span><span><b>@{item.actor_username}</b><small>{tr(item.message)}</small></span><time>{prettyDate(item.created_at)}</time></button>)}</div>}
+      <button className="secondary-action notification-refresh" onClick={()=>loadNotifications(true)}><Activity size={15}/> {tr("알림 새로고침")}</button>
       </section>
     </div>}
 
     </div>
     <footer className="dash-footer"><span>© 2026 FITNOVA</span><span>MOVE. CONNECT. EVOLVE.</span><span className="footer-dot"><i/> YOUR NEXT LEVEL</span></footer></section>
-    <nav className={"mobile-nav "+(tab==="messages"&&activeChat?"chat-nav-hidden":"")} aria-label="주요 메뉴">{mobileNav.map(item=><button type="button" key={item.id} className={item.id==='create'?'mobile-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?'게시물 작성':item.label} title={item.id==='create'?'게시물 작성':item.label}><item.icon size={20}/><span>{item.id==='create'?'게시물 +':item.label}</span></button>)}</nav>
+    <nav className={"mobile-nav "+(tab==="messages"&&activeChat?"chat-nav-hidden":"")} aria-label={tr("주요 메뉴")}>{mobileNav.map(item=><button type="button" key={item.id} className={item.id==='create'?'mobile-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?tr("게시물 작성"):item.label} title={item.id==='create'?tr("게시물 작성"):item.label}><item.icon size={20}/><span>{item.id==='create'?tr("게시물 +"):item.label}</span></button>)}</nav>
   </main>;
 }
 
@@ -1010,7 +1015,7 @@ function ModerationPanel() {
   const loadReports = async () => {
     setLoading(true); setError('');
     try { const data=await api('/api/admin/reports?status='+status); setReports(data.reports||[]); }
-    catch(e) { setError(e.message||'신고 목록을 불러오지 못했습니다.'); }
+    catch(e) { setError(e.message||tr("신고 목록을 불러오지 못했습니다.")); }
     finally { setLoading(false); }
   };
   useEffect(()=>{loadReports();},[status]);
@@ -1018,38 +1023,38 @@ function ModerationPanel() {
     setBusyId(report.id); setError(''); setNotice('');
     try {
       await api('/api/admin/reports/'+report.id,{method:'PATCH',body:JSON.stringify({status:nextStatus})});
-      setNotice(nextStatus==='reviewed'?'신고를 검토 완료 처리했습니다.':'신고를 기각 처리했습니다.');
+      setNotice(nextStatus==='reviewed'?tr("신고를 검토 완료 처리했습니다."):tr("신고를 기각 처리했습니다."));
       await loadReports();
-    } catch(e) { setError(e.message||'신고 상태를 저장하지 못했습니다.'); }
+    } catch(e) { setError(e.message||tr("신고 상태를 저장하지 못했습니다.")); }
     finally { setBusyId(null); }
   };
   const removePost = async report => {
-    if (!window.confirm('신고된 게시물을 삭제하고 신고를 검토 완료 처리할까요?')) return;
+    if (!window.confirm(tr("신고된 게시물을 삭제하고 신고를 검토 완료 처리할까요?"))) return;
     setBusyId(report.id); setError(''); setNotice('');
     try {
       await api('/api/posts/'+encodeURIComponent(report.target_id),{method:'DELETE'});
       await api('/api/admin/reports/'+report.id,{method:'PATCH',body:JSON.stringify({status:'reviewed'})});
-      setNotice('게시물을 삭제하고 신고를 검토 완료 처리했습니다.');
+      setNotice(tr("게시물을 삭제하고 신고를 검토 완료 처리했습니다."));
       await loadReports();
-    } catch(e) { setError(e.message||'게시물을 삭제하지 못했습니다.'); }
+    } catch(e) { setError(e.message||tr("게시물을 삭제하지 못했습니다.")); }
     finally { setBusyId(null); }
   };
   const suspendUser = async report => {
-    if (!window.confirm('@'+report.target_id+' 계정의 이용을 정지할까요?')) return;
+    if (!window.confirm(trf("@{0} 계정의 이용을 정지할까요?", report.target_id))) return;
     setBusyId(report.id); setError(''); setNotice('');
     try {
       await api('/api/users/'+encodeURIComponent(report.target_id)+'/suspend',{method:'POST'});
       await api('/api/admin/reports/'+report.id,{method:'PATCH',body:JSON.stringify({status:'reviewed'})});
-      setNotice('계정을 정지하고 신고를 검토 완료 처리했습니다.');
+      setNotice(tr("계정을 정지하고 신고를 검토 완료 처리했습니다."));
       await loadReports();
-    } catch(e) { setError(e.message||'계정 상태를 변경하지 못했습니다.'); }
+    } catch(e) { setError(e.message||tr("계정 상태를 변경하지 못했습니다.")); }
     finally { setBusyId(null); }
   };
-  const labels={post:'게시물',comment:'댓글',user:'계정',message:'메시지'};
-  return <section className="moderation-page"><div className="settings-heading"><span className="eyebrow">FITNOVA · TRUST & SAFETY</span><h2>신고 관리</h2><p>회원 신고를 확인하고 필요한 조치를 처리하세요.</p></div>
-    <div className="moderation-toolbar"><div className="moderation-filters">{[['open','미처리'],['reviewed','검토 완료'],['dismissed','기각'],['all','전체']].map(([key,label])=><button key={key} className={status===key?'selected':''} onClick={()=>setStatus(key)}>{label}</button>)}</div><button className="refresh-button" onClick={loadReports} disabled={loading}><Activity size={15}/> 새로고침</button></div>
+  const labels={post:tr("게시물"),comment:tr("댓글"),user:tr("계정"),message:tr("메시지")};
+  return <section className="moderation-page"><div className="settings-heading"><span className="eyebrow">FITNOVA · TRUST & SAFETY</span><h2>{tr("신고 관리")}</h2><p>{tr("회원 신고를 확인하고 필요한 조치를 처리하세요.")}</p></div>
+    <div className="moderation-toolbar"><div className="moderation-filters">{[['open',tr("미처리")],['reviewed',tr("검토 완료")],['dismissed',tr("기각")],['all',tr("전체")]].map(([key,label])=><button key={key} className={status===key?'selected':''} onClick={()=>setStatus(key)}>{label}</button>)}</div><button className="refresh-button" onClick={loadReports} disabled={loading}><Activity size={15}/> {tr("새로고침")}</button></div>
     {error&&<div className="alert error" role="alert">{error}</div>}{notice&&<div className="alert success" role="status">{notice}</div>}
-    {loading&&reports.length===0?<div className="feed-loading"><span className="search-spinner"/><b>신고를 불러오는 중…</b></div>:reports.length===0?<div className="empty-feed"><div className="empty-art"><ClipboardList size={30}/></div><h3>표시할 신고가 없습니다</h3><p>선택한 상태의 신고가 없어요.</p></div>:<div className="moderation-report-list">{reports.map(report=><article className="settings-card moderation-report" key={report.id}><div className="moderation-report-head"><span className="report-type-pill">{labels[report.target_type]||report.target_type}</span><time>{report.created_at?new Date(report.created_at).toLocaleString('ko-KR'):''}</time><span className={'report-status '+report.status}>{report.status==='open'?'미처리':report.status==='reviewed'?'검토 완료':'기각'}</span></div><h3>{report.reason}</h3><p>대상: {report.target_id} · 신고자: @{report.reporter_username}</p>{report.details&&<p className="moderation-report-details">{report.details}</p>}<div className="moderation-report-actions">{report.target_type==='post'&&report.status==='open'&&<button className="danger-button" disabled={busyId===report.id} onClick={()=>removePost(report)}><Trash2 size={15}/> 게시물 삭제</button>}{report.target_type==='user'&&report.status==='open'&&<button className="danger-button" disabled={busyId===report.id} onClick={()=>suspendUser(report)}><Ban size={15}/> 계정 정지</button>}{report.status==='open'&&<><button className="secondary-action" disabled={busyId===report.id} onClick={()=>review(report,'reviewed')}>검토 완료</button><button className="secondary-action" disabled={busyId===report.id} onClick={()=>review(report,'dismissed')}>기각</button></>}</div></article>)}</div>}
+    {loading&&reports.length===0?<div className="feed-loading"><span className="search-spinner"/><b>{tr("신고를 불러오는 중…")}</b></div>:reports.length===0?<div className="empty-feed"><div className="empty-art"><ClipboardList size={30}/></div><h3>{tr("표시할 신고가 없습니다")}</h3><p>{tr("선택한 상태의 신고가 없어요.")}</p></div>:<div className="moderation-report-list">{reports.map(report=><article className="settings-card moderation-report" key={report.id}><div className="moderation-report-head"><span className="report-type-pill">{labels[report.target_type]||report.target_type}</span><time>{report.created_at?new Date(report.created_at).toLocaleString(LOCALE_TAG):''}</time><span className={'report-status '+report.status}>{report.status==='open'?tr("미처리"):report.status==='reviewed'?tr("검토 완료"):tr("기각")}</span></div><h3>{report.reason}</h3><p>{trf("대상: {0} · 신고자: @{1}", report.target_id, report.reporter_username)}</p>{report.details&&<p className="moderation-report-details">{report.details}</p>}<div className="moderation-report-actions">{report.target_type==='post'&&report.status==='open'&&<button className="danger-button" disabled={busyId===report.id} onClick={()=>removePost(report)}><Trash2 size={15}/> {tr("게시물 삭제")}</button>}{report.target_type==='user'&&report.status==='open'&&<button className="danger-button" disabled={busyId===report.id} onClick={()=>suspendUser(report)}><Ban size={15}/> {tr("계정 정지")}</button>}{report.status==='open'&&<><button className="secondary-action" disabled={busyId===report.id} onClick={()=>review(report,'reviewed')}>{tr("검토 완료")}</button><button className="secondary-action" disabled={busyId===report.id} onClick={()=>review(report,'dismissed')}>{tr("기각")}</button></>}</div></article>)}</div>}
   </section>;
 }
 
@@ -1074,7 +1079,7 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
          const cached = cacheGet(playbackUrlCache, mediaCacheKey);
          if (cached) { if(active) setMediaData(cached); return; }
          const data=await api('/api/posts/'+post.id+'/media/playback');
-         if (!data.url) throw new Error('미디어 주소를 받지 못했습니다.');
+         if (!data.url) throw new Error(tr("미디어 주소를 받지 못했습니다."));
          const url=API+data.url;
          cacheSet(playbackUrlCache,mediaCacheKey,url,120000,12);
          if(active) setMediaData(url);
@@ -1082,7 +1087,7 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
          const data = await api('/api/posts/' + post.id + '/media/gallery');
          const gallery = Array.isArray(data.media) ? data.media.filter(Boolean) : [];
          const value = gallery[0] || '';
-         if (!value) throw new Error('미디어 파일이 비어 있습니다.');
+         if (!value) throw new Error(tr("미디어 파일이 비어 있습니다."));
          if (active) { setMediaGallery(gallery); setGalleryIndex(0); setMediaData(value); }
        }
      } catch { if (active) setMediaFailed(true); }
@@ -1114,7 +1119,7 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
    if (priority) tryPlay();
    return () => { if(observer) observer.disconnect(); video.removeEventListener('canplay',tryPlay); video.removeEventListener('loadeddata',tryPlay); };
  }, [mediaData, post.media_type, priority]);
- return <article className="post-card" id={"post-"+post.id} ref={cardRef}><div className="post-top"><button className="post-author author-link" onClick={()=>openProfile(post.author_username)} aria-label={post.author_username+' 프로필 보기'}><div className="composer-avatar">{(post.author_username||'?').slice(0,1).toUpperCase()}</div><div><b>{post.author_username}</b><small>{prettyDate(post.created_at)}</small></div></button><div className="post-owner-actions">{(post.author_username===user.username||user.is_master)&&<button className="delete-post" onClick={()=>removePost(post.id)} aria-label="게시물 삭제"><Trash2 size={17}/></button>}{user.is_master&&<button className="delete-post" onClick={()=>togglePostPin(post)} aria-label={post.pinned?"게시물 고정 해제":"게시물 상단 고정"} title={post.pinned?"고정 해제":"상단 고정"}><span>{post.pinned?"고정됨":"고정"}</span></button>}{user.is_master&&post.author_username!==user.username&&<button className="delete-post" onClick={()=>toggleSuspension(post.author_username)} aria-label="계정 정지"><Ban size={16}/></button>}{post.author_username!==user.username&&<button className="delete-post report-post-button" onClick={()=>reportPost("post",post.id)} aria-label="게시물 신고" title="게시물 신고"><Flag size={16}/></button>}</div></div><h3 className="post-title">{post.title||'운동 기록'}</h3>{post.media_type!=='text'&&<div className={mediaData?'post-media':(mediaFailed?'post-media media-loading media-error':'post-media media-loading')}>{mediaData?(post.media_type==='image'?<><img className="post-gallery-image" src={mediaGallery[galleryIndex]||mediaData} alt={(post.title||'운동 사진')+' '+(galleryIndex+1)} loading={priority?'eager':'lazy'} fetchPriority={priority?'high':'auto'} decoding="async"/>{mediaGallery.length>1&&<><button type="button" className="gallery-arrow gallery-prev" onClick={()=>setGalleryIndex(index=>(index-1+mediaGallery.length)%mediaGallery.length)} aria-label="이전 사진"><ChevronLeft size={23}/></button><button type="button" className="gallery-arrow gallery-next" onClick={()=>setGalleryIndex(index=>(index+1)%mediaGallery.length)} aria-label="다음 사진"><ChevronRight size={23}/></button><span className="gallery-counter">{galleryIndex+1} / {mediaGallery.length}</span><div className="gallery-dots">{mediaGallery.map((_,index)=><button key={index} type="button" className={index===galleryIndex?'active':''} onClick={()=>setGalleryIndex(index)} aria-label={'사진 '+(index+1)+' 보기'}/>)}</div></>}</>:<video ref={videoRef} src={mediaData} controls preload={priority?'auto':'metadata'} autoPlay muted loop playsInline webkit-playsinline="true" onCanPlay={e=>e.currentTarget.play().catch(()=>{})}/>):<span>{mediaFailed?<>미디어를 불러오지 못했습니다. <button type="button" onClick={()=>{setMediaFailed(false);setMediaRetry(value=>value+1);}}>다시 시도</button></>:<>미디어 불러오는 중…</>}</span>}</div>}<p className="post-content">{post.content}</p>{post.hashtags?.length>0&&<div className="post-hashtags">{post.hashtags.map((tag,i)=><span key={i}>{tag.startsWith('#')?tag:'#'+tag}</span>)}</div>}{(post.weight!=null||post.sets_count!=null||post.exercise_name||post.reps||post.duration_minutes!=null||post.workout_notes)&&<div className="workout-details">{post.weight!=null&&<span><Weight size={14}/> 체중 {post.weight}kg</span>}{post.sets_count!=null&&<span><Dumbbell size={14}/> {post.sets_count}세트</span>}{post.exercise_name&&<span><Activity size={14}/> {post.exercise_name}</span>}{post.reps&&<span><TrendingUp size={14}/> {post.reps}</span>}{post.duration_minutes!=null&&<span><Clock3 size={14}/> {post.duration_minutes}분</span>}{post.workout_notes&&<p>{post.workout_notes}</p>}</div>}<div className="post-actions"><button type="button" className={'like-action '+(post.liked_by_me?'liked':'')} onClick={()=>toggleLike(post.id)} aria-label={post.liked_by_me?'좋아요 취소':'좋아요'}><Heart className="like-action-icon" size={17} fill={post.liked_by_me?'currentColor':'none'}/><span>좋아요 {post.like_count||0}</span></button><button type="button" className={'saved-post-button save-action '+(savedPostIds.has(post.id)?'active':'')} onClick={()=>toggleSavePost(post.id)} aria-label={savedPostIds.has(post.id)?'저장 취소':'게시물 저장'}><Bookmark className="save-action-icon" size={17} fill={savedPostIds.has(post.id)?'currentColor':'none'}/><span>{savedPostIds.has(post.id)?'저장됨':'저장'}</span></button><span className="comment-count"><MessageCircle size={17}/>{(post.comments||[]).length}개 댓글</span></div>{(post.comments||[]).length>0&&<div className="comments-list">{post.comments.map(comment=><div className="comment" key={comment.id}><b>{comment.author_username}</b><span className="comment-content">{comment.content}</span><button type="button" className={'comment-heart-action '+(comment.liked_by_me?'liked':'')} onClick={()=>toggleCommentLike(post.id,comment.id)} disabled={!!comment.pending} aria-label={comment.liked_by_me?'댓글 좋아요 취소':'댓글 좋아요'} title={comment.liked_by_me?'좋아요 취소':'좋아요'}><Heart size={14} fill={comment.liked_by_me?'currentColor':'none'}/><span>{comment.like_count||0}</span></button>{(comment.author_username===user.username||post.author_username===user.username)&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>deleteComment(post.id,comment.id)} aria-label="댓글 삭제">삭제</button>}{comment.author_username!==user.username&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>toggleSafetyAction(comment.author_username,"block")} aria-label="댓글 작성자 차단">차단</button>}</div>)}</div>}<form className="comment-form" onSubmit={e=>{e.preventDefault();addComment(post.id);}}><input aria-label="댓글 입력" value={commentDrafts[post.id]||''} onChange={e=>setCommentDrafts(items=>({...items,[post.id]:e.target.value.slice(0,500)}))} placeholder="응원의 댓글을 남겨보세요..." maxLength={500}/><button className="comment-send-action" type="submit" disabled={!(commentDrafts[post.id]||'').trim()} aria-label="댓글 등록" title="댓글 등록"><Send size={17}/></button></form></article>;
+ return <article className="post-card" id={"post-"+post.id} ref={cardRef}><div className="post-top"><button className="post-author author-link" onClick={()=>openProfile(post.author_username)} aria-label={trf("{0} 프로필 보기", post.author_username)}><div className="composer-avatar">{(post.author_username||'?').slice(0,1).toUpperCase()}</div><div><b>{post.author_username}</b><small>{prettyDate(post.created_at)}</small></div></button><div className="post-owner-actions">{(post.author_username===user.username||user.is_master)&&<button className="delete-post" onClick={()=>removePost(post.id)} aria-label={tr("게시물 삭제")}><Trash2 size={17}/></button>}{user.is_master&&<button className="delete-post" onClick={()=>togglePostPin(post)} aria-label={post.pinned?tr("게시물 고정 해제"):tr("게시물 상단 고정")} title={post.pinned?tr("고정 해제"):tr("상단 고정")}><span>{post.pinned?tr("고정됨"):tr("고정")}</span></button>}{user.is_master&&post.author_username!==user.username&&<button className="delete-post" onClick={()=>toggleSuspension(post.author_username)} aria-label={tr("계정 정지")}><Ban size={16}/></button>}{post.author_username!==user.username&&<button className="delete-post report-post-button" onClick={()=>reportPost("post",post.id)} aria-label={tr("게시물 신고")} title={tr("게시물 신고")}><Flag size={16}/></button>}</div></div><h3 className="post-title">{post.title||tr("운동 기록")}</h3>{post.media_type!=='text'&&<div className={mediaData?'post-media':(mediaFailed?'post-media media-loading media-error':'post-media media-loading')}>{mediaData?(post.media_type==='image'?<><img className="post-gallery-image" src={mediaGallery[galleryIndex]||mediaData} alt={(post.title||tr("운동 사진"))+' '+(galleryIndex+1)} loading={priority?'eager':'lazy'} fetchPriority={priority?'high':'auto'} decoding="async"/>{mediaGallery.length>1&&<><button type="button" className="gallery-arrow gallery-prev" onClick={()=>setGalleryIndex(index=>(index-1+mediaGallery.length)%mediaGallery.length)} aria-label={tr("이전 사진")}><ChevronLeft size={23}/></button><button type="button" className="gallery-arrow gallery-next" onClick={()=>setGalleryIndex(index=>(index+1)%mediaGallery.length)} aria-label={tr("다음 사진")}><ChevronRight size={23}/></button><span className="gallery-counter">{galleryIndex+1} / {mediaGallery.length}</span><div className="gallery-dots">{mediaGallery.map((_,index)=><button key={index} type="button" className={index===galleryIndex?'active':''} onClick={()=>setGalleryIndex(index)} aria-label={trf("사진 {0} 보기", (index+1))}/>)}</div></>}</>:<video ref={videoRef} src={mediaData} controls preload={priority?'auto':'metadata'} autoPlay muted loop playsInline webkit-playsinline="true" onCanPlay={e=>e.currentTarget.play().catch(()=>{})}/>):<span>{mediaFailed?<>{tr("미디어를 불러오지 못했습니다.")} <button type="button" onClick={()=>{setMediaFailed(false);setMediaRetry(value=>value+1);}}>{tr("다시 시도")}</button></>:<>{tr("미디어 불러오는 중…")}</>}</span>}</div>}<p className="post-content">{post.content}</p>{post.hashtags?.length>0&&<div className="post-hashtags">{post.hashtags.map((tag,i)=><span key={i}>{tag.startsWith('#')?tag:'#'+tag}</span>)}</div>}{(post.weight!=null||post.sets_count!=null||post.exercise_name||post.reps||post.duration_minutes!=null||post.workout_notes)&&<div className="workout-details">{post.weight!=null&&<span><Weight size={14}/> {trf("체중 {0}kg", post.weight)}</span>}{post.sets_count!=null&&<span><Dumbbell size={14}/> {trf("{0}세트", post.sets_count)}</span>}{post.exercise_name&&<span><Activity size={14}/> {post.exercise_name}</span>}{post.reps&&<span><TrendingUp size={14}/> {post.reps}</span>}{post.duration_minutes!=null&&<span><Clock3 size={14}/> {trf("{0}분", post.duration_minutes)}</span>}{post.workout_notes&&<p>{post.workout_notes}</p>}</div>}<div className="post-actions"><button type="button" className={'like-action '+(post.liked_by_me?'liked':'')} onClick={()=>toggleLike(post.id)} aria-label={post.liked_by_me?tr("좋아요 취소"):tr("좋아요")}><Heart className="like-action-icon" size={17} fill={post.liked_by_me?'currentColor':'none'}/><span>{trf("좋아요 {0}", post.like_count||0)}</span></button><button type="button" className={'saved-post-button save-action '+(savedPostIds.has(post.id)?'active':'')} onClick={()=>toggleSavePost(post.id)} aria-label={savedPostIds.has(post.id)?tr("저장 취소"):tr("게시물 저장")}><Bookmark className="save-action-icon" size={17} fill={savedPostIds.has(post.id)?'currentColor':'none'}/><span>{savedPostIds.has(post.id)?tr("저장됨"):tr("저장")}</span></button><span className="comment-count"><MessageCircle size={17}/>{trf("{0}개 댓글", (post.comments||[]).length)}</span></div>{(post.comments||[]).length>0&&<div className="comments-list">{post.comments.map(comment=><div className="comment" key={comment.id}><b>{comment.author_username}</b><span className="comment-content">{comment.content}</span><button type="button" className={'comment-heart-action '+(comment.liked_by_me?'liked':'')} onClick={()=>toggleCommentLike(post.id,comment.id)} disabled={!!comment.pending} aria-label={comment.liked_by_me?tr("댓글 좋아요 취소"):tr("댓글 좋아요")} title={comment.liked_by_me?tr("좋아요 취소"):tr("좋아요")}><Heart size={14} fill={comment.liked_by_me?'currentColor':'none'}/><span>{comment.like_count||0}</span></button>{(comment.author_username===user.username||post.author_username===user.username)&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>deleteComment(post.id,comment.id)} aria-label={tr("댓글 삭제")}>{tr("삭제")}</button>}{comment.author_username!==user.username&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>toggleSafetyAction(comment.author_username,"block")} aria-label={tr("댓글 작성자 차단")}>{tr("차단")}</button>}</div>)}</div>}<form className="comment-form" onSubmit={e=>{e.preventDefault();addComment(post.id);}}><input aria-label={tr("댓글 입력")} value={commentDrafts[post.id]||''} onChange={e=>setCommentDrafts(items=>({...items,[post.id]:e.target.value.slice(0,500)}))} placeholder={tr("응원의 댓글을 남겨보세요...")} maxLength={500}/><button className="comment-send-action" type="submit" disabled={!(commentDrafts[post.id]||'').trim()} aria-label={tr("댓글 등록")} title={tr("댓글 등록")}><Send size={17}/></button></form></article>;
 }
 
 function StepCounterPanel() {
@@ -1129,12 +1134,12 @@ function StepCounterPanel() {
     try {
       if (!Capacitor.isNativePlatform()) {
         setSnapshot(emptySnapshot());
-        setError('걸음 수 측정은 FITNOVA Android 앱에서 사용할 수 있습니다.');
+        setError(tr("걸음 수 측정은 FITNOVA Android 앱에서 사용할 수 있습니다."));
         return;
       }
       if (!StepCounter || typeof StepCounter.getWeeklySteps !== 'function') {
         setSnapshot(emptySnapshot());
-        setError('만보기 기능이 이 앱에 포함되어 있지 않습니다. 최신 APK를 설치해 주세요.');
+        setError(tr("만보기 기능이 이 앱에 포함되어 있지 않습니다. 최신 APK를 설치해 주세요."));
         return;
       }
       const raw = await StepCounter.getWeeklySteps();
@@ -1154,7 +1159,7 @@ function StepCounterPanel() {
       });
       setError('');
     } catch (err) {
-      setError(err?.message || '걸음 수를 불러오지 못했습니다. 권한과 기기 센서를 확인해 주세요.');
+      setError(err?.message || tr("걸음 수를 불러오지 못했습니다. 권한과 기기 센서를 확인해 주세요."));
     } finally {
       setLoading(false);
     }
@@ -1173,11 +1178,11 @@ function StepCounterPanel() {
 
   const enable = async () => {
     if (!Capacitor.isNativePlatform()) {
-      setError('걸음 수 측정은 센서가 있는 Android 앱에서 사용할 수 있습니다.');
+      setError(tr("걸음 수 측정은 센서가 있는 Android 앱에서 사용할 수 있습니다."));
       return;
     }
     if (!StepCounter || typeof StepCounter.requestPermission !== 'function') {
-      setError('만보기 모듈을 찾을 수 없습니다. 최신 APK를 다시 빌드해 설치해 주세요.');
+      setError(tr("만보기 모듈을 찾을 수 없습니다. 최신 APK를 다시 빌드해 설치해 주세요."));
       return;
     }
     setBusy(true);
@@ -1186,12 +1191,12 @@ function StepCounterPanel() {
       const result = await StepCounter.requestPermission();
       await refresh({ quiet: true });
       if (result?.granted !== true) {
-        setError('신체 활동 권한을 허용해야 걸음 수를 측정할 수 있습니다.');
+        setError(tr("신체 활동 권한을 허용해야 걸음 수를 측정할 수 있습니다."));
       } else if (result?.notificationGranted !== true) {
-        setError('상단 알림창에 걸음 수를 계속 표시하려면 FITNOVA 알림 권한을 허용해야 합니다. 휴대폰 설정에서 알림을 켜 주세요.');
+        setError(tr("상단 알림창에 걸음 수를 계속 표시하려면 FITNOVA 알림 권한을 허용해야 합니다. 휴대폰 설정에서 알림을 켜 주세요."));
       }
     } catch (err) {
-      setError(err?.message || '걸음 수 권한을 설정하지 못했습니다.');
+      setError(err?.message || tr("걸음 수 권한을 설정하지 못했습니다."));
     } finally {
       setBusy(false);
     }
@@ -1199,7 +1204,7 @@ function StepCounterPanel() {
 
   const stop = async () => {
     if (!StepCounter || typeof StepCounter.stopTracking !== 'function') {
-      setError('만보기 모듈을 찾을 수 없습니다. 최신 APK를 설치해 주세요.');
+      setError(tr("만보기 모듈을 찾을 수 없습니다. 최신 APK를 설치해 주세요."));
       return;
     }
     setBusy(true);
@@ -1208,7 +1213,7 @@ function StepCounterPanel() {
       await StepCounter.stopTracking();
       await refresh({ quiet: true });
     } catch (err) {
-      setError(err?.message || '만보기를 중지하지 못했습니다.');
+      setError(err?.message || tr("만보기를 중지하지 못했습니다."));
     } finally {
       setBusy(false);
     }
@@ -1220,17 +1225,17 @@ function StepCounterPanel() {
 
   return <section className="steps-page">
     <header className="steps-heading">
-      <div><span className="eyebrow">FITNOVA · DAILY MOVEMENT</span><h2>오늘도 한 걸음씩</h2><p>오늘의 걸음 수와 이번 주 활동을 확인하세요.</p></div>
-      <button type="button" className="refresh-button" onClick={() => refresh()} disabled={loading}><RefreshCw size={16}/> 새로고침</button>
+      <div><span className="eyebrow">FITNOVA · DAILY MOVEMENT</span><h2>{tr("오늘도 한 걸음씩")}</h2><p>{tr("오늘의 걸음 수와 이번 주 활동을 확인하세요.")}</p></div>
+      <button type="button" className="refresh-button" onClick={() => refresh()} disabled={loading}><RefreshCw size={16}/> {tr("새로고침")}</button>
     </header>
     {error && <div className="alert error" role="alert">{error}</div>}
-    {loading && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>만보기 상태를 확인하고 있어요</h3><p>잠시만 기다려 주세요.</p></div>}
-    {!loading && !snapshot.supported && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>이 기기에서 만보기를 사용할 수 없어요</h3><p>걸음 수 센서가 있는 Android 휴대폰의 FITNOVA 앱에서 이용해 주세요. 웹 미리보기에서는 걸음 수를 측정하지 않습니다.</p></div>}
-    {!loading && snapshot.supported && !snapshot.permissionGranted && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>걸음 수 측정을 시작해 볼까요?</h3><p>신체 활동과 알림 권한을 허용하면 앱을 닫아도 상단 알림창에 오늘 걸음 수·거리·칼로리를 계속 표시합니다. Android 설정에서 알림을 끄면 표시되지 않을 수 있습니다.</p><button type="button" className="primary compact" onClick={enable} disabled={busy}>{busy?'권한 확인 중…':'걸음 수 측정 시작'}</button></div>}
+    {loading && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>{tr("만보기 상태를 확인하고 있어요")}</h3><p>{tr("잠시만 기다려 주세요.")}</p></div>}
+    {!loading && !snapshot.supported && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>{tr("이 기기에서 만보기를 사용할 수 없어요")}</h3><p>{tr("걸음 수 센서가 있는 Android 휴대폰의 FITNOVA 앱에서 이용해 주세요. 웹 미리보기에서는 걸음 수를 측정하지 않습니다.")}</p></div>}
+    {!loading && snapshot.supported && !snapshot.permissionGranted && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>{tr("걸음 수 측정을 시작해 볼까요?")}</h3><p>{tr("신체 활동과 알림 권한을 허용하면 앱을 닫아도 상단 알림창에 오늘 걸음 수·거리·칼로리를 계속 표시합니다. Android 설정에서 알림을 끄면 표시되지 않을 수 있습니다.")}</p><button type="button" className="primary compact" onClick={enable} disabled={busy}>{busy?tr("권한 확인 중…"):tr("걸음 수 측정 시작")}</button></div>}
     {!loading && snapshot.supported && snapshot.permissionGranted && <>
-      <article className="steps-today-card"><div className="steps-today-copy"><span className="steps-today-label"><Footprints size={16}/> 오늘 걸음 수</span><div className="steps-today-count">{snapshot.todaySteps.toLocaleString('ko-KR')}<small>걸음</small></div><p>이번 주 <b>{snapshot.weekSteps.toLocaleString('ko-KR')}</b>걸음</p></div><div className="steps-goal-ring" style={{'--steps-progress':progress+'%'}}><div><b>{progress}%</b><small>목표 10,000</small></div></div></article>
-      <article className="steps-week-card"><div className="steps-week-heading"><div><span className="eyebrow">THIS WEEK</span><h3>이번 주 요일별 걸음 수</h3></div><span>{snapshot.weekSteps.toLocaleString('ko-KR')} 걸음</span></div><div className="steps-chart" role="img" aria-label="이번 주 요일별 걸음 수 그래프">{days.map((day,index)=><div className={'steps-day '+(day.isToday?'today':'')} key={day.date||index}><span className="steps-day-count">{day.steps.toLocaleString('ko-KR')}</span><div className="steps-bar-track"><i style={{height:Math.max(day.steps?4:2,Math.round(day.steps/maxSteps*100))+'%'}}/></div><b>{day.label||'—'}</b></div>)}</div></article>
-      <div className="steps-privacy-note"><span className={'steps-status-dot '+(snapshot.tracking?'':'paused')}/><span>{snapshot.tracking?'걸음 수를 측정하고 있어요':'측정이 중지되어 있어요'} · 기록은 이 기기에 저장됩니다.</span>{snapshot.tracking?<button type="button" onClick={stop} disabled={busy}>측정 중지</button>:<button type="button" onClick={enable} disabled={busy}>{busy?'시작 중…':'측정 다시 시작'}</button>}</div>
+      <article className="steps-today-card"><div className="steps-today-copy"><span className="steps-today-label"><Footprints size={16}/> {tr("오늘 걸음 수")}</span><div className="steps-today-count">{snapshot.todaySteps.toLocaleString(LOCALE_TAG)}<small>{tr("걸음")}</small></div><p>{tr("이번 주")} <b>{snapshot.weekSteps.toLocaleString(LOCALE_TAG)}</b>{tr("걸음")}</p></div><div className="steps-goal-ring" style={{'--steps-progress':progress+'%'}}><div><b>{progress}%</b><small>{tr("목표 10,000")}</small></div></div></article>
+      <article className="steps-week-card"><div className="steps-week-heading"><div><span className="eyebrow">THIS WEEK</span><h3>{tr("이번 주 요일별 걸음 수")}</h3></div><span>{trf("{0} 걸음", snapshot.weekSteps.toLocaleString(LOCALE_TAG))}</span></div><div className="steps-chart" role="img" aria-label={tr("이번 주 요일별 걸음 수 그래프")}>{days.map((day,index)=><div className={'steps-day '+(day.isToday?'today':'')} key={day.date||index}><span className="steps-day-count">{day.steps.toLocaleString(LOCALE_TAG)}</span><div className="steps-bar-track"><i style={{height:Math.max(day.steps?4:2,Math.round(day.steps/maxSteps*100))+'%'}}/></div><b>{day.label||'—'}</b></div>)}</div></article>
+      <div className="steps-privacy-note"><span className={'steps-status-dot '+(snapshot.tracking?'':'paused')}/><span>{trf("{0} · 기록은 이 기기에 저장됩니다.", snapshot.tracking?tr("걸음 수를 측정하고 있어요"):tr("측정이 중지되어 있어요"))}</span>{snapshot.tracking?<button type="button" onClick={stop} disabled={busy}>{tr("측정 중지")}</button>:<button type="button" onClick={enable} disabled={busy}>{busy?tr("시작 중…"):tr("측정 다시 시작")}</button>}</div>
     </>}
   </section>;
 }
@@ -1242,18 +1247,18 @@ function Stat({ icon: Icon, label, value, unit, note }) {
 function AccountDeletionPage() {
   return <main className="legal-shell">
     <header className="legal-topbar">
-      <a className="legal-brand" href="/" aria-label="FITNOVA 홈"><span className="legal-mark"><Activity size={21}/></span><span>FIT<span>NOVA</span></span></a>
-      <a className="legal-back" href="/"><ArrowLeft size={16}/> 서비스로 돌아가기</a>
+      <a className="legal-brand" href="/" aria-label={tr("FITNOVA 홈")}><span className="legal-mark"><Activity size={21}/></span><span>FIT<span>NOVA</span></span></a>
+      <a className="legal-back" href="/"><ArrowLeft size={16}/> {tr("서비스로 돌아가기")}</a>
     </header>
     <article className="legal-content">
       <span className="legal-eyebrow">ACCOUNT & DATA</span>
-      <h1>FITNOVA 계정 삭제 요청</h1>
-      <p className="legal-intro">앱에 로그인할 수 없는 경우에도 이 페이지에서 계정 삭제를 요청할 수 있습니다.</p>
-      <section className="legal-section"><h2>삭제 요청 방법</h2><p>아래 버튼을 눌러 FITNOVA 운영자에게 요청해 주세요. 이메일에 FITNOVA 사용자 이름과 가입 이메일 주소를 적어 주세요. 비밀번호나 인증 코드는 보내지 마세요.</p></section>
-      <section className="legal-section"><h2>본인 확인 및 처리</h2><p>계정 보호를 위해 운영자가 등록된 이메일 주소로 본인 확인을 요청할 수 있습니다. 요청 확인 후 관련 계정과 연결된 개인정보를 삭제 처리합니다. 법령 준수, 보안, 사기 방지 또는 분쟁 처리 등 정당한 사유로 보관이 필요한 정보는 법적 근거가 있는 범위에서만 보관될 수 있습니다. 앱 내 탈퇴 기능으로 요청한 경우 30일 유예 기간이 적용될 수 있습니다.</p></section>
-      <section className="legal-section"><h2>운영자 및 문의</h2><p>FITNOVA 운영자: FitNova운영자(개인 운영)<br/>이메일: fitnova@naver.com</p></section>
-      <a className="legal-back" href="mailto:fitnova@naver.com?subject=FITNOVA%20계정%20삭제%20요청&body=FITNOVA%20사용자%20이름%3A%20%0A가입%20이메일%3A%20%0A계정%20삭제를%20요청합니다.">이메일로 계정 삭제 요청하기</a>
-      <p><a href="/privacy">개인정보 처리방침 보기</a></p>
+      <h1>{tr("FITNOVA 계정 삭제 요청")}</h1>
+      <p className="legal-intro">{tr("앱에 로그인할 수 없는 경우에도 이 페이지에서 계정 삭제를 요청할 수 있습니다.")}</p>
+      <section className="legal-section"><h2>{tr("삭제 요청 방법")}</h2><p>{tr("아래 버튼을 눌러 FITNOVA 운영자에게 요청해 주세요. 이메일에 FITNOVA 사용자 이름과 가입 이메일 주소를 적어 주세요. 비밀번호나 인증 코드는 보내지 마세요.")}</p></section>
+      <section className="legal-section"><h2>{tr("본인 확인 및 처리")}</h2><p>{tr("계정 보호를 위해 운영자가 등록된 이메일 주소로 본인 확인을 요청할 수 있습니다. 요청 확인 후 관련 계정과 연결된 개인정보를 삭제 처리합니다. 법령 준수, 보안, 사기 방지 또는 분쟁 처리 등 정당한 사유로 보관이 필요한 정보는 법적 근거가 있는 범위에서만 보관될 수 있습니다. 앱 내 탈퇴 기능으로 요청한 경우 30일 유예 기간이 적용될 수 있습니다.")}</p></section>
+      <section className="legal-section"><h2>{tr("운영자 및 문의")}</h2><p>{tr("FITNOVA 운영자: FitNova운영자(개인 운영)")}<br/>{tr("이메일: fitnova@naver.com")}</p></section>
+      <a className="legal-back" href="mailto:fitnova@naver.com?subject=FITNOVA%20계정%20삭제%20요청&body=FITNOVA%20사용자%20이름%3A%20%0A가입%20이메일%3A%20%0A계정%20삭제를%20요청합니다.">{tr("이메일로 계정 삭제 요청하기")}</a>
+      <p><a href="/privacy">{tr("개인정보 처리방침 보기")}</a></p>
     </article>
   </main>;
 }

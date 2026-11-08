@@ -1407,3 +1407,13 @@ body { background: var(--bg); }
 @media (prefers-reduced-motion: reduce) {
   .page-transition { animation: none; will-change: auto; }
 }
+
+/* Language switch (English / 한국어) */
+.language-switch {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 36px; padding: 0 14px; margin: 0 8px 8px 0;
+  border: 1px solid rgba(255,255,255,.22); border-radius: 999px;
+  background: rgba(255,255,255,.08); color: inherit; font: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer;
+}
+.language-switch:hover { background: rgba(255,255,255,.16); }

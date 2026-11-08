@@ -533,3 +533,37 @@ def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch)
         if item["recipient_username"] == "master_user" and item["kind"] == "report_threshold"
     ]) == 1
     assert len(pushes) == 1
+
+
+def test_english_locale_support():
+    import re
+    from fastapi import HTTPException
+
+    # Locale header reaches request handlers.
+    @auth.app.get("/_locale_probe")
+    def _locale_probe():
+        return {"locale": auth._request_locale.get()}
+
+    assert client.get("/_locale_probe").json()["locale"] == "ko"
+    assert client.get("/_locale_probe", headers={"X-App-Locale": "en-US"}).json()["locale"] == "en"
+
+    # English verification mail leaves no Korean text behind.
+    for ko, en in auth._EN_PURPOSE.items():
+        html = auth._en_email_html(auth._verification_email_html("123456", ko).replace(ko, en))
+        assert not re.search(r"[가-힣]", html), ko
+        assert "123456" in html and en in html
+
+    # Push templates translate for English devices only.
+    assert auth._push_text("새 좋아요", "@kim님이 게시물에 좋아요를 눌렀습니다.", "en") == ("New like", "@kim liked your post.")
+    assert auth._push_text("새 좋아요", "@kim님이 게시물에 좋아요를 눌렀습니다.", "ko")[0] == "새 좋아요"
+    assert auth._push_text("새 메시지", "@kim: hello", "en") == ("New message", "@kim: hello")
+
+    # English profanity is filtered; ordinary text and similar words are not.
+    for bad in ("this is bullshit", "F.U.C.K you", "what a bitch"):
+        try:
+            auth._validate_community_text(bad)
+        except HTTPException as exc:
+            assert exc.status_code == 422
+        else:
+            raise AssertionError(bad)
+    auth._validate_community_text("Great leg day, new class record!", "Scunthorpe assassin")
