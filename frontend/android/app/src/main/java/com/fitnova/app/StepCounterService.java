@@ -93,8 +93,8 @@ public class StepCounterService extends Service implements SensorEventListener {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "만보기", NotificationManager.IMPORTANCE_MIN);
-        channel.setDescription("FITNOVA가 걸음 수를 측정하고 있습니다.");
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, ko() ? "만보기" : "Step counter", NotificationManager.IMPORTANCE_MIN);
+        channel.setDescription(ko() ? "FITNOVA가 걸음 수를 측정하고 있습니다." : "FITNOVA is counting your steps.");
         channel.setSound(null, null);
         channel.enableVibration(false);
         channel.enableLights(false);
@@ -113,9 +113,12 @@ public class StepCounterService extends Service implements SensorEventListener {
         double distanceKm = steps * 0.7d / 1000d;
         int calories = Math.round(steps * 0.04f);
         int progress = Math.min(10000, steps);
-        String title = "FITNOVA · 오늘 " + String.format(Locale.KOREA, "%,d", steps) + "걸음";
-        String details = String.format(Locale.KOREA, "거리 %.2fkm · 약 %,dkcal", distanceKm, calories);
-        String expanded = String.format(Locale.KOREA, "오늘 %,d걸음\n거리 약 %.2fkm · 소모 열량 약 %,dkcal\n목표 10,000걸음 · %d%%", steps, distanceKm, calories, Math.min(100, Math.round(steps / 10000f * 100f)));
+        String title = ko() ? "FITNOVA · 오늘 " + String.format(Locale.KOREA, "%,d", steps) + "걸음" : "FITNOVA · " + String.format(Locale.US, "%,d", steps) + " steps today";
+        String details = ko() ? String.format(Locale.KOREA, "거리 %.2fkm · 약 %,dkcal", distanceKm, calories) : String.format(Locale.US, "%.2f km · about %,d kcal", distanceKm, calories);
+        int pct = Math.min(100, Math.round(steps / 10000f * 100f));
+        String expanded = ko()
+            ? String.format(Locale.KOREA, "오늘 %,d걸음\n거리 약 %.2fkm · 소모 열량 약 %,dkcal\n목표 10,000걸음 · %d%%", steps, distanceKm, calories, pct)
+            : String.format(Locale.US, "%,d steps today\n%.2f km · about %,d kcal burned\nGoal 10,000 steps · %d%%", steps, distanceKm, calories, pct);
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
         PendingIntent contentIntent = launchIntent == null ? null : PendingIntent.getActivity(
             this, 7312, launchIntent,
@@ -135,5 +138,9 @@ public class StepCounterService extends Service implements SensorEventListener {
             .setShowWhen(false);
         if (contentIntent != null) builder.setContentIntent(contentIntent);
         return builder.build();
+    }
+
+    private static boolean ko() {
+        return "ko".equals(Locale.getDefault().getLanguage());
     }
 }
