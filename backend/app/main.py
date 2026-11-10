@@ -479,6 +479,7 @@ _EN_EMAIL_HTML = (
     ("FITNOVA 인증 코드", "FITNOVA verification code"),
     ("인증 코드입니다. 10분 안에 입력해 주세요.", "verification code. Please enter it within 10 minutes."),
     ("계정 보안 확인", "Account security check"),
+    ("운동을 기록하고 함께 성장해요", "Log your workouts. Grow together."),
     (" 인증 코드</h1>", " verification code</h1>"),
     ("FITNOVA에서 요청한 절차를 완료하려면 아래 인증 코드를 입력해 주세요.", "Enter the code below to complete the request you made on FITNOVA."),
     (">인증 코드</div>", ">VERIFICATION CODE</div>"),
@@ -526,7 +527,7 @@ def _send_code(email: str, code: str, purpose: str = "계정 보안"):
     subject = f"FITNOVA | {_EN_PURPOSE.get(purpose, purpose)} verification code" if english else f"FITNOVA | {purpose} 인증 코드"
     html_body = _verification_email_html(code, purpose)
     if english:
-        html_body = _en_email_html(html_body.replace(purpose, _EN_PURPOSE.get(purpose, purpose)))
+        html_body = _en_email_html(_verification_email_html(code, _EN_PURPOSE.get(purpose, purpose)))
     text_body = _verification_email_text(code, purpose)
     payload = {
         "to": email,

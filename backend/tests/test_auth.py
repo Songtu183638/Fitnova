@@ -549,7 +549,7 @@ def test_english_locale_support():
 
     # English verification mail leaves no Korean text behind.
     for ko, en in auth._EN_PURPOSE.items():
-        html = auth._en_email_html(auth._verification_email_html("123456", ko).replace(ko, en))
+        html = auth._en_email_html(auth._verification_email_html("123456", en))
         assert not re.search(r"[가-힣]", html), ko
         assert "123456" in html and en in html
 
