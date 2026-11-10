@@ -14,7 +14,7 @@ import './workout-analysis.css';
 import LegalPages from './LegalPages.jsx';
 
 // Keep localhost as a development convenience only. Production builds should use
-// an explicit API origin or a same-origin reverse proxy, never the developer's host.
+// an explicit API origin or a same-origin reverse proxy, never the developer’s host.
 const API = (import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8000') : 'https://fitnova-api-yt9t.onrender.com').replace(/\/$/, '');
 const TOKEN_KEY = 'fitnova_access_token';
 const PushNotifications = registerPlugin('PushNotifications');
@@ -102,8 +102,8 @@ const MOTIVATION = [
   ['Show up today', 'One more set.'],
   ['Stronger than yesterday', 'A little better.'],
   ['Consistency', 'wins.'],
-  ["Today's effort", "Tomorrow's you."],
-  ["One more time,", "That's what it takes."],
+  ["Today’s effort", "Tomorrow’s you."],
+  ["One more time,", "That’s what it takes."],
   ['Move now', 'Feel the difference.'],
   ['Small steps', 'create big change.'],
 ];
@@ -212,7 +212,7 @@ function App() {
       setNotice(data.message||'A reset code was sent to your email.');
     } catch (err) {
       setRecoveryStep('request'); setNotice('');
-      setError(err.message||'Couldn't request a reset code.');
+      setError(err.message||'Couldn’t request a reset code.');
     } finally { setBusy(false); }
   };
 
@@ -222,7 +222,7 @@ function App() {
       const data = await request('/api/auth/password/reset/confirm', {email:recoveryEmail.trim(),code:recoveryCode,new_password:recoveryPassword});
       setRecoveryStep(''); setRecoveryCode(''); setRecoveryPassword(''); setPassword(''); setIdentifier(recoveryEmail.trim()); setMode('login'); setStep('form');
       setNotice((data.message||'Your password has been changed.')+' Please sign in with your new password.');
-    } catch (err) { setError(err.message||'Couldn't reset your password.'); }
+    } catch (err) { setError(err.message||'Couldn’t reset your password.'); }
     finally { setBusy(false); }
   };
 
@@ -258,7 +258,7 @@ function App() {
     </header>
     <section className="auth-layout" id="top">
       <div className="auth-welcome">
-        <h1>{mode==='register' ? <>Start today<br/><em>Let's move together.</em></> : <>It's great to have<br/><em>you back.</em></>}</h1>
+        <h1>{mode==='register' ? <>Start today<br/><em>Let’s move together.</em></> : <>It’s great to have<br/><em>you back.</em></>}</h1>
         <p>{mode==='register' ? 'Track your workouts, connect with friends,\nand celebrate your progress every day.' : 'Your workout history and fitness community\nare waiting for you.'}</p>
         <div className="auth-benefits">
           <span><Activity size={16}/> Workout Log</span>
@@ -270,7 +270,7 @@ function App() {
         <div className="card-head">
           <div className="mini-mark"><Activity size={20}/></div>
           <h2>{recoveryStep?'Reset Password':mode==='register'?(step==='verify'?'Verify Your Email':'Join FITNOVA'):'Welcome Back'}</h2>
-          <p>{recoveryStep?(recoveryStep==='request'?'We'll send a password reset code to your email.':'Enter the code from your email and choose a new password.'):mode==='register'?(step==='verify'?'Enter the 6-digit code sent to your email.':'Create an account and start your fitness journey.'):'Sign in and pick up where you left off.'}</p>
+          <p>{recoveryStep?(recoveryStep==='request'?'We’ll send a password reset code to your email.':'Enter the code from your email and choose a new password.'):mode==='register'?(step==='verify'?'Enter the 6-digit code sent to your email.':'Create an account and start your fitness journey.'):'Sign in and pick up where you left off.'}</p>
         </div>
         {!recoveryStep&&<div className="tabs">
           <button type="button" className={mode==='login'?'active':''} onClick={()=>switchMode('login')}>Log in</button>
@@ -285,7 +285,7 @@ function App() {
           {!recoveryStep&&mode==='login'&&step==='form'&&<label>Username or email<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="Username or email" autoComplete="username"/></div></label>}
           {!recoveryStep&&((mode==='register'||mode==='login')&&step==='verify')&&<><label>{mode==='register'?'Verification email':'Email receiving your security code'}<div className="input-wrap"><Mail size={17}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div></label><label>6-digit verification code<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Email verification code" className="code-input"/></div></label></>}
           {!recoveryStep&&((mode==='register'&&step==='form')||(mode==='login'&&step==='form'))&&<label>Password<div className="input-wrap"><LockKeyhole size={17}/><input required minLength={mode==='register'?10:1} maxLength="128" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='register'?'Password (10+ characters)':'Password'} autoComplete={mode==='register'?'new-password':'current-password'}/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label="Show password">{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>{mode==='register'&&<small className="hint">Use at least 10 characters, including letters and numbers.</small>}</label>}
-          {!recoveryStep&&mode==='register'&&step==='form'&&<label className="age-confirmation"><input type="checkbox" required checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} /><span><strong>I confirm that I am at least 14 years old.</strong><small>I meet FITNOVA's minimum age requirement.</small></span></label>}
+          {!recoveryStep&&mode==='register'&&step==='form'&&<label className="age-confirmation"><input type="checkbox" required checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} /><span><strong>I confirm that I am at least 14 years old.</strong><small>I meet FITNOVA’s minimum age requirement.</small></span></label>}
           {error&&<div className="alert error">{error}</div>}
           {notice&&<div className="alert success"><CheckCircle2 size={16}/>{notice}</div>}
           <button className="primary" disabled={busy}>{busy?'Please wait…':recoveryStep==='request'?'Send reset code':recoveryStep==='verify'?'Change Password':mode==='register'?(step==='verify'?'Verify and get started':'Send verification code'):(step==='verify'?'Verify code and sign in':'Sign in')}<ArrowRight size={17}/></button>
@@ -312,7 +312,7 @@ class DashboardErrorBoundary extends React.Component {
       <section style={{boxSizing:'border-box',width:'min(100%,560px)',padding:'28px',border:'1px solid #303a2c',borderRadius:'20px',background:'#111610',textAlign:'center'}}>
         <div style={{width:'48px',height:'48px',margin:'0 auto 18px',display:'grid',placeItems:'center',borderRadius:'14px',background:'#25351b',color:'#b7f34a'}}><Activity size={25}/></div>
         <h2 style={{margin:'0 0 12px',fontSize:'22px',lineHeight:1.4}}>FITNOVA ran into a problem</h2>
-        <p style={{margin:'0 0 16px',color:'#b8c0b2',lineHeight:1.7}}>We couldn't display this screen. Please review the error details.</p>
+        <p style={{margin:'0 0 16px',color:'#b8c0b2',lineHeight:1.7}}>We couldn’t display this screen. Please review the error details.</p>
         <pre style={{boxSizing:'border-box',whiteSpace:'pre-wrap',overflowWrap:'anywhere',textAlign:'left',padding:'12px',borderRadius:'10px',background:'#090c08',color:'#d4e5c7',fontSize:'12px',lineHeight:1.5}}>{this.state.message}</pre>
         <button type="button" style={{width:'100%',minHeight:'46px',marginTop:'12px',border:0,borderRadius:'12px',background:'#b7f34a',color:'#11160b',fontWeight:700,cursor:'pointer'}} onClick={() => window.location.reload()}>Reload screen</button>
       </section>
@@ -431,7 +431,7 @@ function Dashboard({ user, tab, setTab, logout }) {
         setError('');
       }
     } catch (e) {
-      if (requestId === postsRequestId.current) setError(e.message || 'Couldn't load posts.');
+      if (requestId === postsRequestId.current) setError(e.message || 'Couldn’t load posts.');
     } finally {
       if (requestId === postsRequestId.current) setFeedLoading(false);
     }
@@ -448,19 +448,19 @@ function Dashboard({ user, tab, setTab, logout }) {
       try { localStorage.setItem(cacheKey, JSON.stringify(users)); } catch {}
       setRelationshipList({open:true,type,username,users,loading:false});
     } catch (e) {
-      setRelationshipList({open:true,type,username,users:cachedUsers,loading:false,error:cachedUsers.length ? '' : (e.message||'Couldn't load the list.')});
+      setRelationshipList({open:true,type,username,users:cachedUsers,loading:false,error:cachedUsers.length ? '' : (e.message||'Couldn’t load the list.')});
     }
   };
   const loadProfile = async (username = selectedProfile || user.username) => {
     try { const data = await api('/api/users/' + encodeURIComponent(username)); setProfileData(data.profile); }
-    catch (e) { setError(e.message || 'Couldn't load the profile.'); }
+    catch (e) { setError(e.message || 'Couldn’t load the profile.'); }
   };
-  const loadOwnPosts = async (username=user.username) => { try { const d=await api('/api/users/'+encodeURIComponent(username)+'/posts'); setOwnPosts(d.posts||[]); } catch(e){setError(e.message||'Couldn't load posts.');} };
-  const loadWorkoutRecords = async () => { try { const d=await api('/api/workout-records'); setWorkoutRecords(d.records||[]); } catch(e) { setError(e.message||'Couldn't load workout records.'); } };
+  const loadOwnPosts = async (username=user.username) => { try { const d=await api('/api/users/'+encodeURIComponent(username)+'/posts'); setOwnPosts(d.posts||[]); } catch(e){setError(e.message||'Couldn’t load posts.');} };
+  const loadWorkoutRecords = async () => { try { const d=await api('/api/workout-records'); setWorkoutRecords(d.records||[]); } catch(e) { setError(e.message||'Couldn’t load workout records.'); } };
   const saveWorkoutRecord = async (payload) => { const d=await api('/api/workout-records',{method:'POST',body:JSON.stringify(payload)}); setWorkoutRecords(items=>[d.record,...items]); return d.record; };
-  const loadSavedPosts = async () => { try { const d=await api('/api/saved-posts'); setSavedPosts(d.posts||[]); setSavedPostIds(new Set((d.posts||[]).map(p=>p.id))); } catch(e){setError(e.message||'Couldn't load saved posts.');} };
-  const loadSettings = async () => { try { const d=await api('/api/account/settings'); setAccountSettings(d.settings); setAccountEmail(d.email||user.email); setSettingsEmailInput(d.email||user.email); } catch(e){setError(e.message||'Couldn't load settings.');} };
-  const loadSafetyLists = async () => { setSafetyListsBusy(true); try { const d=await api('/api/account/safety'); setSafetyLists({blocked_users:Array.isArray(d.blocked_users)?d.blocked_users:[],muted_users:Array.isArray(d.muted_users)?d.muted_users:[]}); } catch(e) { setError(e.message||'Couldn't load blocked and muted accounts.'); } finally { setSafetyListsBusy(false); } };
+  const loadSavedPosts = async () => { try { const d=await api('/api/saved-posts'); setSavedPosts(d.posts||[]); setSavedPostIds(new Set((d.posts||[]).map(p=>p.id))); } catch(e){setError(e.message||'Couldn’t load saved posts.');} };
+  const loadSettings = async () => { try { const d=await api('/api/account/settings'); setAccountSettings(d.settings); setAccountEmail(d.email||user.email); setSettingsEmailInput(d.email||user.email); } catch(e){setError(e.message||'Couldn’t load settings.');} };
+  const loadSafetyLists = async () => { setSafetyListsBusy(true); try { const d=await api('/api/account/safety'); setSafetyLists({blocked_users:Array.isArray(d.blocked_users)?d.blocked_users:[],muted_users:Array.isArray(d.muted_users)?d.muted_users:[]}); } catch(e) { setError(e.message||'Couldn’t load blocked and muted accounts.'); } finally { setSafetyListsBusy(false); } };
   const saveSettings = async (next=accountSettings) => {
     const requestId = ++settingsRequestId.current;
     const previous = accountSettings;
@@ -469,7 +469,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       const d = await api('/api/account/settings', {method:'PATCH', body:JSON.stringify(next)});
       if (requestId === settingsRequestId.current) { setAccountSettings(d.settings); setNotice('Settings saved.'); }
     } catch(e) {
-      if (requestId === settingsRequestId.current) { setAccountSettings(previous); setError((e.message||'Couldn't save settings.')+' Your settings couldn't be saved, so the previous values were restored.'); setNotice(''); }
+      if (requestId === settingsRequestId.current) { setAccountSettings(previous); setError((e.message||'Couldn’t save settings.')+' Your settings couldn’t be saved, so the previous values were restored.'); setNotice(''); }
     }
   };
   const toggleSavePost = async (id) => {
@@ -489,7 +489,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setSavedPostIds(prev=>{const n=new Set(prev);if(wasSaved)n.add(id);else n.delete(id);return n;});
       if(wasSaved && post) setSavedPosts(prev=>[post,...prev.filter(x=>x.id!==id)]);
       if(!wasSaved) setSavedPosts(prev=>prev.filter(x=>x.id!==id));
-      setError(e.message||'Couldn't save the post.');
+      setError(e.message||'Couldn’t save the post.');
     } finally { pendingSaves.current.delete(id); }
   };
   const requestSettingsCode = async (kind) => {
@@ -502,13 +502,13 @@ function Dashboard({ user, tab, setTab, logout }) {
       else {await api('/api/account/email/request-code',{method:'POST',body:JSON.stringify({email:settingsEmailInput})});setNotice('A verification code was sent to your new email.');}
     } catch(e){
       if (kind === 'password') setSettingsPasswordCodeSent(wasSent); else setSettingsEmailCodeSent(wasSent);
-      setNotice(''); setError(e.message||'Couldn't send the security code.');
+      setNotice(''); setError(e.message||'Couldn’t send the security code.');
     } finally {setSettingsBusy(false);}
   };
-  const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice('Your password has been changed.');}catch(e){setError(e.message||'Couldn't change your password.');}finally{setSettingsBusy(false);} };
-  const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('Your email has been changed.');}catch(e){setError(e.message||'Couldn't change your email.');}finally{setSettingsBusy(false);} };
-  const deleteAccount = async () => { if(!window.confirm('Are you sure you want to delete your account? It will be deactivated immediately and permanently deleted after 30 days.'))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'Your deletion request was received. Your account is deactivated and will be permanently deleted after 30 days.');}catch(e){setError((e.message||'Couldn't process your account deletion.')+' Your account status has not changed.');}finally{setSettingsBusy(false);} };
-  const loadThreads = async () => { try { const data = await api('/api/messages'); const threads = Array.isArray(data.threads) ? data.threads : []; setMessageThreads(threads); try { localStorage.setItem('fitnova_message_threads:' + (user?.username || ''), JSON.stringify(threads)); } catch {} } catch (e) { setError(e.message || 'Couldn't load messages.'); } };
+  const confirmSettingsPassword = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{await api('/api/account/password/confirm',{method:'POST',body:JSON.stringify({code:settingsPasswordCode,new_password:settingsPassword})});setSettingsPassword('');setSettingsPasswordCode('');setSettingsPasswordCodeSent(false);setNotice('Your password has been changed.');}catch(e){setError(e.message||'Couldn’t change your password.');}finally{setSettingsBusy(false);} };
+  const confirmSettingsEmail = async (e) => { e.preventDefault();setSettingsBusy(true);setError('');try{const d=await api('/api/account/email/confirm',{method:'POST',body:JSON.stringify({email:settingsEmailInput,code:settingsEmailCode})});setAccountEmail(d.email);setSettingsEmailCode('');setSettingsEmailCodeSent(false);setNotice('Your email has been changed.');}catch(e){setError(e.message||'Couldn’t change your email.');}finally{setSettingsBusy(false);} };
+  const deleteAccount = async () => { if(!window.confirm('Are you sure you want to delete your account? It will be deactivated immediately and permanently deleted after 30 days.'))return;setSettingsBusy(true);setError('');setNotice('');try{const d=await api('/api/account',{method:'DELETE'});localStorage.removeItem(TOKEN_KEY);setUser(null);setTab('feed');setMode('login');setStep('form');setPassword('');setNotice(d.message||'Your deletion request was received. Your account is deactivated and will be permanently deleted after 30 days.');}catch(e){setError((e.message||'Couldn’t process your account deletion.')+' Your account status has not changed.');}finally{setSettingsBusy(false);} };
+  const loadThreads = async () => { try { const data = await api('/api/messages'); const threads = Array.isArray(data.threads) ? data.threads : []; setMessageThreads(threads); try { localStorage.setItem('fitnova_message_threads:' + (user?.username || ''), JSON.stringify(threads)); } catch {} } catch (e) { setError(e.message || 'Couldn’t load messages.'); } };
   const enablePushNotifications = async ({ startup = false, requestPermission = true } = {}) => {
     if (!Capacitor.isNativePlatform()) { setError('Push notifications can be managed in the FITNOVA Android app settings.'); return; }
     setPushBusy(true); setError('');
@@ -528,11 +528,11 @@ function Dashboard({ user, tab, setTab, logout }) {
       await PushNotifications.createChannel({id:'fitnova_messages',name:'FITNOVA Messages',description:'New direct message notification',importance:5,visibility:1});
       await PushNotifications.addListener('registration', async token => {
         try { await api('/api/push/devices', {method:'POST', body:JSON.stringify({token:token.value, platform:'android'})}); localStorage.setItem('fitnova_push_token', token.value); setPushEnabled(true); localStorage.setItem('fitnova_push_enabled','true'); }
-        catch (err) { setError(err.message||'Couldn't register this device for notifications.'); }
+        catch (err) { setError(err.message||'Couldn’t register this device for notifications.'); }
       });
       await PushNotifications.addListener('registrationError', err => {
         const message = err?.error || 'Failed to register push notifications.';
-        if (startup) setNotice('Couldn't register notifications. Please try again in Settings.');
+        if (startup) setNotice('Couldn’t register notifications. Please try again in Settings.');
         else setError(message);
       });
       await PushNotifications.addListener('pushNotificationReceived', notification => {
@@ -553,8 +553,8 @@ function Dashboard({ user, tab, setTab, logout }) {
       await PushNotifications.register();
       // Registration runs quietly; do not interrupt the user with a success toast.
     } catch (err) {
-      if (startup) setNotice('Couldn't update notifications. Please try again in Settings.');
-      else setError(err.message||'Couldn't update push notification settings.');
+      if (startup) setNotice('Couldn’t update notifications. Please try again in Settings.');
+      else setError(err.message||'Couldn’t update push notification settings.');
     }
     finally { setPushBusy(false); }
   };
@@ -581,13 +581,13 @@ function Dashboard({ user, tab, setTab, logout }) {
         await api('/api/notifications/read',{method:'POST'});
         setNotifications(items=>items.map(item=>({...item,read:true}))); setUnreadCount(0);
       }
-    } catch (err) { setError(err.message||'Couldn't load notifications.'); }
+    } catch (err) { setError(err.message||'Couldn’t load notifications.'); }
   };
   const reportTarget = async (target_type, target_id) => {
     const reason = window.prompt('Please provide a reason for the report (spam, harassment, inappropriate content, etc.).');
     if (!reason || !reason.trim()) return;
     try { await api('/api/reports',{method:'POST',body:JSON.stringify({target_type,target_id:String(target_id),reason:reason.trim()})}); setNotice('Your report has been submitted for review.'); setError(''); }
-    catch (err) { setError(err.message||'Couldn't submit your report.'); }
+    catch (err) { setError(err.message||'Couldn’t submit your report.'); }
   };
   const toggleSafetyAction = async (username, action) => {
     try {
@@ -598,9 +598,9 @@ function Dashboard({ user, tab, setTab, logout }) {
       if (action==='block' && result.blocked && activeChat===username) { setActiveChat(''); setChatMessages([]); }
       if (tab==='feed'||tab==='home') loadPosts();
       if (tab==='settings') await loadSafetyLists();
-    } catch(err) { setError(err.message||'Couldn't update account settings.'); }
+    } catch(err) { setError(err.message||'Couldn’t update account settings.'); }
   };
-  const loadConversation = async (username) => { activeChatRef.current = username; setActiveChat(username); try { const data = await api('/api/messages/' + encodeURIComponent(username)); if (username === activeChatRef.current) setChatMessages(data.messages || []); } catch (e) { if (username === activeChatRef.current) setError(e.message || 'Couldn't load the conversation.'); } };
+  const loadConversation = async (username) => { activeChatRef.current = username; setActiveChat(username); try { const data = await api('/api/messages/' + encodeURIComponent(username)); if (username === activeChatRef.current) setChatMessages(data.messages || []); } catch (e) { if (username === activeChatRef.current) setError(e.message || 'Couldn’t load the conversation.'); } };
   const toggleFollow = async () => {
     if (!profileData || profileData.is_me) return;
     const target = profileData.username;
@@ -608,11 +608,11 @@ function Dashboard({ user, tab, setTab, logout }) {
     pendingFollows.current.add(target);
     const before = profileData, nextFollowing = !profileData.following_by_me;
     setProfileData(prev=>prev?({...prev,following_by_me:nextFollowing,is_mutual:nextFollowing&&prev.followed_by_me,follower_count:Math.max(0,(prev.follower_count||0)+(nextFollowing?1:-1))}):prev);
-    setNotice(nextFollowing?'You're now following this account.':'You unfollowed this account.'); setError('');
+    setNotice(nextFollowing?'You’re now following this account.':'You unfollowed this account.'); setError('');
     try {
       const data = await api('/api/users/' + encodeURIComponent(target) + '/follow', { method: 'POST' });
       setProfileData(data.profile); setNotice(data.following ? 'Followed.' : 'Unfollowed.');
-    } catch (e) { setProfileData(before); setNotice(''); setError(e.message || 'Couldn't update your follow status.'); }
+    } catch (e) { setProfileData(before); setNotice(''); setError(e.message || 'Couldn’t update your follow status.'); }
     finally { pendingFollows.current.delete(target); }
   };
   const sendMessage = async (e) => {
@@ -643,7 +643,7 @@ function Dashboard({ user, tab, setTab, logout }) {
         return previousThread ? [previousThread,...remaining] : remaining;
       });
       setMessageDraft(content);
-      setError(e.message || 'Couldn't send the message.');
+      setError(e.message || 'Couldn’t send the message.');
     } finally { setMessageBusy(false); }
   };
   useEffect(() => {
@@ -769,7 +769,7 @@ function Dashboard({ user, tab, setTab, logout }) {
             setError('');
             return;
           }
-          // If history is empty but we're not on a root tab, return to the feed.
+          // If history is empty but we’re not on a root tab, return to the feed.
           // Only let Android exit when the user is already at the root screen.
           if (tab !== 'feed' && tab !== 'home') {
             setSelectedProfile(null);
@@ -822,13 +822,13 @@ function Dashboard({ user, tab, setTab, logout }) {
     setError(''); const files = Array.from(selectedFiles || (file ? [file] : [])); if (!files.length) return;
     const isImage=files[0].type.startsWith('image/'), isVideo=files[0].type.startsWith('video/');
     if (!isImage&&!isVideo) { setError('Select photo or video files only.'); return; }
-    if (files.some(item=>item.type.startsWith('image/')!==isImage || item.type.startsWith('video/')!==isVideo)) { setError('Photos and videos can't be combined in one post.'); return; }
+    if (files.some(item=>item.type.startsWith('image/')!==isImage || item.type.startsWith('video/')!==isVideo)) { setError('Photos and videos can’t be combined in one post.'); return; }
     if (isImage && files.length > 10) { setError('You can add up to 10 photos to one post.'); return; }
     if (isVideo && files.length > 1) { setError('You can add only one video to a post.'); return; }
     const limit=(isImage?5:40)*1024*1024; if (files.some(item=>item.size>limit)) { setError(isImage?'Each photo must be 5 MB or smaller.':'Videos must be 40 MB or smaller.'); return; }
     postMediaFiles.forEach(item=>{if(item.previewUrl)URL.revokeObjectURL(item.previewUrl);}); if(postMedia?.previewUrl&&!postMediaFiles.some(item=>item.previewUrl===postMedia.previewUrl))URL.revokeObjectURL(postMedia.previewUrl);
     const selected = files.map(item=>({type:isImage?'image':'video',file:item,previewUrl:URL.createObjectURL(item),durationSeconds:null}));
-    if (isVideo) { try { const durationSeconds = await new Promise((resolve, reject) => { const probe = document.createElement('video'); probe.preload='metadata'; probe.onloadedmetadata=()=>resolve(probe.duration); probe.onerror=()=>reject(new Error('Couldn't read the video. Please choose another file.')); probe.src=selected[0].previewUrl; }); if (!Number.isFinite(durationSeconds)||durationSeconds<=0) throw new Error('Couldn't determine the video duration.'); if (durationSeconds>60) throw new Error('Videos can be up to 60 seconds long.'); selected[0].durationSeconds=Math.ceil(durationSeconds); } catch(err) { selected.forEach(item=>URL.revokeObjectURL(item.previewUrl)); setError(err.message||'Couldn't read video information.'); return; } }
+    if (isVideo) { try { const durationSeconds = await new Promise((resolve, reject) => { const probe = document.createElement('video'); probe.preload='metadata'; probe.onloadedmetadata=()=>resolve(probe.duration); probe.onerror=()=>reject(new Error('Couldn’t read the video. Please choose another file.')); probe.src=selected[0].previewUrl; }); if (!Number.isFinite(durationSeconds)||durationSeconds<=0) throw new Error('Couldn’t determine the video duration.'); if (durationSeconds>60) throw new Error('Videos can be up to 60 seconds long.'); selected[0].durationSeconds=Math.ceil(durationSeconds); } catch(err) { selected.forEach(item=>URL.revokeObjectURL(item.previewUrl)); setError(err.message||'Couldn’t read video information.'); return; } }
     setPostMediaFiles(selected); setPostMedia(selected[0]); setPostMediaName(isImage?('Photo '+selected.length+' selected'):files[0].name);
   };
   const createPost = async (e) => {
@@ -846,11 +846,11 @@ function Dashboard({ user, tab, setTab, logout }) {
         const xhr=new XMLHttpRequest(); xhr.open('POST',API+'/api/posts/upload');
         const token=localStorage.getItem(TOKEN_KEY); if(token) xhr.setRequestHeader('Authorization','Bearer '+token);
         xhr.upload.onprogress=(event)=>{if(event.lengthComputable)setUploadProgress(Math.min(99,Math.round(event.loaded/event.total*100)));};
-        xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText||'{}');}catch{} if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(data.detail||'Couldn't publish your post. Please try again shortly.'));};
+        xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText||'{}');}catch{} if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(data.detail||'Couldn’t publish your post. Please try again shortly.'));};
         xhr.onerror=()=>reject(new Error('Check your network connection and try again.')); xhr.onabort=()=>reject(new Error('Upload canceled.')); xhr.send(form);
       });
       setUploadProgress(100); resetPostForm();setPostFormOpen(false);await loadPosts();setNotice(mediaType==='image'?'Your photo post was published to Home.':'Your video post was published to Feed.');setTab(mediaType==='image'?'home':'feed');
-    } catch(e){setError(e.message||'Couldn't publish the post.');} finally{setBusy(false);}
+    } catch(e){setError(e.message||'Couldn’t publish the post.');} finally{setBusy(false);}
   };
   const toggleLike = async (id) => {
     if (pendingLikes.current.has(id)) return;
@@ -872,7 +872,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
       setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
       setSavedPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
-      setError(e.message||'Couldn't update the like.');
+      setError(e.message||'Couldn’t update the like.');
     } finally { pendingLikes.current.delete(id); }
   };
   const toggleCommentLike = async (postId, commentId) => {
@@ -890,7 +890,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setPosts(apply); setOwnPosts(apply); setSavedPosts(apply);
     } catch(err) {
       const rollback=(items)=>items.map(post=>post.id!==postId?post:{...post,comments:(post.comments||[]).map(item=>String(item.id)!==String(commentId)?item:{...item,liked_by_me:before,like_count:comment.like_count||0})});
-      setPosts(rollback); setOwnPosts(rollback); setSavedPosts(rollback); setError(err.message||'Comment Couldn't update the like.');
+      setPosts(rollback); setOwnPosts(rollback); setSavedPosts(rollback); setError(err.message||'Comment Couldn’t update the like.');
     }
   };
   const addComment = async (id) => {
@@ -910,7 +910,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     } catch(e) {
       const remove=items=>items.map(p=>p.id===id?{...p,comments:(p.comments||[]).filter(comment=>comment.id!==tempId)}:p);
       setPosts(remove); setOwnPosts(remove); setSavedPosts(remove); setCommentDrafts(items=>({...items,[id]:content}));
-      setError(e.message||'Couldn't add your comment.');
+      setError(e.message||'Couldn’t add your comment.');
     } finally { pendingComments.current.delete(id); }
   };
   const deleteComment = async (postId, commentId) => {
@@ -924,22 +924,22 @@ function Dashboard({ user, tab, setTab, logout }) {
       setNotice('Comment deleted.');
     } catch (e) {
       setPosts(snapshots.posts); setOwnPosts(snapshots.ownPosts); setSavedPosts(snapshots.savedPosts);
-      setError(e.message || 'Couldn't delete the comment.');
+      setError(e.message || 'Couldn’t delete the comment.');
     }
   };
   const removePost = async (id) => {
     if (!window.confirm('Delete this post?')) return;
     try { await api('/api/posts/' + id, { method: 'DELETE' }); setPosts(items => items.filter(p => p.id !== id)); setNotice('Post deleted.'); }
-    catch (e) { setError(e.message || 'Couldn't delete the post.'); }
+    catch (e) { setError(e.message || 'Couldn’t delete the post.'); }
   };
   const togglePostPin = async (post) => {
     try { const result = await api('/api/posts/'+post.id+'/pin',{method:'POST'}); const update=items=>items.map(item=>item.id===post.id?{...item,pinned:result.pinned}:item); setPosts(update); setOwnPosts(update); setSavedPosts(update); setNotice(result.pinned?'Post pinned to the top of Feed.':'Post unpinned.'); if(tab==='home'||tab==='feed') loadPosts(); }
-    catch(e){setError(e.message||'Couldn't update the post pin.');}
+    catch(e){setError(e.message||'Couldn’t update the post pin.');}
   };
   const toggleSuspension = async (username) => {
     if (!window.confirm('@'+username+'Suspend or restore this account?')) return;
     try { const result=await api('/api/users/'+encodeURIComponent(username)+'/suspend',{method:'POST'}); setNotice(result.suspended?'Account suspended.':'Account suspension lifted.'); if(tab==='feed'||tab==='home')loadPosts(); }
-    catch(e){setError(e.message||'Couldn't update account status.');}
+    catch(e){setError(e.message||'Couldn’t update account status.');}
   };
   const prettyDate = (value) => { try { return new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
   return <main className={"app-shell "+(tab==="messages"&&activeChat?"chat-active":"")}>
@@ -956,8 +956,8 @@ function Dashboard({ user, tab, setTab, logout }) {
     {tab==='home'&&<section className="feed-layout home-feed-layout">
       <div className="home-left">
       <section className="home-hero" aria-label="Daily Motivation">
-        <h2>Today's effort<em>Build a better tomorrow.</em></h2>
-        <p>Turn today's workout into a lasting record.</p>
+        <h2>Today’s effort<em>Build a better tomorrow.</em></h2>
+        <p>Turn today’s workout into a lasting record.</p>
       </section>
       <div className="home-quick" role="group" aria-label="Quick Links">
         <button type="button" onClick={()=>setTab('analysis')}><span><TrendingUp size={20}/></span>Workout Log</button>
@@ -970,7 +970,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       <div className="feed-list photo-feed">{feedLoading&&posts.length===0?<div className="feed-loading"><span className="search-spinner"/><b>Loading posts…</b></div>:posts.filter(p=>p.media_type==='image').length===0?<div className="empty-feed"><div className="empty-art"><ImageIcon size={34}/></div><h3>No photos yet</h3><p>Share a workout photo or show your progress.</p><button className="primary compact" onClick={()=>setPostFormOpen(true)}><Plus size={16}/> Create a photo post</button></div>:posts.filter(p=>p.media_type==='image').map((post,index)=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile} priority={index<2}/>)}</div></section>}
     {tab==='home'&&hasMorePosts&&<button className="load-more-posts" disabled={feedLoading} onClick={()=>loadPosts(true)}>{feedLoading?'Loading…':'Load more posts'}</button>}
     {tab==='saved'&&<section className="feed-layout"><div className="feed-heading"><div><span className="eyebrow">YOUR COLLECTION</span><h2>Saved Posts</h2><p>Your saved workout posts, all in one place.</p></div><button className="refresh-button" onClick={loadSavedPosts}><Activity size={16}/> Refresh</button></div><div className="feed-list">{savedPosts.length===0?<div className="empty-feed"><Bookmark size={30}/><h3>No saved posts yet</h3><p>Tap the bookmark icon on a post to save it.</p></div>:savedPosts.map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}</div></section>}
-    {tab==='settings'&&<section className="settings-page"><div className="settings-heading"><span className="eyebrow">YOUR SPACE · SETTINGS</span><h2>Settings & Privacy</h2><p>Manage your FITNOVA experience and account information.</p></div><div className="settings-account-banner"><div className="settings-account-avatar">{(user.name||user.username).slice(0,1).toUpperCase()}</div><div className="settings-account-copy"><span>Signed-in account</span><b>{user.name||user.username}</b><small>@{user.username} · {accountEmail||user.email}</small></div><span className="settings-account-status"><CheckCircle2 size={15}/> Verified account</span></div><div className="settings-grid"><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>Privacy & Communication</h3><p>Choose what others can see and how they can contact you.</p></div></div>{[['private_account','Private Account','Limit who can view your profile'],['show_activity','Show Activity','Show workout activity on your profile'],['show_workout_details','Show Workout Details','Show workout details added to your posts']].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={!!accountSettings[key]} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<label className="setting-select"><span><b>Who can message you</b><small>Choose whether people you don't follow can message you.</small></span><select value={accountSettings.allow_messages_from} onChange={e=>saveSettings({...accountSettings,allow_messages_from:e.target.value})}><option value="everyone">Everyone</option><option value="following">People I follow</option></select></label></section><section className="settings-card"><div className="settings-card-title"><Bell size={20}/><div><h3>Notification Settings</h3><p>Choose which notifications you want to receive. Changes are saved to your account.</p></div></div>{[["notify_messages","Direct Message Notifications","Push and in-app notifications for new direct messages"],["notify_comments","Comment Notifications","When someone comments on my post"],["notify_likes","Like Notifications","When someone likes my post"],["notify_follows","New Follower Notifications","When someone follows me"]].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={accountSettings[key] !== false} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<div className="notification-push-actions"><button className="secondary-action" onClick={enablePushNotifications} disabled={pushBusy||pushEnabled}><Bell size={16}/>{pushBusy?"Registering notifications…":pushEnabled?"Push notifications connected":"Enable push notifications"}</button><small className="setting-help">푸시 Notifications은 Android Notifications 권한과 서버의 Firebase Settings이 필요합니다. 권한 허용 후 별도의 성공 팝업은 표시하지 않습니다.</small></div></section><section className="settings-card"><div className="settings-card-title"><KeyRound size={20}/><div><h3>Change Password</h3><p>현재 Account Email로 보안 코드를 보내 인증합니다.</p></div></div>{!settingsPasswordCodeSent?<button className="secondary-action" onClick={()=>requestSettingsCode('password')} disabled={settingsBusy}><MailCheck size={16}/> 보안 코드 받기</button>:<form className="settings-form" onSubmit={confirmSettingsPassword}><label>Email security code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsPasswordCode} onChange={e=>setSettingsPasswordCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit code"/></label><label>New password<input required type="password" minLength={10} maxLength={128} value={settingsPassword} onChange={e=>setSettingsPassword(e.target.value)} placeholder="At least 10 characters"/></label><button className="primary compact" disabled={settingsBusy}>Change Password</button></form>}</section><section className="settings-card"><div className="settings-card-title"><MailCheck size={20}/><div><h3>Change Email</h3><p>Verify the security code sent to your new email to change it.</p></div></div><label className="settings-form">Current email<input value={accountEmail} readOnly/></label>{!settingsEmailCodeSent?<form className="settings-form" onSubmit={e=>{e.preventDefault();requestSettingsCode('email');}}><label>New email<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)} placeholder="new@example.com"/></label><button className="secondary-action" disabled={settingsBusy}>Send code to new email</button></form>:<form className="settings-form" onSubmit={confirmSettingsEmail}><label>New email<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)}/></label><label>Verification code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsEmailCode} onChange={e=>setSettingsEmailCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit code"/></label><button className="primary compact" disabled={settingsBusy}>Confirm Email Change</button></form>}</section><section className="settings-card settings-danger"><div className="settings-card-title"><UserX size={20}/><div><h3>Account Management</h3><p>You can log out or deactivate your account.</p></div></div><button className="secondary-action" onClick={logout}><LogOut size={16}/> Log out</button><div className="deletion-note"><b>Account Deletion · 30-Day Grace Period</b><p>Your account is deactivated when you request deletion. After 30 days, your posts, follows, messages, and other account data are permanently deleted.</p><button className="danger-button" onClick={deleteAccount} disabled={settingsBusy}><Trash2 size={16}/> Request Account Deletion</button></div></section><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>Blocked Accounts & Hidden Posts</h3><p>Review accounts you've blocked or muted, and undo those actions at any time.</p></div><button className="icon-surface" type="button" onClick={loadSafetyLists} disabled={safetyListsBusy} aria-label="Refresh blocked and muted accounts"><RefreshCw size={15}/></button></div>{safetyListsBusy?<p className="safety-list-empty">Loading list…</p>:<div className="safety-list-groups"><div className="safety-list-group"><b>Blocked Accounts <span>{safetyLists.blocked_users.length}</span></b>{safetyLists.blocked_users.length===0?<p className="safety-list-empty">Blocked Accounts이 없어요.</p>:safetyLists.blocked_users.map(username=><div className="safety-list-row" key={'block-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'block')}>Unblock</button></div>)}</div><div className="safety-list-group"><b>Muted Accounts <span>{safetyLists.muted_users.length}</span></b>{safetyLists.muted_users.length===0?<p className="safety-list-empty">Muted Accounts이 없어요.</p>:safetyLists.muted_users.map(username=><div className="safety-list-row" key={'mute-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'mute')}>Unmute</button></div>)}</div></div>}</section><section className="settings-card legal-links-card"><div className="settings-card-title"><FileText size={20}/><div><h3>Policies</h3><p>Review our privacy practices, terms, and community standards.</p></div></div><nav className="settings-legal-links" aria-label="Policies"><a href="/privacy">Privacy Policy <ChevronRight size={16}/></a><a href="/terms">Terms of Service <ChevronRight size={16}/></a><a href="/community-guidelines">Community Guidelines <ChevronRight size={16}/></a></nav></section></div></section>}
+    {tab==='settings'&&<section className="settings-page"><div className="settings-heading"><span className="eyebrow">YOUR SPACE · SETTINGS</span><h2>Settings & Privacy</h2><p>Manage your FITNOVA experience and account information.</p></div><div className="settings-account-banner"><div className="settings-account-avatar">{(user.name||user.username).slice(0,1).toUpperCase()}</div><div className="settings-account-copy"><span>Signed-in account</span><b>{user.name||user.username}</b><small>@{user.username} · {accountEmail||user.email}</small></div><span className="settings-account-status"><CheckCircle2 size={15}/> Verified account</span></div><div className="settings-grid"><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>Privacy & Communication</h3><p>Choose what others can see and how they can contact you.</p></div></div>{[['private_account','Private Account','Limit who can view your profile'],['show_activity','Show Activity','Show workout activity on your profile'],['show_workout_details','Show Workout Details','Show workout details added to your posts']].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={!!accountSettings[key]} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<label className="setting-select"><span><b>Who can message you</b><small>Choose whether people you don’t follow can message you.</small></span><select value={accountSettings.allow_messages_from} onChange={e=>saveSettings({...accountSettings,allow_messages_from:e.target.value})}><option value="everyone">Everyone</option><option value="following">People I follow</option></select></label></section><section className="settings-card"><div className="settings-card-title"><Bell size={20}/><div><h3>Notification Settings</h3><p>Choose which notifications you want to receive. Changes are saved to your account.</p></div></div>{[["notify_messages","Direct Message Notifications","Push and in-app notifications for new direct messages"],["notify_comments","Comment Notifications","When someone comments on my post"],["notify_likes","Like Notifications","When someone likes my post"],["notify_follows","New Follower Notifications","When someone follows me"]].map(([key,label,desc])=><label className="setting-toggle" key={key}><span><b>{label}</b><small>{desc}</small></span><input type="checkbox" checked={accountSettings[key] !== false} onChange={e=>saveSettings({...accountSettings,[key]:e.target.checked})}/></label>)}<div className="notification-push-actions"><button className="secondary-action" onClick={enablePushNotifications} disabled={pushBusy||pushEnabled}><Bell size={16}/>{pushBusy?"Registering notifications…":pushEnabled?"Push notifications connected":"Enable push notifications"}</button><small className="setting-help">푸시 Notifications은 Android Notifications 권한과 서버의 Firebase Settings이 필요합니다. 권한 허용 후 별도의 성공 팝업은 표시하지 않습니다.</small></div></section><section className="settings-card"><div className="settings-card-title"><KeyRound size={20}/><div><h3>Change Password</h3><p>현재 Account Email로 보안 코드를 보내 인증합니다.</p></div></div>{!settingsPasswordCodeSent?<button className="secondary-action" onClick={()=>requestSettingsCode('password')} disabled={settingsBusy}><MailCheck size={16}/> 보안 코드 받기</button>:<form className="settings-form" onSubmit={confirmSettingsPassword}><label>Email security code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsPasswordCode} onChange={e=>setSettingsPasswordCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit code"/></label><label>New password<input required type="password" minLength={10} maxLength={128} value={settingsPassword} onChange={e=>setSettingsPassword(e.target.value)} placeholder="At least 10 characters"/></label><button className="primary compact" disabled={settingsBusy}>Change Password</button></form>}</section><section className="settings-card"><div className="settings-card-title"><MailCheck size={20}/><div><h3>Change Email</h3><p>Verify the security code sent to your new email to change it.</p></div></div><label className="settings-form">Current email<input value={accountEmail} readOnly/></label>{!settingsEmailCodeSent?<form className="settings-form" onSubmit={e=>{e.preventDefault();requestSettingsCode('email');}}><label>New email<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)} placeholder="new@example.com"/></label><button className="secondary-action" disabled={settingsBusy}>Send code to new email</button></form>:<form className="settings-form" onSubmit={confirmSettingsEmail}><label>New email<input type="email" required value={settingsEmailInput} onChange={e=>setSettingsEmailInput(e.target.value)}/></label><label>Verification code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={settingsEmailCode} onChange={e=>setSettingsEmailCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit code"/></label><button className="primary compact" disabled={settingsBusy}>Confirm Email Change</button></form>}</section><section className="settings-card settings-danger"><div className="settings-card-title"><UserX size={20}/><div><h3>Account Management</h3><p>You can log out or deactivate your account.</p></div></div><button className="secondary-action" onClick={logout}><LogOut size={16}/> Log out</button><div className="deletion-note"><b>Account Deletion · 30-Day Grace Period</b><p>Your account is deactivated when you request deletion. After 30 days, your posts, follows, messages, and other account data are permanently deleted.</p><button className="danger-button" onClick={deleteAccount} disabled={settingsBusy}><Trash2 size={16}/> Request Account Deletion</button></div></section><section className="settings-card"><div className="settings-card-title"><ShieldCheck size={20}/><div><h3>Blocked Accounts & Hidden Posts</h3><p>Review accounts you’ve blocked or muted, and undo those actions at any time.</p></div><button className="icon-surface" type="button" onClick={loadSafetyLists} disabled={safetyListsBusy} aria-label="Refresh blocked and muted accounts"><RefreshCw size={15}/></button></div>{safetyListsBusy?<p className="safety-list-empty">Loading list…</p>:<div className="safety-list-groups"><div className="safety-list-group"><b>Blocked Accounts <span>{safetyLists.blocked_users.length}</span></b>{safetyLists.blocked_users.length===0?<p className="safety-list-empty">Blocked Accounts이 없어요.</p>:safetyLists.blocked_users.map(username=><div className="safety-list-row" key={'block-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'block')}>Unblock</button></div>)}</div><div className="safety-list-group"><b>Muted Accounts <span>{safetyLists.muted_users.length}</span></b>{safetyLists.muted_users.length===0?<p className="safety-list-empty">Muted Accounts이 없어요.</p>:safetyLists.muted_users.map(username=><div className="safety-list-row" key={'mute-'+username}><span>@{username}</span><button type="button" className="secondary-action" onClick={()=>toggleSafetyAction(username,'mute')}>Unmute</button></div>)}</div></div>}</section><section className="settings-card legal-links-card"><div className="settings-card-title"><FileText size={20}/><div><h3>Policies</h3><p>Review our privacy practices, terms, and community standards.</p></div></div><nav className="settings-legal-links" aria-label="Policies"><a href="/privacy">Privacy Policy <ChevronRight size={16}/></a><a href="/terms">Terms of Service <ChevronRight size={16}/></a><a href="/community-guidelines">Community Guidelines <ChevronRight size={16}/></a></nav></section></div></section>}
     {tab==='profile'&&<section className="module-view">{selectedProfile&&selectedProfile!==user.username?<><button className="back-link" onClick={()=>{setSelectedProfile(null);setProfileData(null);}}><ChevronLeft size={17}/> Back to My Profile</button><div className="profile-card public-profile"><div className="profile-avatar">{(profileData?.name||profileData?.username||selectedProfile).slice(0,1).toUpperCase()}</div><span className="eyebrow">FITNOVA member</span><h2>{profileData?.name||profileData?.username||selectedProfile}</h2><p>@{profileData?.username||selectedProfile}</p><div className="profile-stats"><div><b>{profileData?.post_count??'—'}</b><span>Post</span></div><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("followers",selectedProfile)}><b>{profileData?.follower_count??'—'}</b><span>Followers</span></button><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("following",selectedProfile)}><b>{profileData?.following_count??'—'}</b><span>Following</span></button></div><div className="profile-actions">{!profileData?.is_me&&<button className="primary compact" onClick={toggleFollow} disabled={!profileData}>{profileData?.is_mutual?<><UserCheck size={16}/> Following · Unfollow</>:profileData?.following_by_me?<><UserCheck size={16}/> Following · 언Follow</>:<><UserPlus size={16}/> Follow</>}</button>}<button className="secondary-action" onClick={()=>{setTab('messages');activeChatRef.current=selectedProfile;setChatMessages([]);setActiveChat(selectedProfile);}}><MessageSquare size={16}/> Send message</button><button className="secondary-action" onClick={()=>toggleSafetyAction(selectedProfile,'mute')}><VolumeX size={16}/> Post 숨기기</button><button className="secondary-action" onClick={()=>toggleSafetyAction(selectedProfile,'block')}><Ban size={16}/> Account Block</button><button className="secondary-action" onClick={()=>reportTarget('user',selectedProfile)}><Flag size={16}/> Account 신고</button></div></div><div className="profile-posts"><h3>{selectedProfile}님의 Post</h3>{ownPosts.filter(p=>p.author_username===(selectedProfile||user.username)).map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}{posts.filter(p=>p.author_username===selectedProfile).length===0&&<div className="empty-feed"><p>아직 표시할 Post이 없어요.</p></div>}</div></>:<> <div className="profile-card"><div className="profile-avatar">{(user.name||user.username).slice(0,1).toUpperCase()}</div><span className="eyebrow">내 Account</span><h2>{user.name||user.username}</h2><p>@{user.username} · {accountEmail||user.email}</p><span className="verified-pill"><CheckCircle2 size={14}/> Email 인증 완료</span><div className="profile-stats"><div><b>{profileData?.post_count??ownPosts.length}</b><span>Post</span></div><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("followers",user.username)}><b>{profileData?.follower_count??'—'}</b><span>Followers</span></button><button type="button" className="profile-stat-button" onClick={()=>openRelationshipList("following",user.username)}><b>{profileData?.following_count??'—'}</b><span>Following</span></button></div><div className="profile-details"><div><span>Account 상태</span><b>활성</b></div><div><span>People 유형</span><b>FITNOVA Member</b></div><div><span>Log in 보안</span><b>Log in 유지</b></div></div><div className="profile-actions"><button className="secondary-action" onClick={()=>setTab('settings')}><Settings size={16}/> Profile Settings</button><button className="secondary-action" onClick={()=>setTab('saved')}><Bookmark size={16}/> Saved Posts</button></div></div><div className="profile-posts"><h3>내 Post</h3>{ownPosts.length===0?<div className="empty-feed"><p>아직 Create한 Post이 없어요.</p></div>:ownPosts.map(post=><PostCard key={post.id} post={post} user={user} prettyDate={prettyDate} savedPostIds={savedPostIds} toggleSavePost={toggleSavePost} removePost={removePost} toggleLike={toggleLike} commentDrafts={commentDrafts} setCommentDrafts={setCommentDrafts} addComment={addComment} deleteComment={deleteComment} toggleCommentLike={toggleCommentLike} togglePostPin={togglePostPin} toggleSuspension={toggleSuspension} toggleSafetyAction={toggleSafetyAction} openProfile={openProfile}/>)}</div></>}</section>}
     {tab==='messages'&&<section className={"messages-view "+(activeChat?"chat-open":"")}>{activeChat?<section className="conversation-screen"><div className="conversation-head"><button className="conversation-back" onClick={()=>{setActiveChat('');setChatMessages([]);setError('');}} aria-label="Back to conversations"><ChevronLeft size={24}/></button><button className="author-link conversation-person" onClick={()=>openProfile(activeChat)}><span className="chat-avatar-wrap"><span className="composer-avatar">{activeChat.slice(0,1).toUpperCase()}</span></span><span className="conversation-identity"><b>{activeChat}</b><small>@{activeChat} · FITNOVA member</small></span></button><span className="conversation-secure"><ShieldCheck size={14}/> Direct message</span><button className="icon-surface conversation-refresh" onClick={()=>loadConversation(activeChat)} aria-label="대화 Refresh" title="대화 Refresh"><Activity size={16}/></button></div><div className="conversation-context"><span className="context-line"/><span>Your conversation with @{activeChat} starts here</span><span className="context-line"/></div><div className="conversation-messages" ref={chatMessagesRef}>{chatMessages.length===0?<div className="chat-empty-state"><div className="chat-empty-icon"><MessageCircle size={27}/></div><b>아직 주고받은 Messages가 없어요</b><p>가벼운 인사로 Start a conversation.</p></div>:chatMessages.map(msg=><div key={msg.id} className={'chat-message-row '+(msg.sender_username===user.username?'message-row-mine':'message-row-theirs')}>{msg.sender_username!==user.username&&<span className="message-mini-avatar">{activeChat.slice(0,1).toUpperCase()}</span>}<div className={'chat-bubble '+(msg.sender_username===user.username?'mine':'theirs')}><p>{msg.content}</p><small>{prettyDate(msg.created_at)}{msg.sender_username===user.username&&<span className="message-read-receipt"> · {msg.read_at?"Read":"Sent"}</span>}</small></div></div>)}</div>{error&&<div className="chat-inline-error" role="alert">{error}</div>}<form className="message-compose" onSubmit={sendMessage}><div className="message-compose-field"><input value={messageDraft} onChange={e=>setMessageDraft(e.target.value.slice(0,2000))} placeholder="Write a message…" maxLength={2000} aria-label="Message"/></div><button type="submit" className="message-send-button" disabled={messageBusy||!messageDraft.trim()} aria-label="Send message" title="Send message">{messageBusy?<span className="send-loading-dot"/>:<Send size={18}/>}</button></form></section>:<><div className="messages-heading"><span className="eyebrow">YOUR CONNECTIONS · DIRECT</span><h2>Messages <span className="message-count-pill">{messageThreads.length}</span></h2><p>운동 이야기를 나누고 서로의 성장을 응원해 보세요.</p></div><section className="thread-list"><div className="thread-list-head"><div><h3>대화 목록</h3><p>대화를 누르면 All 화면 채팅으로 열립니다.</p></div><span className="thread-list-mark"><MessageCircle size={18}/></span></div>{messageThreads.length===0?<div className="thread-empty"><div className="thread-empty-art"><Users size={27}/></div><b>Start a conversation</b><p>관심 있는 People의 Profile에서 <strong>Send message</strong>를 누르면 여기에 대화가 표시됩니다.</p></div>:messageThreads.map(thread=><button className="thread-item" key={thread.username} onClick={()=>{activeChatRef.current=thread.username;setChatMessages([]);setActiveChat(thread.username);}}><span className="thread-avatar">{thread.username.slice(0,1).toUpperCase()}<i/></span><span className="thread-copy"><b>{thread.username}</b><small>{thread.content||'Start a conversation'}</small></span>{thread.unread_count>0&&<span className="thread-unread-badge">{thread.unread_count>99?'99+':thread.unread_count}</span>}<span className="thread-open"><ChevronLeft size={18}/></span></button>)}</section></>}</section>}
     {relationshipList.open&&<div className="modal-backdrop relationship-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setRelationshipList(v=>({...v,open:false}));}}><section className="relationship-modal" role="dialog" aria-modal="true" aria-labelledby="relationship-title"><header className="relationship-modal-head"><div><h2 id="relationship-title">{relationshipList.type==="followers"?"Followers":"Following"}</h2><p>@{relationshipList.username}</p></div><button className="icon-surface" type="button" aria-label="Close" onClick={()=>setRelationshipList(v=>({...v,open:false}))}><X size={19}/></button></header>{relationshipList.loading?<div className="relationship-state"><span className="search-spinner"/>Loading list…</div>:relationshipList.error?<div className="relationship-state">{relationshipList.error}</div>:relationshipList.users.length===0?<div className="relationship-state">아직 {relationshipList.type==="followers"?"Followers":"Following"}이 없어요.</div>:<div className="relationship-users">{relationshipList.users.map(person=><button type="button" className="relationship-user" key={person.username} onClick={()=>{setRelationshipList(v=>({...v,open:false}));openProfile(person.username);}}><span className="relationship-avatar">{(person.name||person.username).slice(0,1).toUpperCase()}</span><span className="relationship-user-copy"><b>{person.name||person.username}</b><small>@{person.username}</small></span><ChevronRight size={17}/></button>)}</div>}</section></div>}
@@ -1010,7 +1010,7 @@ function ModerationPanel() {
   const loadReports = async () => {
     setLoading(true); setError('');
     try { const data=await api('/api/admin/reports?status='+status); setReports(data.reports||[]); }
-    catch(e) { setError(e.message||'Couldn't load reports.'); }
+    catch(e) { setError(e.message||'Couldn’t load reports.'); }
     finally { setLoading(false); }
   };
   useEffect(()=>{loadReports();},[status]);
@@ -1020,7 +1020,7 @@ function ModerationPanel() {
       await api('/api/admin/reports/'+report.id,{method:'PATCH',body:JSON.stringify({status:nextStatus})});
       setNotice(nextStatus==='reviewed'?'Report marked as reviewed.':'Report dismissed.');
       await loadReports();
-    } catch(e) { setError(e.message||'Couldn't save report status.'); }
+    } catch(e) { setError(e.message||'Couldn’t save report status.'); }
     finally { setBusyId(null); }
   };
   const removePost = async report => {
@@ -1031,7 +1031,7 @@ function ModerationPanel() {
       await api('/api/admin/reports/'+report.id,{method:'PATCH',body:JSON.stringify({status:'reviewed'})});
       setNotice('Post deleted and report marked as reviewed.');
       await loadReports();
-    } catch(e) { setError(e.message||'Couldn't delete the post.'); }
+    } catch(e) { setError(e.message||'Couldn’t delete the post.'); }
     finally { setBusyId(null); }
   };
   const suspendUser = async report => {
@@ -1042,7 +1042,7 @@ function ModerationPanel() {
       await api('/api/admin/reports/'+report.id,{method:'PATCH',body:JSON.stringify({status:'reviewed'})});
       setNotice('Account suspended and report marked as reviewed.');
       await loadReports();
-    } catch(e) { setError(e.message||'Couldn't update account status.'); }
+    } catch(e) { setError(e.message||'Couldn’t update account status.'); }
     finally { setBusyId(null); }
   };
   const labels={post:'Post',comment:'Comment',user:'Account',message:'Messages'};
@@ -1114,7 +1114,7 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,commentDrafts,setC
    if (priority) tryPlay();
    return () => { if(observer) observer.disconnect(); video.removeEventListener('canplay',tryPlay); video.removeEventListener('loadeddata',tryPlay); };
  }, [mediaData, post.media_type, priority]);
- return <article className="post-card" id={"post-"+post.id} ref={cardRef}><div className="post-top"><button className="post-author author-link" onClick={()=>openProfile(post.author_username)} aria-label={post.author_username+' View profile'}><div className="composer-avatar">{(post.author_username||'?').slice(0,1).toUpperCase()}</div><div><b>{post.author_username}</b><small>{prettyDate(post.created_at)}</small></div></button><div className="post-owner-actions">{(post.author_username===user.username||user.is_master)&&<button className="delete-post" onClick={()=>removePost(post.id)} aria-label="Delete post"><Trash2 size={17}/></button>}{user.is_master&&<button className="delete-post" onClick={()=>togglePostPin(post)} aria-label={post.pinned?"Post Unpin":"Pin post"} title={post.pinned?"Unpin":"Pin to top"}><span>{post.pinned?"Pinned":"Pin"}</span></button>}{user.is_master&&post.author_username!==user.username&&<button className="delete-post" onClick={()=>toggleSuspension(post.author_username)} aria-label="Suspend account"><Ban size={16}/></button>}{post.author_username!==user.username&&<button className="delete-post report-post-button" onClick={()=>reportPost("post",post.id)} aria-label="Report post" title="Report post"><Flag size={16}/></button>}</div></div><h3 className="post-title">{post.title||'Workout Log'}</h3>{post.media_type!=='text'&&<div className={mediaData?'post-media':(mediaFailed?'post-media media-loading media-error':'post-media media-loading')}>{mediaData?(post.media_type==='image'?<><img className="post-gallery-image" src={mediaGallery[galleryIndex]||mediaData} alt={(post.title||'Workout photo')+' '+(galleryIndex+1)} loading={priority?'eager':'lazy'} fetchPriority={priority?'high':'auto'} decoding="async"/>{mediaGallery.length>1&&<><button type="button" className="gallery-arrow gallery-prev" onClick={()=>setGalleryIndex(index=>(index-1+mediaGallery.length)%mediaGallery.length)} aria-label="Previous photo"><ChevronLeft size={23}/></button><button type="button" className="gallery-arrow gallery-next" onClick={()=>setGalleryIndex(index=>(index+1)%mediaGallery.length)} aria-label="Next photo"><ChevronRight size={23}/></button><span className="gallery-counter">{galleryIndex+1} / {mediaGallery.length}</span><div className="gallery-dots">{mediaGallery.map((_,index)=><button key={index} type="button" className={index===galleryIndex?'active':''} onClick={()=>setGalleryIndex(index)} aria-label={'Photo '+(index+1)+' 보기'}/>)}</div></>}</>:<video ref={videoRef} src={mediaData} controls preload={priority?'auto':'metadata'} autoPlay muted loop playsInline webkit-playsinline="true" onCanPlay={e=>e.currentTarget.play().catch(()=>{})}/>):<span>{mediaFailed?<>Couldn't load media. <button type="button" onClick={()=>{setMediaFailed(false);setMediaRetry(value=>value+1);}}>Try again</button></>:<>미디어 Loading…</>}</span>}</div>}<p className="post-content">{post.content}</p>{post.hashtags?.length>0&&<div className="post-hashtags">{post.hashtags.map((tag,i)=><span key={i}>{tag.startsWith('#')?tag:'#'+tag}</span>)}</div>}{(post.weight!=null||post.sets_count!=null||post.exercise_name||post.reps||post.duration_minutes!=null||post.workout_notes)&&<div className="workout-details">{post.weight!=null&&<span><Weight size={14}/> 체중 {post.weight}kg</span>}{post.sets_count!=null&&<span><Dumbbell size={14}/> {post.sets_count}세트</span>}{post.exercise_name&&<span><Activity size={14}/> {post.exercise_name}</span>}{post.reps&&<span><TrendingUp size={14}/> {post.reps}</span>}{post.duration_minutes!=null&&<span><Clock3 size={14}/> {post.duration_minutes}분</span>}{post.workout_notes&&<p>{post.workout_notes}</p>}</div>}<div className="post-actions"><button type="button" className={'like-action '+(post.liked_by_me?'liked':'')} onClick={()=>toggleLike(post.id)} aria-label={post.liked_by_me?'Unlike':'Like'}><Heart className="like-action-icon" size={17} fill={post.liked_by_me?'currentColor':'none'}/><span>Like {post.like_count||0}</span></button><button type="button" className={'saved-post-button save-action '+(savedPostIds.has(post.id)?'active':'')} onClick={()=>toggleSavePost(post.id)} aria-label={savedPostIds.has(post.id)?'Save 취소':'Post Save'}><Bookmark className="save-action-icon" size={17} fill={savedPostIds.has(post.id)?'currentColor':'none'}/><span>{savedPostIds.has(post.id)?'Save됨':'Save'}</span></button><span className="comment-count"><MessageCircle size={17}/>{(post.comments||[]).length}개 Comment</span></div>{(post.comments||[]).length>0&&<div className="comments-list">{post.comments.map(comment=><div className="comment" key={comment.id}><b>{comment.author_username}</b><span className="comment-content">{comment.content}</span><button type="button" className={'comment-heart-action '+(comment.liked_by_me?'liked':'')} onClick={()=>toggleCommentLike(post.id,comment.id)} disabled={!!comment.pending} aria-label={comment.liked_by_me?'Unlike comment':'Comment Like'} title={comment.liked_by_me?'Unlike':'Like'}><Heart size={14} fill={comment.liked_by_me?'currentColor':'none'}/><span>{comment.like_count||0}</span></button>{(comment.author_username===user.username||post.author_username===user.username)&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>deleteComment(post.id,comment.id)} aria-label="Delete comment">삭제</button>}{comment.author_username!==user.username&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>toggleSafetyAction(comment.author_username,"block")} aria-label="Block commenter">Block</button>}</div>)}</div>}<form className="comment-form" onSubmit={e=>{e.preventDefault();addComment(post.id);}}><input aria-label="Write a comment" value={commentDrafts[post.id]||''} onChange={e=>setCommentDrafts(items=>({...items,[post.id]:e.target.value.slice(0,500)}))} placeholder="Leave an encouraging comment…" maxLength={500}/><button className="comment-send-action" type="submit" disabled={!(commentDrafts[post.id]||'').trim()} aria-label="Comment 등록" title="Comment 등록"><Send size={17}/></button></form></article>;
+ return <article className="post-card" id={"post-"+post.id} ref={cardRef}><div className="post-top"><button className="post-author author-link" onClick={()=>openProfile(post.author_username)} aria-label={post.author_username+' View profile'}><div className="composer-avatar">{(post.author_username||'?').slice(0,1).toUpperCase()}</div><div><b>{post.author_username}</b><small>{prettyDate(post.created_at)}</small></div></button><div className="post-owner-actions">{(post.author_username===user.username||user.is_master)&&<button className="delete-post" onClick={()=>removePost(post.id)} aria-label="Delete post"><Trash2 size={17}/></button>}{user.is_master&&<button className="delete-post" onClick={()=>togglePostPin(post)} aria-label={post.pinned?"Post Unpin":"Pin post"} title={post.pinned?"Unpin":"Pin to top"}><span>{post.pinned?"Pinned":"Pin"}</span></button>}{user.is_master&&post.author_username!==user.username&&<button className="delete-post" onClick={()=>toggleSuspension(post.author_username)} aria-label="Suspend account"><Ban size={16}/></button>}{post.author_username!==user.username&&<button className="delete-post report-post-button" onClick={()=>reportPost("post",post.id)} aria-label="Report post" title="Report post"><Flag size={16}/></button>}</div></div><h3 className="post-title">{post.title||'Workout Log'}</h3>{post.media_type!=='text'&&<div className={mediaData?'post-media':(mediaFailed?'post-media media-loading media-error':'post-media media-loading')}>{mediaData?(post.media_type==='image'?<><img className="post-gallery-image" src={mediaGallery[galleryIndex]||mediaData} alt={(post.title||'Workout photo')+' '+(galleryIndex+1)} loading={priority?'eager':'lazy'} fetchPriority={priority?'high':'auto'} decoding="async"/>{mediaGallery.length>1&&<><button type="button" className="gallery-arrow gallery-prev" onClick={()=>setGalleryIndex(index=>(index-1+mediaGallery.length)%mediaGallery.length)} aria-label="Previous photo"><ChevronLeft size={23}/></button><button type="button" className="gallery-arrow gallery-next" onClick={()=>setGalleryIndex(index=>(index+1)%mediaGallery.length)} aria-label="Next photo"><ChevronRight size={23}/></button><span className="gallery-counter">{galleryIndex+1} / {mediaGallery.length}</span><div className="gallery-dots">{mediaGallery.map((_,index)=><button key={index} type="button" className={index===galleryIndex?'active':''} onClick={()=>setGalleryIndex(index)} aria-label={'Photo '+(index+1)+' 보기'}/>)}</div></>}</>:<video ref={videoRef} src={mediaData} controls preload={priority?'auto':'metadata'} autoPlay muted loop playsInline webkit-playsinline="true" onCanPlay={e=>e.currentTarget.play().catch(()=>{})}/>):<span>{mediaFailed?<>Couldn’t load media. <button type="button" onClick={()=>{setMediaFailed(false);setMediaRetry(value=>value+1);}}>Try again</button></>:<>미디어 Loading…</>}</span>}</div>}<p className="post-content">{post.content}</p>{post.hashtags?.length>0&&<div className="post-hashtags">{post.hashtags.map((tag,i)=><span key={i}>{tag.startsWith('#')?tag:'#'+tag}</span>)}</div>}{(post.weight!=null||post.sets_count!=null||post.exercise_name||post.reps||post.duration_minutes!=null||post.workout_notes)&&<div className="workout-details">{post.weight!=null&&<span><Weight size={14}/> 체중 {post.weight}kg</span>}{post.sets_count!=null&&<span><Dumbbell size={14}/> {post.sets_count}세트</span>}{post.exercise_name&&<span><Activity size={14}/> {post.exercise_name}</span>}{post.reps&&<span><TrendingUp size={14}/> {post.reps}</span>}{post.duration_minutes!=null&&<span><Clock3 size={14}/> {post.duration_minutes}분</span>}{post.workout_notes&&<p>{post.workout_notes}</p>}</div>}<div className="post-actions"><button type="button" className={'like-action '+(post.liked_by_me?'liked':'')} onClick={()=>toggleLike(post.id)} aria-label={post.liked_by_me?'Unlike':'Like'}><Heart className="like-action-icon" size={17} fill={post.liked_by_me?'currentColor':'none'}/><span>Like {post.like_count||0}</span></button><button type="button" className={'saved-post-button save-action '+(savedPostIds.has(post.id)?'active':'')} onClick={()=>toggleSavePost(post.id)} aria-label={savedPostIds.has(post.id)?'Save 취소':'Post Save'}><Bookmark className="save-action-icon" size={17} fill={savedPostIds.has(post.id)?'currentColor':'none'}/><span>{savedPostIds.has(post.id)?'Save됨':'Save'}</span></button><span className="comment-count"><MessageCircle size={17}/>{(post.comments||[]).length}개 Comment</span></div>{(post.comments||[]).length>0&&<div className="comments-list">{post.comments.map(comment=><div className="comment" key={comment.id}><b>{comment.author_username}</b><span className="comment-content">{comment.content}</span><button type="button" className={'comment-heart-action '+(comment.liked_by_me?'liked':'')} onClick={()=>toggleCommentLike(post.id,comment.id)} disabled={!!comment.pending} aria-label={comment.liked_by_me?'Unlike comment':'Comment Like'} title={comment.liked_by_me?'Unlike':'Like'}><Heart size={14} fill={comment.liked_by_me?'currentColor':'none'}/><span>{comment.like_count||0}</span></button>{(comment.author_username===user.username||post.author_username===user.username)&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>deleteComment(post.id,comment.id)} aria-label="Delete comment">삭제</button>}{comment.author_username!==user.username&&!comment.pending&&<button type="button" className="delete-comment" onClick={()=>toggleSafetyAction(comment.author_username,"block")} aria-label="Block commenter">Block</button>}</div>)}</div>}<form className="comment-form" onSubmit={e=>{e.preventDefault();addComment(post.id);}}><input aria-label="Write a comment" value={commentDrafts[post.id]||''} onChange={e=>setCommentDrafts(items=>({...items,[post.id]:e.target.value.slice(0,500)}))} placeholder="Leave an encouraging comment…" maxLength={500}/><button className="comment-send-action" type="submit" disabled={!(commentDrafts[post.id]||'').trim()} aria-label="Comment 등록" title="Comment 등록"><Send size={17}/></button></form></article>;
 }
 
 function StepCounterPanel() {
@@ -1134,7 +1134,7 @@ function StepCounterPanel() {
       }
       if (!StepCounter || typeof StepCounter.getWeeklySteps !== 'function') {
         setSnapshot(emptySnapshot());
-        setError('Step Counter isn't included in this app build. Please install the latest APK.');
+        setError('Step Counter isn’t included in this app build. Please install the latest APK.');
         return;
       }
       const raw = await StepCounter.getWeeklySteps();
@@ -1154,7 +1154,7 @@ function StepCounterPanel() {
       });
       setError('');
     } catch (err) {
-      setError(err?.message || 'Couldn't load your step count. Check permissions and device sensors.');
+      setError(err?.message || 'Couldn’t load your step count. Check permissions and device sensors.');
     } finally {
       setLoading(false);
     }
@@ -1191,7 +1191,7 @@ function StepCounterPanel() {
         setError('To keep your step count visible in the notification shade, allow FITNOVA notifications in your phone settings.');
       }
     } catch (err) {
-      setError(err?.message || 'Couldn't update step-count permissions.');
+      setError(err?.message || 'Couldn’t update step-count permissions.');
     } finally {
       setBusy(false);
     }
@@ -1208,7 +1208,7 @@ function StepCounterPanel() {
       await StepCounter.stopTracking();
       await refresh({ quiet: true });
     } catch (err) {
-      setError(err?.message || 'Couldn't stop the step counter.');
+      setError(err?.message || 'Couldn’t stop the step counter.');
     } finally {
       setBusy(false);
     }
@@ -1225,10 +1225,10 @@ function StepCounterPanel() {
     </header>
     {error && <div className="alert error" role="alert">{error}</div>}
     {loading && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>Checking step counter status</h3><p>Please wait.</p></div>}
-    {!loading && !snapshot.supported && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>Step tracking isn't available on this device</h3><p>steps 수 센서가 있는 Android 휴대폰의 FITNOVA 앱에서 이용해 주세요. 웹 미리보기에서는 steps 수를 측정하지 않습니다.</p></div>}
-    {!loading && snapshot.supported && !snapshot.permissionGranted && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>steps 수 측정을 시작해 볼까요?</h3><p>신체 활동과 Notifications 권한을 허용하면 앱을 닫아도 상단 Notifications창에 Today's Steps·거리·칼로리를 계속 표시합니다. Android Settings에서 Notifications을 끄면 표시되지 않을 수 있습니다.</p><button type="button" className="primary compact" onClick={enable} disabled={busy}>{busy?'Checking permissions…':'Start step tracking'}</button></div>}
+    {!loading && !snapshot.supported && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>Step tracking isn’t available on this device</h3><p>steps 수 센서가 있는 Android 휴대폰의 FITNOVA 앱에서 이용해 주세요. 웹 미리보기에서는 steps 수를 측정하지 않습니다.</p></div>}
+    {!loading && snapshot.supported && !snapshot.permissionGranted && <div className="steps-permission-card"><div className="steps-icon"><Footprints size={25}/></div><h3>steps 수 측정을 시작해 볼까요?</h3><p>신체 활동과 Notifications 권한을 허용하면 앱을 닫아도 상단 Notifications창에 Today’s Steps·거리·칼로리를 계속 표시합니다. Android Settings에서 Notifications을 끄면 표시되지 않을 수 있습니다.</p><button type="button" className="primary compact" onClick={enable} disabled={busy}>{busy?'Checking permissions…':'Start step tracking'}</button></div>}
     {!loading && snapshot.supported && snapshot.permissionGranted && <>
-      <article className="steps-today-card"><div className="steps-today-copy"><span className="steps-today-label"><Footprints size={16}/> Today's Steps</span><div className="steps-today-count">{snapshot.todaySteps.toLocaleString('en-US')}<small>steps</small></div><p>This week <b>{snapshot.weekSteps.toLocaleString('en-US')}</b>steps</p></div><div className="steps-goal-ring" style={{'--steps-progress':progress+'%'}}><div><b>{progress}%</b><small>Goal 10,000</small></div></div></article>
+      <article className="steps-today-card"><div className="steps-today-copy"><span className="steps-today-label"><Footprints size={16}/> Today’s Steps</span><div className="steps-today-count">{snapshot.todaySteps.toLocaleString('en-US')}<small>steps</small></div><p>This week <b>{snapshot.weekSteps.toLocaleString('en-US')}</b>steps</p></div><div className="steps-goal-ring" style={{'--steps-progress':progress+'%'}}><div><b>{progress}%</b><small>Goal 10,000</small></div></div></article>
       <article className="steps-week-card"><div className="steps-week-heading"><div><span className="eyebrow">THIS WEEK</span><h3>Daily Steps This Week</h3></div><span>{snapshot.weekSteps.toLocaleString('en-US')} steps</span></div><div className="steps-chart" role="img" aria-label="Daily step count this week">{days.map((day,index)=><div className={'steps-day '+(day.isToday?'today':'')} key={day.date||index}><span className="steps-day-count">{day.steps.toLocaleString('en-US')}</span><div className="steps-bar-track"><i style={{height:Math.max(day.steps?4:2,Math.round(day.steps/maxSteps*100))+'%'}}/></div><b>{day.label||'—'}</b></div>)}</div></article>
       <div className="steps-privacy-note"><span className={'steps-status-dot '+(snapshot.tracking?'':'paused')}/><span>{snapshot.tracking?'steps 수를 측정하고 있어요':'Step tracking is paused'} · Your step data is saved on this device.</span>{snapshot.tracking?<button type="button" onClick={stop} disabled={busy}>Stop tracking</button>:<button type="button" onClick={enable} disabled={busy}>{busy?'Starting…':'Resume tracking'}</button>}</div>
     </>}
@@ -1248,7 +1248,7 @@ function AccountDeletionPage() {
     <article className="legal-content">
       <span className="legal-eyebrow">ACCOUNT & DATA</span>
       <h1>Request FITNOVA Account Deletion</h1>
-      <p className="legal-intro">You can request account deletion here even if you can't sign in to the app.</p>
+      <p className="legal-intro">You can request account deletion here even if you can’t sign in to the app.</p>
       <section className="legal-section"><h2>How to Request Deletion</h2><p>아래 버튼을 눌러 FITNOVA 운영자에게 요청해 주세요. Email에 FITNOVA 사용자 Name과 가입 Email address를 적어 주세요. Password나 Verification code는 보내지 마세요.</p></section>
       <section className="legal-section"><h2>Identity Verification & Processing</h2><p>To protect your account, the operator may verify your identity using your registered email address. After confirming your request, personal information linked to the account will be deleted. Information required for legal compliance, security, fraud prevention, or dispute resolution may be retained only where legally permitted. The in-app deletion flow may include a 30-day grace period.</p></section>
       <section className="legal-section"><h2>Operator & Contact</h2><p>FITNOVA Operator: Independent Operator<br/>Email: fitnova@naver.com</p></section>
