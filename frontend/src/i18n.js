@@ -13,14 +13,14 @@ function detect() {
   return nav.toLowerCase().startsWith('ko') ? 'ko' : 'en';
 }
 
-export const LOCALE = detect();
+// FITNOVA's US launch build uses English throughout, regardless of device language or saved preference.
+export const LOCALE = 'en';
 export const LOCALE_TAG = LOCALE === 'ko' ? 'ko-KR' : 'en-US';
 
 if (typeof document !== 'undefined') document.documentElement.lang = LOCALE;
 
-export function setLocale(next) {
-  try { localStorage.setItem(STORAGE_KEY, next === 'ko' ? 'ko' : 'en'); } catch { /* ignore */ }
-  if (typeof window !== 'undefined') window.location.reload();
+export function setLocale() {
+  // Language is fixed to English in the US launch build.
 }
 
 // Server-built messages that contain variable parts (stored notifications).
