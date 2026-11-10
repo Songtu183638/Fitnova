@@ -102,8 +102,8 @@ const MOTIVATION = [
   ['Show up today', 'One more set.'],
   ['Stronger than yesterday', 'A little better.'],
   ['Consistency', 'wins.'],
-  ['Today's effort', 'Tomorrow's you.'],
-  ['One more time,', 'That's what it takes.'],
+  ["Today's effort", "Tomorrow's you."],
+  ["One more time,", "That's what it takes."],
   ['Move now', 'Feel the difference.'],
   ['Small steps', 'create big change.'],
 ];
