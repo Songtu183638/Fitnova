@@ -32,7 +32,9 @@ import java.util.Locale;
     }
 )
 public class StepCounterPlugin extends Plugin {
-    private static final String[] DAY_LABELS = { "월", "화", "수", "목", "금", "토", "일" };
+    private static final String[] DAY_LABELS = "ko".equals(java.util.Locale.getDefault().getLanguage())
+        ? new String[] { "월", "화", "수", "목", "금", "토", "일" }
+        : new String[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
 
     @PluginMethod
     public void requestPermission(PluginCall call) {
