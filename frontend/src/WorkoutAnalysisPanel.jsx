@@ -75,7 +75,7 @@ const createExercise = (category, id) => ({ id, category, exercise_name: CATEGOR
 export default function WorkoutAnalysisPanel({ records = [], onSaveRecord, onRefresh }) {
   const [period, setPeriod] = useState('30');
   const [view, setView] = useState('record');
-  const [exercises, setExercises] = useState([createExercise(tr("가슴"), 'ex-1')]);
+  const [exercises, setExercises] = useState([createExercise("가슴", 'ex-1')]);
   const [nextId, setNextId] = useState(2);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -163,7 +163,7 @@ export default function WorkoutAnalysisPanel({ records = [], onSaveRecord, onRef
       await onSaveRecord({ exercises: payloadExercises, note });
       setMessage(tr("운동 기록을 저장했어요. 종합 분석에 합산했습니다."));
       setNote('');
-      setExercises([createExercise(tr("가슴"), `ex-${nextId}`)]);
+      setExercises([createExercise("가슴", `ex-${nextId}`)]);
       setNextId(id => id + 1);
       setView('overview');
     } catch (e) {
@@ -206,7 +206,7 @@ export default function WorkoutAnalysisPanel({ records = [], onSaveRecord, onRef
         </div>
         <div className="wa-exercise-volume"><span>{tr("예상 운동량")}</span><strong>{formatNum(number(item.weight_kg) * number(item.sets) * number(item.reps))} <small>{tr("kg·회")}</small></strong></div>
       </article>)}</div>
-      <button className="wa-add-exercise" type="button" onClick={() => addCategory(exercises[exercises.length - 1]?.category || tr("가슴"))}><Plus size={16}/> {tr("같은 카테고리 종목 추가")}</button>
+      <button className="wa-add-exercise" type="button" onClick={() => addCategory(exercises[exercises.length - 1]?.category || "가슴")}><Plus size={16}/> {tr("같은 카테고리 종목 추가")}</button>
       <label className="wa-note-field"><span>{tr("운동 메모")} <small>{tr("선택")}</small></span><textarea value={note} onChange={e => setNote(e.target.value)} maxLength={500} placeholder={tr("예: 마지막 세트가 힘들었음, 자세에 집중함…")}/></label>
       <div className="wa-form-footer"><div><small>{tr("이번 세션 예상 운동량")}</small><strong>{formatNum(exercises.reduce((sum, item) => sum + number(item.weight_kg) * number(item.sets) * number(item.reps), 0))} <span>{tr("kg·회")}</span></strong></div><button className="wa-primary" type="submit" disabled={saving}><Save size={16}/>{saving ? tr("저장 중…") : tr("기록하기")}</button></div>
       {error && <p className="wa-error" role="alert">{error}</p>}{message && <p className="wa-success" role="status">{message}</p>}
