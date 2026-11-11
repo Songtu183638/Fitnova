@@ -153,3 +153,64 @@
   .wa-session-exercise { grid-template-columns: auto minmax(0, 1fr); }
   .wa-session-exercise > b { grid-column: 2; }
 }
+
+
+/* US fitness-app polish: preserve FITNOVA's dark + lime identity */
+.workout-analysis-page { gap: 20px; padding-top: 18px; }
+.wa-hero { position: relative; overflow: hidden; padding: 22px 24px; border: 1px solid var(--line); border-radius: 20px; background: radial-gradient(ellipse at 100% 0%, rgba(183,255,58,.12), transparent 48%), linear-gradient(135deg, var(--surface), var(--surface-2)); }
+.wa-hero-copy { position: relative; z-index: 1; max-width: 720px; }
+.wa-kicker { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--lime); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+.wa-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px var(--lime); }
+.wa-hero h2 { font-size: clamp(22px, 3vw, 30px); line-height: 1.18; letter-spacing: -.04em; }
+.wa-hero p { max-width: 580px; margin-top: 10px; line-height: 1.6; }
+.wa-hero-meta { display: flex; align-items: center; gap: 12px; margin-top: 16px; color: var(--text-2); font-size: 12px; }
+.wa-hero-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.wa-hero-meta svg { color: var(--lime); }
+.wa-hero-meta i { width: 3px; height: 3px; border-radius: 50%; background: var(--text-3); }
+.wa-toolbar { gap: 10px; }
+.wa-view-switch { padding: 4px; border: 1px solid var(--line); border-radius: 12px; }
+.wa-view-switch button { min-width: 108px; height: 38px; }
+.wa-period-select, .wa-refresh { min-height: 42px; border-radius: 12px; }
+.wa-record-form, .wa-panel { padding: clamp(16px, 2.4vw, 24px); border-radius: 18px; box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+.wa-section-heading h3, .wa-panel-head h3 { font-size: 17px; letter-spacing: -.02em; }
+.wa-section-heading p, .wa-panel-head p { line-height: 1.55; }
+.wa-category-grid { gap: 8px; }
+.wa-category-chip { min-height: 38px; padding-inline: 13px; border-radius: 11px; }
+.wa-category-chip.selected { box-shadow: inset 0 0 0 1px rgba(183,255,58,.12); }
+.wa-exercise-card { padding: 17px; border-radius: 15px; }
+.wa-exercise-fields { grid-template-columns: minmax(190px, 1.7fr) repeat(3, minmax(82px, 1fr)); gap: 12px; }
+.wa-select-wrap, .wa-number-wrap { height: 46px; border-radius: 11px; }
+.wa-select-wrap select, .wa-number-wrap input { font-size: 14px; }
+.wa-add-exercise { min-height: 46px; border-radius: 12px; }
+.wa-note-field textarea { border-radius: 12px; }
+.wa-primary { min-height: 48px; padding-inline: 24px; border-radius: 12px; box-shadow: 0 5px 18px rgba(183,255,58,.12); }
+.wa-stats-grid { gap: 12px; }
+.wa-stat-card { border-radius: 16px; }
+.wa-stat-featured { background: radial-gradient(ellipse at 100% 0%, rgba(183,255,58,.1), transparent 55%), var(--surface); }
+.wa-main-grid { gap: 14px; }
+.wa-session-card { border-radius: 14px; }
+@media (max-width: 760px) {
+  .workout-analysis-page { gap: 14px; padding-top: 12px; }
+  .wa-hero { padding: 19px 17px; border-radius: 16px; }
+  .wa-kicker { margin-bottom: 9px; }
+  .wa-hero-meta { margin-top: 12px; }
+  .wa-toolbar { display: grid; grid-template-columns: 1fr 1fr; }
+  .wa-view-switch { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; }
+  .wa-view-switch button { min-width: 0; }
+  .wa-period-select { width: 100%; }
+  .wa-period-select select { width: 100%; }
+  .wa-refresh { width: 100%; justify-content: center; margin-left: 0; }
+  .wa-section-heading { align-items: flex-start; }
+  .wa-section-heading p { max-width: 42ch; }
+  .wa-exercise-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wa-field-exercise { grid-column: 1 / -1; }
+  .wa-form-footer { align-items: stretch; flex-direction: column; gap: 12px; }
+  .wa-form-footer > div { display: flex; align-items: baseline; justify-content: space-between; }
+  .wa-primary { width: 100%; }
+  .wa-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 380px) {
+  .wa-exercise-fields { gap: 8px; }
+  .wa-exercise-card { padding: 13px; }
+  .wa-category-chip { padding-inline: 10px; font-size: 12px; }
+}
