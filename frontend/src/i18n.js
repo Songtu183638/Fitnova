@@ -25,7 +25,7 @@ export function setLocale() {
 
 // Server-built messages that contain variable parts (stored notifications).
 const PATTERNS = [
-  [/^@(\S+) 계정에 신고가 (\d+)건 접수되었습니다\. 신고 관리에서 확인해 주세요\.$/, (m) => `@${m[1]} has received ${m[2]} ${Number(m[2]) === 1 ? 'report' : 'reports'}. Please check Report management.`],
+  [/^@(\S+) 계정에 신고가 (\d+)건 접수되었습니다\. 신고 관리에서 확인해 주세요\.$/, (m) => `@${m[1]} has received ${m[2]} ${Number(m[2]) === 1 ? 'report' : 'reports'}. Please review it in Report Management.`],
 ];
 
 export function tr(key) {
