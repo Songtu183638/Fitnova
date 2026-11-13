@@ -364,6 +364,8 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [messageBusy, setMessageBusy] = useState(false);
   const [sharePostTarget, setSharePostTarget] = useState(null);
   const [shareSending, setShareSending] = useState(false);
+  const [deepLinkPostId, setDeepLinkPostId] = useState('');
+  const deepLinkHandled = useRef(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(() => localStorage.getItem('fitnova_push_enabled') === 'true');
   const [draft, setDraft] = useState('');
@@ -443,6 +445,57 @@ function Dashboard({ user, tab, setTab, logout }) {
       if (requestId === postsRequestId.current) setFeedLoading(false);
     }
   };
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    const requestedId = new URLSearchParams(window.location.search).get('post');
+    if (!requestedId) return;
+    deepLinkHandled.current = true;
+    let active = true;
+    const findSharedPost = async () => {
+      try {
+        let offset = 0;
+        let found = null;
+        while (active && offset < 3000) {
+          const query = new URLSearchParams({ limit: '15', offset: String(offset) });
+          const data = await api('/api/posts?' + query.toString());
+          const batch = Array.isArray(data.posts) ? data.posts : [];
+          found = batch.find(post => String(post.id) === String(requestedId)) || null;
+          if (found || batch.length < 15) break;
+          offset += batch.length;
+        }
+        if (!active) return;
+        if (found) {
+          setPosts(items => [found, ...items.filter(post => String(post.id) !== String(found.id))]);
+          setTab('feed');
+          setDeepLinkPostId(String(found.id));
+          setNotice(tr('Opened the shared post.'));
+        } else {
+          setTab('feed');
+          setError(tr('This post may have been deleted or is no longer available.'));
+        }
+      } catch (error) {
+        if (active) { setTab('feed'); setError(error.message || tr('Could not open the shared post.')); }
+      }
+    };
+    findSharedPost();
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (!deepLinkPostId || !posts.some(post => String(post.id) === deepLinkPostId)) return;
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById('post-' + deepLinkPostId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('shared-post-highlight');
+        window.setTimeout(() => target.classList.remove('shared-post-highlight'), 2600);
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete('post');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+      setDeepLinkPostId('');
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [deepLinkPostId, posts]);
   const openProfile = (username) => { setRelationshipList(v=>({...v,open:false})); setSelectedProfile(username); setProfileData(null); setTab('profile'); setError(''); };
   const openRelationshipList = async (type, username) => {
     const cacheKey = 'fitnova_relationships:' + username + ':' + type;
