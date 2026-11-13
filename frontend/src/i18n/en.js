@@ -933,4 +933,9 @@ export default {
  "광배근 스트레칭": "Lat Stretch",
  "종아리 스트레칭": "Calf Stretch",
  "손목 가동성 운동": "Wrist Mobility Drill"
+,
+
+  "공유 게시물을 열었습니다.": "Opened the shared post.",
+  "이 게시물은 삭제되었거나 더 이상 볼 수 없습니다.": "This post may have been deleted or is no longer available.",
+  "공유 게시물을 열 수 없습니다.": "Could not open the shared post."
 };
