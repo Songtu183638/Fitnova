@@ -1647,3 +1647,116 @@ body { background: var(--bg); }
 .kakao-share-action { border-color: rgba(254,229,0,.45) !important; color: #f5df00 !important; }
 .kakao-share-mark { display: inline-grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: #fee500; color: #191919; font-size: 13px; font-weight: 900; }
 @media (max-width: 480px) { .share-modal-actions { grid-template-columns: 1fr; } }
+
+/* Post composer modal: escape the transformed page-transition containing block.
+   A transformed ancestor becomes the containing block for fixed overlays, which
+   pushed the composer toward the bottom on tablet-sized screens. */
+.dashboard-main .page-transition:has(> .modal-backdrop) {
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
+  will-change: auto !important;
+}
+.dashboard-main .page-transition:has(> .modal-backdrop) > .modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  padding: 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+.dashboard-main .page-transition:has(> .modal-backdrop) > .modal-backdrop > .post-modal {
+  flex: 0 1 680px;
+  width: min(680px, 100%);
+  min-width: 0;
+  max-width: 680px;
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+  margin: auto 0;
+  padding: clamp(18px, 2.4vw, 28px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+.post-modal .post-draft-form,
+.post-modal .post-draft-form > label,
+.post-modal .draft-grid,
+.post-modal .draft-grid > label {
+  min-width: 0;
+  width: 100%;
+}
+.post-modal .post-draft-form input:not([type="file"]),
+.post-modal .post-draft-form textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 15px;
+}
+.post-modal .post-draft-form textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+.post-modal .draft-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.post-modal .draft-grid > label {
+  overflow: hidden;
+}
+.post-modal .post-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+.post-modal .post-modal-actions > button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 124px;
+  min-height: 44px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.post-modal .post-modal-actions > .primary.compact {
+  width: auto;
+  padding-inline: 20px;
+}
+@media (max-width: 900px) {
+  .dashboard-main .page-transition:has(> .modal-backdrop) > .modal-backdrop {
+    padding:
+      max(12px, var(--safe-top))
+      max(12px, var(--safe-right))
+      max(12px, var(--safe-bottom))
+      max(12px, var(--safe-left));
+  }
+  .dashboard-main .page-transition:has(> .modal-backdrop) > .modal-backdrop > .post-modal {
+    width: min(640px, 100%);
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px);
+  }
+}
+@media (max-width: 640px) {
+  .post-modal .draft-grid { grid-template-columns: minmax(0, 1fr); }
+  .post-modal .post-modal-actions { flex-direction: row; align-items: stretch; }
+  .post-modal .post-modal-actions > button {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    width: auto;
+  }
+}
