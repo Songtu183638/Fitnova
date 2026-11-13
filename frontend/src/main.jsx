@@ -449,6 +449,37 @@ function Dashboard({ user, tab, setTab, logout }) {
     }
   };
   useEffect(() => {
+    let active = true;
+    let subscription;
+    CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+      if (!active || !url) return;
+      try {
+        const incoming = new URL(url);
+        const postId = incoming.searchParams.get('post');
+        if (!postId) return;
+        setTab('feed');
+        let offset = 0;
+        let found = null;
+        while (active && offset < 3000) {
+          const query = new URLSearchParams({ limit: '15', offset: String(offset) });
+          const data = await api('/api/posts?' + query.toString());
+          const batch = Array.isArray(data.posts) ? data.posts : [];
+          found = batch.find(post => String(post.id) === String(postId)) || null;
+          if (found || batch.length < 15) break;
+          offset += batch.length;
+        }
+        if (!active) return;
+        if (found) {
+          setPosts(items => [found, ...items.filter(post => String(post.id) !== String(found.id))]);
+          setDeepLinkPostId(String(found.id));
+          setNotice(tr('Opened the shared post.'));
+        } else setError(tr('This post may have been deleted or is no longer available.'));
+      } catch (e) { if (active) setError(e.message || tr('Could not open the shared post.')); }
+    }).then(value => { subscription = value; });
+    return () => { active = false; subscription?.remove(); };
+  }, []);
+
+  useEffect(() => {
     if (deepLinkHandled.current) return;
     const requestedId = new URLSearchParams(window.location.search).get('post');
     if (!requestedId) return;
