@@ -1497,3 +1497,28 @@ body { background: var(--bg); }
     margin-top: 0;
   }
 }
+
+
+/* Post sharing controls and in-app DM recipient picker */
+.post-actions { flex-wrap: wrap; align-items: center; }
+.share-post-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; transition: color .18s ease, border-color .18s ease, background .18s ease; }
+.share-post-action:hover { color: var(--lime); border-color: rgba(183,255,58,.45); background: rgba(183,255,58,.07); }
+.share-modal-backdrop { z-index: 1300; }
+.share-modal { width: min(520px, calc(100vw - 28px)); max-height: min(82vh, 760px); overflow: auto; padding: 22px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface, #111); box-shadow: 0 24px 90px rgba(0,0,0,.55); }
+.share-modal .post-modal-head { margin-bottom: 16px; }
+.share-modal-preview { padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2, #171717); }
+.share-modal-preview p { margin: 7px 0; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.share-modal-preview small { color: var(--text-3); }
+.share-modal-actions { margin-top: 13px; }
+.share-modal-actions button { display: inline-flex; align-items: center; gap: 8px; }
+.share-contacts-title { margin: 22px 0 10px; font-size: 13px; font-weight: 750; }
+.share-contact-list { display: grid; gap: 7px; max-height: 250px; overflow: auto; }
+.share-contact { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 13px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.share-contact:hover { border-color: rgba(183,255,58,.45); background: rgba(183,255,58,.06); }
+.share-contact:disabled { opacity: .55; cursor: wait; }
+.share-contact > span:nth-child(2) { display: grid; flex: 1; gap: 3px; min-width: 0; }
+.share-contact small, .share-empty, .share-sending { color: var(--text-3); font-size: 12px; }
+.share-contact > svg { color: var(--lime); }
+.share-empty { padding: 15px 0; line-height: 1.5; }
+.share-sending { margin-top: 10px; }
+@media (max-width: 600px) { .share-modal { padding: 17px; border-radius: 18px; } .share-post-action { padding-inline: 9px; } }
