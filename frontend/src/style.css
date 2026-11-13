@@ -1640,3 +1640,10 @@ body { background: var(--bg); }
     font-size: clamp(36px, 10vw, 48px);
   }
 }
+
+/* Social share chooser */
+.share-modal-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0 22px; }
+.share-modal-actions .secondary-action { justify-content: center; min-height: 48px; white-space: normal; }
+.kakao-share-action { border-color: rgba(254,229,0,.45) !important; color: #f5df00 !important; }
+.kakao-share-mark { display: inline-grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: #fee500; color: #191919; font-size: 13px; font-weight: 900; }
+@media (max-width: 480px) { .share-modal-actions { grid-template-columns: 1fr; } }
