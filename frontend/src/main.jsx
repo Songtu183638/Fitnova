@@ -451,10 +451,10 @@ function Dashboard({ user, tab, setTab, logout }) {
   useEffect(() => {
     let active = true;
     let subscription;
-    CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
-      if (!active || !url) return;
+    const openSharedPost = async (rawUrl) => {
+      if (!active || !rawUrl) return;
       try {
-        const incoming = new URL(url);
+        const incoming = new URL(rawUrl);
         const postId = incoming.searchParams.get('post');
         if (!postId) return;
         setTab('feed');
@@ -474,8 +474,17 @@ function Dashboard({ user, tab, setTab, logout }) {
           setDeepLinkPostId(String(found.id));
           setNotice(tr('Opened the shared post.'));
         } else setError(tr('This post may have been deleted or is no longer available.'));
-      } catch (e) { if (active) setError(e.message || tr('Could not open the shared post.')); }
-    }).then(value => { subscription = value; });
+      } catch (e) {
+        if (active) setError(e.message || tr('Could not open the shared post.'));
+      }
+    };
+    // Handle both warm starts (link tapped while FITNOVA is already open)
+    // and cold starts (Android launches FITNOVA from a KakaoTalk link).
+    CapacitorApp.addListener('appUrlOpen', ({ url }) => openSharedPost(url))
+      .then(value => { subscription = value; });
+    CapacitorApp.getLaunchUrl()
+      .then(result => { if (result?.url) openSharedPost(result.url); })
+      .catch(() => {});
     return () => { active = false; subscription?.remove(); };
   }, []);
 
