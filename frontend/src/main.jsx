@@ -722,25 +722,37 @@ function Dashboard({ user, tab, setTab, logout }) {
       setError('');
     } catch (e) { if (e?.name !== 'AbortError') setError(e?.message || tr('Could not share the link.')); }
   };
-  const sharePostToKakao = (post) => {
-    const kakao = window.Kakao;
-    if (!KAKAO_JS_KEY) { setError(tr('Kakao sharing needs the FITNOVA Kakao JavaScript key to be configured.')); return; }
-    if (!kakao?.Share) { setError(tr('Kakao sharing could not be loaded. Please try again.')); return; }
+  const sharePostToKakao = async (post) => {
+    const url = sharePostLink(post);
+    const title = post.title || 'FITNOVA workout';
+    const description = `${post.content || 'Check out this workout on FITNOVA'} — @${post.author_username}`;
+    const text = `${title}\n${description}\n${url}`;
     try {
-      if (!kakao.isInitialized?.()) kakao.init(KAKAO_JS_KEY);
-      const url = sharePostLink(post);
-      kakao.Share.sendDefault({
-        objectType: 'feed',
-        content: {
-          title: post.title || 'FITNOVA workout',
-          description: `${post.content || 'Check out this workout on FITNOVA'} — @${post.author_username}`,
-          imageUrl: post.share_image_url || post.image_url || `${PUBLIC_APP_URL}/share-card.svg`,
-          link: { webUrl: url, mobileWebUrl: url }
-        },
-        buttons: [{ title: 'Open in FITNOVA', link: { webUrl: url, mobileWebUrl: url } }]
-      });
+      // Android WebView cannot reliably open the Kakao JS SDK popup. Use the
+      // installed KakaoTalk app directly; retain rich-link SDK sharing on web.
+      if (Capacitor.isNativePlatform()) {
+        await NativeShare.shareToKakao({ title, text, url });
+      } else {
+        const kakao = window.Kakao;
+        if (!KAKAO_JS_KEY) throw new Error(tr('Kakao sharing needs the FITNOVA Kakao JavaScript key to be configured.'));
+        if (!kakao?.Share) throw new Error(tr('Kakao sharing could not be loaded. Please try again.'));
+        if (!kakao.isInitialized?.()) kakao.init(KAKAO_JS_KEY);
+        kakao.Share.sendDefault({
+          objectType: 'feed',
+          content: {
+            title,
+            description,
+            imageUrl: post.share_image_url || post.image_url || `${PUBLIC_APP_URL}/share-card.svg`,
+            link: { webUrl: url, mobileWebUrl: url }
+          },
+          buttons: [{ title: 'Open in FITNOVA', link: { webUrl: url, mobileWebUrl: url } }]
+        });
+      }
       setError('');
-    } catch (e) { setError(e?.message || tr('Could not share this post on KakaoTalk.')); }
+      setSharePostTarget(null);
+    } catch (e) {
+      setError(e?.message || tr('Could not share this post on KakaoTalk.'));
+    }
   };
   const sendPostToDm = async (recipient) => {
     if (!sharePostTarget || shareSending || !recipient) return;
