@@ -1821,3 +1821,135 @@ body { background: var(--bg); }
     border-radius: 20px;
   }
 }
+
+/* Mobile DM layout: let the chat occupy the full available viewport.
+   The animated page wrapper previously prevented the conversation from
+   stretching, leaving the composer stranded around the middle of the screen. */
+@media (max-width: 900px) {
+  .app-shell.chat-active {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0 !important;
+    max-height: 100dvh;
+    overflow: hidden !important;
+  }
+  .app-shell.chat-active .dashboard-main {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    flex-direction: column !important;
+    width: 100%;
+    height: 100%;
+    min-height: 0 !important;
+    max-height: 100%;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  .app-shell.chat-active .dashboard-main > .page-transition {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    flex-direction: column !important;
+    width: 100%;
+    height: 0;
+    min-height: 0 !important;
+    max-height: 100%;
+    overflow: hidden !important;
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
+    will-change: auto !important;
+  }
+  .app-shell.chat-active .dashboard-main > .page-transition > .messages-view.chat-open {
+    position: relative !important;
+    inset: auto !important;
+    display: flex !important;
+    flex: 1 1 0 !important;
+    flex-direction: column !important;
+    width: 100%;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  .app-shell.chat-active .conversation-screen {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    flex-direction: column !important;
+    width: 100%;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 100%;
+    overflow: hidden !important;
+    border: 0;
+    border-radius: 0;
+  }
+  .app-shell.chat-active .conversation-head {
+    flex: 0 0 auto;
+    min-height: 64px;
+    padding-top: max(8px, var(--safe-top));
+  }
+  .app-shell.chat-active .conversation-messages {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: 0;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .app-shell.chat-active .message-compose {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto !important;
+    width: 100%;
+    min-height: 68px;
+    padding: 10px max(12px, var(--safe-right))
+      max(12px, var(--safe-bottom)) max(12px, var(--safe-left));
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    box-sizing: border-box;
+  }
+  .app-shell.chat-active .message-compose-field,
+  .app-shell.chat-active .message-compose-field input {
+    min-width: 0;
+    box-sizing: border-box;
+  }
+}
+
+/* Keep the seven mobile destinations from colliding: use a clean icon bar.
+   Full names remain available to screen readers and long-press tooltips. */
+@media (max-width: 900px) {
+  .mobile-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2px;
+    min-height: 66px;
+    padding: 6px max(8px, var(--safe-right))
+      calc(6px + var(--safe-bottom)) max(8px, var(--safe-left));
+  }
+  .mobile-nav button {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    padding: 5px 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .mobile-nav button > span { display: none !important; }
+  .mobile-nav button > svg { width: 22px; height: 22px; flex: 0 0 auto; }
+  .mobile-nav button.mobile-create {
+    flex: 0 0 48px;
+    width: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    margin: 0 3px;
+    border-radius: 50%;
+  }
+  .mobile-nav button.mobile-create > svg { width: 24px; height: 24px; }
+}
