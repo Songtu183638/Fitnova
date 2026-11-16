@@ -2112,3 +2112,47 @@ body { background: var(--bg); }
   .post-modal .draft-grid { grid-template-columns: minmax(0, 1fr); }
   .post-modal .post-modal-actions > button { flex-basis: 100%; }
 }
+
+/* Compact icon-only mobile tab bar: restore a normal, slim height. */
+@media (max-width: 900px) {
+  .mobile-nav {
+    height: 64px !important;
+    min-height: 64px !important;
+    max-height: 64px !important;
+    box-sizing: border-box !important;
+    align-items: center !important;
+    padding: 4px 8px !important;
+    gap: 2px !important;
+  }
+  .mobile-nav button {
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+  .mobile-nav button > span { display: none !important; }
+  .mobile-nav button > svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+  .mobile-nav button.mobile-create {
+    flex: 0 0 48px !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    margin: 0 2px !important;
+    padding: 0 !important;
+    align-self: center !important;
+    border-radius: 50% !important;
+  }
+  .mobile-nav button.mobile-create > svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
