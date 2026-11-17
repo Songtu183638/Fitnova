@@ -107,12 +107,17 @@ def _validate_community_text(*values: str) -> None:
     if blocked:
         raise HTTPException(status_code=422, detail="욕설이나 성적으로 부적절한 표현은 사용할 수 없습니다. 내용을 수정해 주세요.")
 
+TERMS_VERSION = "2026-11-17"
+PRIVACY_VERSION = "2026-11-17"
+
 class RegisterIn(BaseModel):
     name: str | None = Field(default=None, max_length=40)
     username: str = Field(min_length=3, max_length=24, pattern=r"^[a-zA-Z0-9_]+$")
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
     age_confirmed: bool = False
+    terms_accepted: bool = False
+    privacy_acknowledged: bool = False
 
 class VerifyIn(BaseModel):
     email: EmailStr
@@ -272,6 +277,11 @@ def _init_db():
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''")
         conn.execute("UPDATE users SET name=username WHERE name='' OR name IS NULL")
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS age_confirmed_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version TEXT")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_acknowledged_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_version TEXT")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
                 username TEXT PRIMARY KEY, private_account BOOLEAN NOT NULL DEFAULT FALSE,
@@ -405,6 +415,11 @@ def _init_db():
             )
         """)
         conn.execute("ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS age_confirmed_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS terms_version TEXT")
+        conn.execute("ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS privacy_acknowledged_at TIMESTAMPTZ")
+        conn.execute("ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS privacy_version TEXT")
 
 def _deletion_purge_worker():
     while True:
@@ -597,7 +612,7 @@ def _find_username(username: str):
 def _get_pending(email: str):
     if _DATABASE_URL:
         with _db() as conn:
-            row = conn.execute("SELECT name, username, password_hash, code_hash, expires_at AS expires, tries FROM pending_registrations WHERE email=%s", (email.lower(),)).fetchone()
+            row = conn.execute("SELECT name, username, password_hash, code_hash, expires_at AS expires, tries, age_confirmed_at, terms_accepted_at, terms_version, privacy_acknowledged_at, privacy_version FROM pending_registrations WHERE email=%s", (email.lower(),)).fetchone()
             return dict(row) if row else None
     return _codes.get(email.lower())
 
@@ -605,11 +620,18 @@ def _save_pending(email: str, record: dict):
     if _DATABASE_URL:
         with _db() as conn:
             conn.execute("""
-                INSERT INTO pending_registrations(email, name, username, username_key, password_hash, code_hash, expires_at, tries)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                INSERT INTO pending_registrations(email, name, username, username_key, password_hash, code_hash, expires_at, tries,
+                    age_confirmed_at, terms_accepted_at, terms_version, privacy_acknowledged_at, privacy_version)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name, username=EXCLUDED.username, username_key=EXCLUDED.username_key,
-                    password_hash=EXCLUDED.password_hash, code_hash=EXCLUDED.code_hash, expires_at=EXCLUDED.expires_at, tries=0
-            """, (email.lower(), record.get("name", record["username"]), record["username"], record["username"].lower(), record["password_hash"], record["code_hash"], record["expires"], 0))
+                    password_hash=EXCLUDED.password_hash, code_hash=EXCLUDED.code_hash, expires_at=EXCLUDED.expires_at, tries=0,
+                    age_confirmed_at=EXCLUDED.age_confirmed_at, terms_accepted_at=EXCLUDED.terms_accepted_at,
+                    terms_version=EXCLUDED.terms_version, privacy_acknowledged_at=EXCLUDED.privacy_acknowledged_at,
+                    privacy_version=EXCLUDED.privacy_version
+            """, (email.lower(), record.get("name", record["username"]), record["username"], record["username"].lower(),
+                  record["password_hash"], record["code_hash"], record["expires"], 0, record.get("age_confirmed_at"),
+                  record.get("terms_accepted_at"), record.get("terms_version"), record.get("privacy_acknowledged_at"),
+                  record.get("privacy_version")))
     else:
         _codes[email.lower()] = record
 
@@ -636,9 +658,13 @@ def _create_user(user: dict):
     if _DATABASE_URL:
         with _db() as conn:
             conn.execute("""
-                INSERT INTO users(name, username, username_key, email, password_hash, verified)
-                VALUES (%s,%s,%s,%s,%s,%s)
-            """, (user.get("name", user["username"]), user["username"], user["username"].lower(), user["email"].lower(), user["password_hash"], True))
+                INSERT INTO users(name, username, username_key, email, password_hash, verified,
+                    age_confirmed_at, terms_accepted_at, terms_version, privacy_acknowledged_at, privacy_version)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (user.get("name", user["username"]), user["username"], user["username"].lower(),
+                  user["email"].lower(), user["password_hash"], True, user.get("age_confirmed_at"),
+                  user.get("terms_accepted_at"), user.get("terms_version"), user.get("privacy_acknowledged_at"),
+                  user.get("privacy_version")))
     else:
         _users[user["username"]] = user
 
@@ -682,6 +708,8 @@ def health():
 def register(payload: RegisterIn, request: Request):
     if not payload.age_confirmed:
         raise HTTPException(status_code=422, detail="FITNOVA 가입은 만 14세 이상이며 연령 확인이 필요합니다.")
+    if not payload.terms_accepted or not payload.privacy_acknowledged:
+        raise HTTPException(status_code=422, detail="서비스 이용약관 동의와 개인정보 처리방침 확인이 필요합니다.")
     email = str(payload.email).lower()
     _rate_limit("register:" + (request.client.host if request.client else "unknown"), 5)
     display_name = payload.name.strip() if payload.name is not None else payload.username
@@ -693,7 +721,15 @@ def register(payload: RegisterIn, request: Request):
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
     code = f"{secrets.randbelow(1_000_000):06d}"
     _send_code(email, code)
-    _save_pending(email, {"name": display_name, "username": payload.username, "password_hash": _password_hash.hash(payload.password), "code_hash": _hash_code(email, code), "expires": time.time()+600, "tries": 0})
+    accepted_at = datetime.now(timezone.utc)
+    _save_pending(email, {
+        "name": display_name, "username": payload.username,
+        "password_hash": _password_hash.hash(payload.password),
+        "code_hash": _hash_code(email, code), "expires": time.time()+600, "tries": 0,
+        "age_confirmed_at": accepted_at, "terms_accepted_at": accepted_at,
+        "terms_version": TERMS_VERSION, "privacy_acknowledged_at": accepted_at,
+        "privacy_version": PRIVACY_VERSION
+    })
     return {"message": "인증 코드를 이메일로 발송했습니다. 10분 안에 인증해 주세요.", "email": email}
 
 @app.post("/api/auth/verify")
@@ -713,7 +749,15 @@ def verify(payload: VerifyIn, request: Request):
     if _find_username(username) or _find_email(email):
         _delete_pending(email)
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일입니다.")
-    user = {"name": record.get("name") or username, "username": username, "email": email, "password_hash": record["password_hash"], "verified": True}
+    user = {
+        "name": record.get("name") or username, "username": username, "email": email,
+        "password_hash": record["password_hash"], "verified": True,
+        "age_confirmed_at": record.get("age_confirmed_at"),
+        "terms_accepted_at": record.get("terms_accepted_at"),
+        "terms_version": record.get("terms_version") or TERMS_VERSION,
+        "privacy_acknowledged_at": record.get("privacy_acknowledged_at"),
+        "privacy_version": record.get("privacy_version") or PRIVACY_VERSION
+    }
     try:
         _create_user(user)
     except psycopg.errors.UniqueViolation:
