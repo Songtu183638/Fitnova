@@ -945,4 +945,22 @@ export default {
   "공유 게시물을 열었습니다.": "Opened the shared post.",
   "이 게시물은 삭제되었거나 더 이상 볼 수 없습니다.": "This post may have been deleted or is no longer available.",
   "공유 게시물을 열 수 없습니다.": "Could not open the shared post."
+,
+
+  "댓글을 수정했습니다.": "Comment updated.",
+  "댓글을 수정하지 못했습니다.": "Couldn't update the comment.",
+  "댓글 수정": "Edit comment",
+  "댓글을 고정했습니다.": "Comment pinned.",
+  "댓글 고정을 해제했습니다.": "Comment unpinned.",
+  "댓글 고정 상태를 변경하지 못했습니다.": "Couldn't change the comment pin.",
+  "고정됨": "Pinned",
+  "고정": "Pin",
+  "고정 해제": "Unpin",
+  "답글": "Reply",
+  "수정": "Edit",
+  "수정됨": "Edited",
+  "취소": "Cancel",
+  "답글 취소": "Cancel reply",
+  "@{0}님에게 답글 작성 중": "Replying to @{0}",
+  "@{0}님에게 답글 남기기": "Reply to @{0}"
 };
