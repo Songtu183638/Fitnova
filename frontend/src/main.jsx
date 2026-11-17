@@ -135,6 +135,8 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [recoveryStep, setRecoveryStep] = useState('');
@@ -188,7 +190,7 @@ function App() {
       if (mode === 'register' && step === 'form') {
         setStep('verify');
         setNotice(tr("인증 코드를 보내고 있어요..."));
-        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password, age_confirmed: ageConfirmed });
+        await request('/api/auth/register', { name: name.trim(), username: username.trim(), email: email.trim(), password, age_confirmed: ageConfirmed, terms_accepted: termsAccepted, privacy_acknowledged: privacyAcknowledged });
         setNotice(tr("인증 코드를 이메일로 발송했습니다. 10분 안에 입력해 주세요."));
       } else if (mode === 'register') {
         const data = await request('/api/auth/verify', { email, code });
@@ -293,7 +295,11 @@ function App() {
           {!recoveryStep&&mode==='login'&&step==='form'&&<label>{tr("아이디 또는 이메일")}<div className="input-wrap"><UserRound size={17}/><input required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder={tr("아이디 또는 이메일")} autoComplete="username"/></div></label>}
           {!recoveryStep&&((mode==='register'||mode==='login')&&step==='verify')&&<><label>{mode==='register'?tr("인증 이메일"):tr("보안 코드 발송 이메일")}<div className="input-wrap"><Mail size={17}/><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div></label><label>{tr("6자리 인증 코드")}<div className="input-wrap code-wrap"><ShieldCheck size={17}/><input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder={tr("이메일 인증 코드")} className="code-input"/></div></label></>}
           {!recoveryStep&&((mode==='register'&&step==='form')||(mode==='login'&&step==='form'))&&<label>{tr("비밀번호")}<div className="input-wrap"><LockKeyhole size={17}/><input required minLength={mode==='register'?10:1} maxLength="128" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='register'?tr("비밀번호 10자 이상"):tr("비밀번호")} autoComplete={mode==='register'?'new-password':'current-password'}/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label={tr("비밀번호 표시")}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>{mode==='register'&&<small className="hint">{tr("영문, 숫자 등을 조합해 10자 이상 입력해 주세요.")}</small>}</label>}
-          {!recoveryStep&&mode==='register'&&step==='form'&&<label className="age-confirmation"><input type="checkbox" required checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} /><span><strong>{tr("만 14세 이상입니다.")}</strong><small>{tr("FITNOVA의 최소 이용 연령을 확인했습니다.")}</small></span></label>}
+          {!recoveryStep&&mode==='register'&&step==='form'&&<>
+            <label className="age-confirmation"><input type="checkbox" required checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} /><span><strong>{tr("만 14세 이상입니다.")}</strong><small>{tr("FITNOVA의 최소 이용 연령을 확인했습니다.")}</small></span></label>
+            <label className="age-confirmation"><input type="checkbox" required checked={termsAccepted} onChange={e=>setTermsAccepted(e.target.checked)} /><span><strong>{tr("서비스 이용약관에 동의합니다.")}</strong><small><a href="/terms" target="_blank" rel="noreferrer">{tr("이용약관 보기")}</a></small></span></label>
+            <label className="age-confirmation"><input type="checkbox" required checked={privacyAcknowledged} onChange={e=>setPrivacyAcknowledged(e.target.checked)} /><span><strong>{tr("개인정보 처리방침을 확인했습니다.")}</strong><small><a href="/privacy" target="_blank" rel="noreferrer">{tr("개인정보 처리방침 보기")}</a></small></span></label>
+          </>}
           {error&&<div className="alert error">{error}</div>}
           {notice&&<div className="alert success"><CheckCircle2 size={16}/>{notice}</div>}
           <button className="primary" disabled={busy}>{busy?tr("처리 중..."):recoveryStep==='request'?tr("재설정 코드 받기"):recoveryStep==='verify'?tr("비밀번호 변경"):mode==='register'?(step==='verify'?tr("인증하고 시작하기"):tr("인증 코드 받기")):(step==='verify'?tr("보안 코드 확인 후 로그인"):tr("로그인하기"))}<ArrowRight size={17}/></button>
