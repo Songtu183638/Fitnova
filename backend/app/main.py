@@ -166,6 +166,10 @@ class WorkoutRecordIn(BaseModel):
 
 class CommentIn(BaseModel):
     content: str = Field(min_length=1, max_length=500)
+    parent_comment_id: int | None = Field(default=None, ge=1)
+
+class CommentEditIn(BaseModel):
+    content: str = Field(min_length=1, max_length=500)
 
 class PostEditIn(BaseModel):
     title: str = Field(min_length=1, max_length=120)
@@ -391,7 +395,11 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS parent_comment_id BIGINT")
+        conn.execute("ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE")
+        conn.execute("ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ")
         conn.execute("CREATE INDEX IF NOT EXISTS post_comments_post_created_idx ON post_comments(post_id, created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS post_comments_parent_idx ON post_comments(parent_comment_id)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS post_comment_likes (
                 comment_id BIGINT NOT NULL REFERENCES post_comments(id) ON DELETE CASCADE,
@@ -930,6 +938,9 @@ def _post_dict(row: dict, username: str, comments=None):
         item = dict(comment)
         item.setdefault("like_count", sum(1 for cid, _ in _comment_likes if str(cid) == str(item.get("id"))))
         item.setdefault("liked_by_me", (str(item.get("id")), username) in {(str(cid), name) for cid, name in _comment_likes})
+        item.setdefault("parent_comment_id", None)
+        item.setdefault("pinned", False)
+        item.setdefault("edited_at", None)
         enriched_comments.append(item)
     return {"id": row["id"], "author_username": row["author_username"], "title": row.get("title", ""),
             "content": row["content"], "media_type": row.get("media_type", "text"), "media_data": row.get("media_data", ""), "media_duration_seconds": row.get("media_duration_seconds"),
@@ -983,7 +994,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
             if not rows:
                 return {"posts": []}
             post_ids = [row["id"] for row in rows]
-            comment_rows = conn.execute("""SELECT c.id,c.post_id,c.author_username,c.content,c.created_at,
+            comment_rows = conn.execute("""SELECT c.id,c.post_id,c.author_username,c.content,c.created_at,c.parent_comment_id,c.pinned,c.edited_at,
                 (SELECT COUNT(*)::int FROM post_comment_likes cl WHERE cl.comment_id=c.id) AS like_count,
                 EXISTS (SELECT 1 FROM post_comment_likes cl WHERE cl.comment_id=c.id AND cl.username=%s) AS liked_by_me
                 FROM post_comments c WHERE c.post_id = ANY(%s) ORDER BY c.created_at ASC""", (user["username"], post_ids)).fetchall()
@@ -992,6 +1003,7 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                 comments_by_post.setdefault(comment["post_id"], []).append({
                     "id": comment["id"], "author_username": comment["author_username"],
                     "content": comment["content"], "created_at": comment["created_at"],
+                    "parent_comment_id": comment["parent_comment_id"], "pinned": comment["pinned"], "edited_at": comment["edited_at"],
                     "like_count": comment["like_count"], "liked_by_me": comment["liked_by_me"]
                 })
             result = []
@@ -1331,8 +1343,14 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
         with _db() as conn:
             if not conn.execute("SELECT id FROM posts WHERE id=%s", (post_id,)).fetchone():
                 raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-            row = conn.execute("""INSERT INTO post_comments(post_id,author_username,content)
-                VALUES (%s,%s,%s) RETURNING id,author_username,content,created_at""", (post_id,user["username"],content)).fetchone()
+            if payload.parent_comment_id is not None and not conn.execute(
+                "SELECT id FROM post_comments WHERE id=%s AND post_id=%s AND parent_comment_id IS NULL",
+                (payload.parent_comment_id, post_id)
+            ).fetchone():
+                raise HTTPException(status_code=404, detail="답글을 작성할 원댓글을 찾을 수 없습니다.")
+            row = conn.execute("""INSERT INTO post_comments(post_id,author_username,content,parent_comment_id)
+                VALUES (%s,%s,%s,%s) RETURNING id,author_username,content,created_at,parent_comment_id,pinned,edited_at""",
+                (post_id,user["username"],content,payload.parent_comment_id)).fetchone()
             c = dict(row); c["created_at"] = c["created_at"].isoformat()
             author = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()["author_username"]
             _notify(author, user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
@@ -1341,7 +1359,14 @@ def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_curre
     if post_id not in _posts: raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     with _lock:
         _comment_seq += 1
-        comment = {"id": _comment_seq, "author_username": user["username"], "content": content, "created_at": datetime.now(timezone.utc).isoformat()}
+        if payload.parent_comment_id is not None and not any(
+            str(item["id"]) == str(payload.parent_comment_id) and item.get("parent_comment_id") is None
+            for item in _post_comments.get(post_id, [])
+        ):
+            raise HTTPException(status_code=404, detail="답글을 작성할 원댓글을 찾을 수 없습니다.")
+        comment = {"id": _comment_seq, "author_username": user["username"], "content": content,
+                   "created_at": datetime.now(timezone.utc).isoformat(),
+                   "parent_comment_id": payload.parent_comment_id, "pinned": False, "edited_at": None}
         _post_comments.setdefault(post_id, []).append(comment)
     _notify(_posts[post_id]["author_username"], user["username"], "comment", "게시물에 댓글을 남겼습니다.", post_id)
     _send_push(_posts[post_id]["author_username"], "새 댓글", f"@{user['username']}: {content[:120]}", {"kind":"comment", "username":user["username"], "post_id":str(post_id)})
@@ -1395,6 +1420,7 @@ def delete_comment(post_id: int, comment_id: int, user: dict = Depends(_current_
             post = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
             if row["author_username"] != user["username"] and (not post or post["author_username"] != user["username"]):
                 raise HTTPException(status_code=403, detail="게시물 작성자 또는 댓글 작성자만 삭제할 수 있습니다.")
+            conn.execute("DELETE FROM post_comments WHERE post_id=%s AND parent_comment_id=%s", (post_id, comment_id))
             conn.execute("DELETE FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id))
     else:
         if post_id not in _posts:
@@ -1405,8 +1431,69 @@ def delete_comment(post_id: int, comment_id: int, user: dict = Depends(_current_
             raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
         if target["author_username"] != user["username"] and _posts[post_id]["author_username"] != user["username"]:
             raise HTTPException(status_code=403, detail="게시물 작성자 또는 댓글 작성자만 삭제할 수 있습니다.")
-        _post_comments[post_id] = [item for item in comments if str(item["id"]) != str(comment_id)]
+        _post_comments[post_id] = [item for item in comments if str(item["id"]) != str(comment_id) and str(item.get("parent_comment_id") or "") != str(comment_id)]
     return {"deleted": True}
+
+
+@app.patch("/api/posts/{post_id}/comments/{comment_id}")
+def edit_comment(post_id: int, comment_id: int, payload: CommentEditIn, user: dict = Depends(_current_user)):
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(status_code=422, detail="댓글 내용을 입력해 주세요.")
+    _validate_community_text(content)
+    edited_at = datetime.now(timezone.utc)
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("SELECT author_username FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+            if row["author_username"] != user["username"]:
+                raise HTTPException(status_code=403, detail="댓글 작성자만 수정할 수 있습니다.")
+            conn.execute("UPDATE post_comments SET content=%s,edited_at=NOW() WHERE id=%s AND post_id=%s", (content, comment_id, post_id))
+            return {"content": content, "edited_at": edited_at.isoformat()}
+    if post_id not in _posts:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    target = next((item for item in _post_comments.get(post_id, []) if str(item["id"]) == str(comment_id)), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+    if target["author_username"] != user["username"]:
+        raise HTTPException(status_code=403, detail="댓글 작성자만 수정할 수 있습니다.")
+    target["content"] = content
+    target["edited_at"] = edited_at.isoformat()
+    return {"content": content, "edited_at": edited_at.isoformat()}
+
+
+@app.post("/api/posts/{post_id}/comments/{comment_id}/pin")
+def toggle_comment_pin(post_id: int, comment_id: int, user: dict = Depends(_current_user)):
+    if _DATABASE_URL:
+        with _db() as conn:
+            post = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not post:
+                raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            if post["author_username"] != user["username"]:
+                raise HTTPException(status_code=403, detail="게시물 작성자만 댓글을 고정할 수 있습니다.")
+            row = conn.execute("SELECT pinned FROM post_comments WHERE id=%s AND post_id=%s", (comment_id, post_id)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+            pinned = not bool(row["pinned"])
+            if pinned:
+                count = conn.execute("SELECT COUNT(*)::int AS count FROM post_comments WHERE post_id=%s AND pinned=TRUE", (post_id,)).fetchone()["count"]
+                if count >= 3:
+                    raise HTTPException(status_code=409, detail="댓글은 최대 3개까지 고정할 수 있습니다.")
+            conn.execute("UPDATE post_comments SET pinned=%s WHERE id=%s AND post_id=%s", (pinned, comment_id, post_id))
+            return {"pinned": pinned}
+    if post_id not in _posts:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    if _posts[post_id]["author_username"] != user["username"]:
+        raise HTTPException(status_code=403, detail="게시물 작성자만 댓글을 고정할 수 있습니다.")
+    target = next((item for item in _post_comments.get(post_id, []) if str(item["id"]) == str(comment_id)), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+    pinned = not bool(target.get("pinned"))
+    if pinned and sum(1 for item in _post_comments.get(post_id, []) if item.get("pinned")) >= 3:
+        raise HTTPException(status_code=409, detail="댓글은 최대 3개까지 고정할 수 있습니다.")
+    target["pinned"] = pinned
+    return {"pinned": pinned}
 
 
 @app.delete("/api/posts/{post_id}")
@@ -1980,7 +2067,7 @@ def get_user_posts(username: str,user: dict = Depends(_current_user)):
                 WHERE p.author_username=%s GROUP BY p.id ORDER BY p.created_at DESC LIMIT 100""",(user["username"],target["username"])).fetchall()
             result=[]
             for row in rows:
-                comments=conn.execute("""SELECT c.id,c.author_username,c.content,c.created_at,(SELECT COUNT(*)::int FROM post_comment_likes cl WHERE cl.comment_id=c.id) AS like_count,EXISTS (SELECT 1 FROM post_comment_likes cl WHERE cl.comment_id=c.id AND cl.username=%s) AS liked_by_me FROM post_comments c WHERE c.post_id=%s ORDER BY c.created_at ASC""",(user["username"],row["id"])).fetchall()
+                comments=conn.execute("""SELECT c.id,c.author_username,c.content,c.created_at,c.parent_comment_id,c.pinned,c.edited_at,(SELECT COUNT(*)::int FROM post_comment_likes cl WHERE cl.comment_id=c.id) AS like_count,EXISTS (SELECT 1 FROM post_comment_likes cl WHERE cl.comment_id=c.id AND cl.username=%s) AS liked_by_me FROM post_comments c WHERE c.post_id=%s ORDER BY c.pinned DESC,c.created_at ASC""",(user["username"],row["id"])).fetchall()
                 post_data = _post_dict(dict(row),user["username"],[dict(c) for c in comments])
                 post_data.pop("media_data", None)
                 result.append(post_data)
@@ -2026,7 +2113,7 @@ def list_saved_posts(user: dict = Depends(_current_user)):
                 (user["username"],user["username"],user["username"],user["username"],user["username"],user["username"],user["username"])).fetchall()
             result=[]
             for row in rows:
-                comments=conn.execute("""SELECT c.id,c.author_username,c.content,c.created_at,(SELECT COUNT(*)::int FROM post_comment_likes cl WHERE cl.comment_id=c.id) AS like_count,EXISTS (SELECT 1 FROM post_comment_likes cl WHERE cl.comment_id=c.id AND cl.username=%s) AS liked_by_me FROM post_comments c WHERE c.post_id=%s ORDER BY c.created_at ASC""",(user["username"],row["id"])).fetchall()
+                comments=conn.execute("""SELECT c.id,c.author_username,c.content,c.created_at,c.parent_comment_id,c.pinned,c.edited_at,(SELECT COUNT(*)::int FROM post_comment_likes cl WHERE cl.comment_id=c.id) AS like_count,EXISTS (SELECT 1 FROM post_comment_likes cl WHERE cl.comment_id=c.id AND cl.username=%s) AS liked_by_me FROM post_comments c WHERE c.post_id=%s ORDER BY c.pinned DESC,c.created_at ASC""",(user["username"],row["id"])).fetchall()
                 post_data = _post_dict(dict(row),user["username"],[dict(c) for c in comments])
                 post_data.pop("media_data", None)
                 result.append(post_data)
@@ -2148,7 +2235,7 @@ def search_social(q: str = Query(default="", max_length=80), user: dict = Depend
                 (user["username"], pattern, pattern, pattern, user["username"], user["username"],
                  user["username"], user["username"], user["username"])).fetchall()
             for row in rows:
-                comments = conn.execute("""SELECT c.id,c.author_username,c.content,c.created_at,(SELECT COUNT(*)::int FROM post_comment_likes cl WHERE cl.comment_id=c.id) AS like_count,EXISTS (SELECT 1 FROM post_comment_likes cl WHERE cl.comment_id=c.id AND cl.username=%s) AS liked_by_me FROM post_comments c WHERE c.post_id=%s ORDER BY c.created_at ASC LIMIT 20""", (user["username"], row["id"])).fetchall()
+                comments = conn.execute("""SELECT c.id,c.author_username,c.content,c.created_at,c.parent_comment_id,c.pinned,c.edited_at,(SELECT COUNT(*)::int FROM post_comment_likes cl WHERE cl.comment_id=c.id) AS like_count,EXISTS (SELECT 1 FROM post_comment_likes cl WHERE cl.comment_id=c.id AND cl.username=%s) AS liked_by_me FROM post_comments c WHERE c.post_id=%s ORDER BY c.pinned DESC,c.created_at ASC LIMIT 20""", (user["username"], row["id"])).fetchall()
                 item = _post_dict(dict(row), user["username"], [dict(c) for c in comments])
                 item.pop("media_data", None)
                 posts.append(item)
