@@ -1148,7 +1148,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   };
   const deleteComment = async (postId, commentId) => {
     if (!window.confirm(tr("이 댓글을 삭제할까요?"))) return;
-    const remove = items => items.map(post => post.id === postId ? {...post, comments:(post.comments||[]).filter(comment => String(comment.id) !== String(commentId))} : post);
+    const remove = items => items.map(post => post.id === postId ? {...post, comments:(post.comments||[]).filter(comment => String(comment.id) !== String(commentId) && String(comment.parent_comment_id || '') !== String(commentId))} : post);
     const snapshots = {posts, ownPosts, savedPosts};
     setPosts(remove); setOwnPosts(remove); setSavedPosts(remove);
     setError(''); setNotice('');
