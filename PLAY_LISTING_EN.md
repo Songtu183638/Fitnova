@@ -17,6 +17,6 @@ FITNOVA is a workout log with a friendly community. Record your sessions, see yo
 FITNOVA is for ages 14 and up. Workout information is for general logging only and is not medical advice.
 
 **Category:** Health & Fitness · **Contact email:** fitnova@naver.com
-**Privacy policy URL:** https://<your-domain>/privacy · **Account deletion URL:** https://<your-domain>/delete-account
+**Privacy policy URL:** https://fitnova-songtu183638.vercel.app/privacy · **Account deletion URL:** https://fitnova-songtu183638.vercel.app/delete-account
 
 **Data safety / content rating:** answer from the real behavior (user-generated content, direct messages, photos/videos, account deletion, push tokens, activity recognition). Have counsel confirm the privacy policy first.
