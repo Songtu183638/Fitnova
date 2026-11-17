@@ -8,7 +8,7 @@ import smtplib
 import jwt
 import psycopg
 from psycopg.rows import dict_row
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, File, Form, UploadFile, Response
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, File, Form, UploadFile, Response, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from pwdlib import PasswordHash
@@ -1689,7 +1689,7 @@ def get_conversation(username: str, user: dict = Depends(_current_user)):
     return {"username": target["username"], "messages": messages}
 
 @app.post("/api/messages/{username}", status_code=201)
-def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(_current_user)):
+def send_direct_message(username: str, payload: MessageIn, background_tasks: BackgroundTasks, user: dict = Depends(_current_user)):
     global _message_seq
     target = _find_username(username)
     if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
@@ -1718,16 +1718,18 @@ def send_direct_message(username: str, payload: MessageIn, user: dict = Depends(
             row = conn.execute("""INSERT INTO direct_messages(sender_username,recipient_username,content)
                 VALUES (%s,%s,%s) RETURNING id,sender_username,recipient_username,content,created_at,read_at""",
                 (user["username"],target["username"],content)).fetchone()
-        _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-        _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
+        # Persist and return the DM immediately. Notification DB writes and FCM
+        # network calls run after the response so push latency cannot delay chat.
+        background_tasks.add_task(_notify, target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
+        background_tasks.add_task(_send_push, target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
         return {"message": _message_dict(dict(row))}
     with _lock:
         _message_seq += 1
         message = {"id": _message_seq, "sender_username": user["username"], "recipient_username": target["username"],
                    "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "read_at": None}
         _messages.append(message)
-    _notify(target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-    _send_push(target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
+    background_tasks.add_task(_notify, target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
+    background_tasks.add_task(_send_push, target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
     return {"message": _message_dict(message)}
 
 
