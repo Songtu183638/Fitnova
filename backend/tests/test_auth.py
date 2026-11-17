@@ -36,7 +36,7 @@ def test_health():
 def test_registration_verify_login_and_me(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
-    payload = {"username": "runner_01", "email": "runner@example.com", "password": "StrongPass!123", "age_confirmed": True}
+    payload = {"username": "runner_01", "email": "runner@example.com", "password": "StrongPass!123", "age_confirmed": True, "terms_accepted": True, "privacy_acknowledged": True}
     response = client.post("/api/auth/register", json=payload)
     assert response.status_code == 202
     assert "code" not in response.json()
@@ -56,7 +56,7 @@ def test_registration_verify_login_and_me(monkeypatch):
 def test_posts_likes_comments_and_delete(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
-    body = {"username":"poster_01","email":"poster@example.com","password":"StrongPass!123","age_confirmed":True}
+    body = {"username":"poster_01","email":"poster@example.com","password":"StrongPass!123","age_confirmed":True,"terms_accepted":True,"privacy_acknowledged":True}
     client.post("/api/auth/register", json=body)
     verified = client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
     token = verified.json()["access_token"]
@@ -82,22 +82,22 @@ def test_posts_likes_comments_and_delete(monkeypatch):
 
 def test_wrong_verification_code(monkeypatch):
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': None)
-    client.post("/api/auth/register", json={"username":"runner_02","email":"runner2@example.com","password":"StrongPass!123","age_confirmed":True})
+    client.post("/api/auth/register", json={"username":"runner_02","email":"runner2@example.com","password":"StrongPass!123","age_confirmed":True,"terms_accepted":True,"privacy_acknowledged":True})
     response = client.post("/api/auth/verify", json={"email":"runner2@example.com","code":"111111"})
     assert response.status_code == 400
 
 def test_duplicate_email_rejected(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(code=code))
-    body = {"username":"runner_03","email":"runner3@example.com","password":"StrongPass!123","age_confirmed":True}
+    body = {"username":"runner_03","email":"runner3@example.com","password":"StrongPass!123","age_confirmed":True,"terms_accepted":True,"privacy_acknowledged":True}
     client.post("/api/auth/register", json=body)
     client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
-    response = client.post("/api/auth/register", json={"username":"runner_04","email":body["email"],"password":"StrongPass!123","age_confirmed":True})
+    response = client.post("/api/auth/register", json={"username":"runner_04","email":body["email"],"password":"StrongPass!123","age_confirmed":True,"terms_accepted":True,"privacy_acknowledged":True})
     assert response.status_code == 409
 
 
 def _verified_user(username, email, sent):
-    body = {"username": username, "email": email, "password": "StrongPass!123", "age_confirmed": True}
+    body = {"username": username, "email": email, "password": "StrongPass!123", "age_confirmed": True, "terms_accepted": True, "privacy_acknowledged": True}
     registered = client.post("/api/auth/register", json=body)
     assert registered.status_code == 202
     verified = client.post("/api/auth/verify", json={"email": email, "code": sent["code"]})
@@ -374,14 +374,14 @@ def test_duplicate_display_names_are_allowed_but_usernames_are_unique(monkeypatc
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
 
-    first = {"name": "민준", "username": "minjun_01", "email": "minjun01@example.com", "password": "StrongPass!123", "age_confirmed": True}
+    first = {"name": "민준", "username": "minjun_01", "email": "minjun01@example.com", "password": "StrongPass!123", "age_confirmed": True, "terms_accepted": True, "privacy_acknowledged": True}
     first_response = client.post("/api/auth/register", json=first)
     assert first_response.status_code == 202
     first_verified = client.post("/api/auth/verify", json={"email": first["email"], "code": sent["code"]})
     assert first_verified.status_code == 200
     assert first_verified.json()["user"]["name"] == "민준"
 
-    second = {"name": "민준", "username": "minjun_02", "email": "minjun02@example.com", "password": "StrongPass!123", "age_confirmed": True}
+    second = {"name": "민준", "username": "minjun_02", "email": "minjun02@example.com", "password": "StrongPass!123", "age_confirmed": True, "terms_accepted": True, "privacy_acknowledged": True}
     second_response = client.post("/api/auth/register", json=second)
     assert second_response.status_code == 202
     second_verified = client.post("/api/auth/verify", json={"email": second["email"], "code": sent["code"]})
@@ -390,7 +390,7 @@ def test_duplicate_display_names_are_allowed_but_usernames_are_unique(monkeypatc
 
     duplicate_username = client.post("/api/auth/register", json={
         "name": "다른 이름", "username": "minjun_01", "email": "minjun03@example.com",
-        "password": "StrongPass!123", "age_confirmed": True
+        "password": "StrongPass!123", "age_confirmed": True, "terms_accepted": True, "privacy_acknowledged": True
     })
     assert duplicate_username.status_code == 409
 
@@ -399,7 +399,7 @@ def test_duplicate_display_names_are_allowed_but_usernames_are_unique(monkeypatc
 def test_binary_video_upload_and_raw_media_delivery(monkeypatch):
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
-    body = {"username":"video_user","email":"video@example.com","password":"StrongPass!123","age_confirmed":True}
+    body = {"username":"video_user","email":"video@example.com","password":"StrongPass!123","age_confirmed":True,"terms_accepted":True,"privacy_acknowledged":True}
     registered = client.post("/api/auth/register", json=body)
     assert registered.status_code == 202
     verified = client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
@@ -437,7 +437,7 @@ def test_account_safety_lists_can_unblock_and_unmute(monkeypatch):
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
 
     def create_verified_user(username, email):
-        payload = {"username": username, "email": email, "password": "StrongPass!123", "age_confirmed": True}
+        payload = {"username": username, "email": email, "password": "StrongPass!123", "age_confirmed": True, "terms_accepted": True, "privacy_acknowledged": True}
         response = client.post("/api/auth/register", json=payload)
         assert response.status_code == 202
         verified = client.post("/api/auth/verify", json={"email": email, "code": sent["code"]})
@@ -469,7 +469,9 @@ def test_registration_requires_minimum_age_confirmation(monkeypatch):
     assert "14세 이상" in missing.json()["detail"]
     under_confirmed = client.post("/api/auth/register", json={**base, "age_confirmed": False})
     assert under_confirmed.status_code == 422
-    accepted = client.post("/api/auth/register", json={**base, "age_confirmed": True})
+    missing_legal = client.post("/api/auth/register", json={**base, "age_confirmed": True})
+    assert missing_legal.status_code == 422
+    accepted = client.post("/api/auth/register", json={**base, "age_confirmed": True, "terms_accepted": True, "privacy_acknowledged": True})
     assert accepted.status_code == 202
 
 
