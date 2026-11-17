@@ -1840,32 +1840,66 @@ def _purge_expired_accounts():
     cutoff=datetime.now(timezone.utc)-timedelta(days=30)
     if _DATABASE_URL:
         with _db() as conn:
-            expired=conn.execute("SELECT username FROM users WHERE deletion_requested_at IS NOT NULL AND deletion_requested_at<=%s",(cutoff,)).fetchall()
+            expired=conn.execute("SELECT username,email FROM users WHERE deletion_requested_at IS NOT NULL AND deletion_requested_at<=%s",(cutoff,)).fetchall()
             for row in expired:
                 name=row["username"]
+                email=row["email"]
+                # Remove authored content first; post foreign keys cascade to
+                # associated likes, saved-post rows, comments and comment likes.
                 conn.execute("DELETE FROM posts WHERE author_username=%s",(name,))
-                conn.execute("DELETE FROM user_follows WHERE follower_username=%s OR followed_username=%s",(name,name))
-                conn.execute("DELETE FROM direct_messages WHERE sender_username=%s OR recipient_username=%s",(name,name))
-                conn.execute("DELETE FROM push_devices WHERE username=%s", (name,))
                 conn.execute("DELETE FROM post_comments WHERE author_username=%s",(name,))
+                conn.execute("DELETE FROM post_comment_likes WHERE username=%s",(name,))
                 conn.execute("DELETE FROM post_likes WHERE username=%s",(name,))
                 conn.execute("DELETE FROM saved_posts WHERE username=%s",(name,))
+                conn.execute("DELETE FROM workout_analysis_sessions WHERE username=%s",(name,))
+                conn.execute("DELETE FROM user_follows WHERE follower_username=%s OR followed_username=%s",(name,name))
+                conn.execute("DELETE FROM user_blocks WHERE blocker_username=%s OR blocked_username=%s",(name,name))
+                conn.execute("DELETE FROM user_mutes WHERE muter_username=%s OR muted_username=%s",(name,name))
+                conn.execute("DELETE FROM direct_messages WHERE sender_username=%s OR recipient_username=%s",(name,name))
+                conn.execute("DELETE FROM notifications WHERE recipient_username=%s OR actor_username=%s",(name,name))
+                conn.execute("DELETE FROM content_reports WHERE reporter_username=%s OR (target_type='user' AND target_id=%s)",(name,name))
+                conn.execute("DELETE FROM account_report_alerts WHERE target_username=%s",(name,))
+                conn.execute("DELETE FROM push_devices WHERE username=%s",(name,))
                 conn.execute("DELETE FROM user_settings WHERE username=%s",(name,))
                 conn.execute("DELETE FROM account_security_codes WHERE username=%s",(name,))
+                conn.execute("DELETE FROM pending_registrations WHERE email=%s",(email.lower(),))
+                conn.execute("DELETE FROM login_challenges WHERE email=%s",(email.lower(),))
+                conn.execute("DELETE FROM password_reset_challenges WHERE email=%s",(email.lower(),))
                 conn.execute("DELETE FROM users WHERE username_key=%s",(name.lower(),))
     else:
         for name, account in list(_users.items()):
             requested=account.get("deletion_requested_at")
-            if requested and datetime.fromisoformat(requested)<=cutoff:
-                _users.pop(name,None); _user_settings.pop(name,None)
+            requested_at=datetime.fromisoformat(requested) if isinstance(requested,str) else requested
+            if requested_at and requested_at<=cutoff:
+                email=(account.get("email") or "").lower()
+                _users.pop(name,None)
+                _user_settings.pop(name,None)
+                _workout_records.pop(name,None)
                 _follows.difference_update([x for x in _follows if name in x])
+                _blocks.difference_update([x for x in _blocks if name in x])
+                _mutes.difference_update([x for x in _mutes if name in x])
                 _saved_posts.difference_update([x for x in _saved_posts if x[0]==name])
                 _messages[:]=[m for m in _messages if name not in (m["sender_username"],m["recipient_username"])]
+                _notifications[:]=[n for n in _notifications if name not in (n.get("recipient_username"),n.get("actor_username"))]
+                _reports[:]=[r for r in _reports if r.get("reporter_username")!=name and not (r.get("target_type")=="user" and r.get("target_id")==name)]
+                _report_alerted_users.discard(name)
+                for key in list(_account_codes):
+                    if isinstance(key,tuple) and key[0]==name: _account_codes.pop(key,None)
+                _login_codes.pop(email,None)
+                _password_reset_codes.pop(email,None)
+                _codes.pop(email,None)
                 for token, owner in list(_push_devices.items()):
-                    if owner == name: _push_devices.pop(token, None)
-                for pid,p in list(_posts.items()):
-                    if p["author_username"]==name: _posts.pop(pid,None); _post_comments.pop(pid,None)
+                    if owner == name:
+                        _push_devices.pop(token, None)
+                        _push_locales.pop(token, None)
+                for pid, post in list(_posts.items()):
+                    if post["author_username"]==name:
+                        _posts.pop(pid,None)
+                        _post_comments.pop(pid,None)
+                    else:
+                        _post_comments[pid]=[comment for comment in _post_comments.get(pid,[]) if comment.get("author_username")!=name]
                 _post_likes.difference_update([x for x in _post_likes if x[1]==name])
+                _comment_likes.difference_update([x for x in _comment_likes if name in x])
 
 @app.get("/api/account/settings")
 def get_account_settings(user: dict = Depends(_current_user)):
