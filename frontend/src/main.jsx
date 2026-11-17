@@ -361,6 +361,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   const [messageThreads, setMessageThreads] = useState(() => { try { const raw = localStorage.getItem('fitnova_message_threads:' + (user?.username || '')); const parsed = raw ? JSON.parse(raw) : []; return Array.isArray(parsed) ? parsed : []; } catch { return []; } });
   const [activeChat, setActiveChat] = useState('');
   const activeChatRef = useRef('');
+  const conversationFetchRef = useRef(new Set());
   const [chatMessages, setChatMessages] = useState([]);
   const chatMessagesRef = useRef(null);
   const [messageDraft, setMessageDraft] = useState('');
@@ -703,7 +704,47 @@ function Dashboard({ user, tab, setTab, logout }) {
       if (tab==='settings') await loadSafetyLists();
     } catch(err) { setError(err.message||tr("계정 설정을 변경하지 못했습니다.")); }
   };
-  const loadConversation = async (username) => { activeChatRef.current = username; setActiveChat(username); try { const data = await api('/api/messages/' + encodeURIComponent(username)); if (username === activeChatRef.current) setChatMessages(data.messages || []); } catch (e) { if (username === activeChatRef.current) setError(e.message || tr("대화 내용을 불러오지 못했습니다.")); } };
+  const loadConversation = async (username) => {
+    activeChatRef.current = username;
+    setActiveChat(username);
+    if (conversationFetchRef.current.has(username)) return;
+    conversationFetchRef.current.add(username);
+    const requestStartedAt = Date.now();
+    try {
+      const data = await api('/api/messages/' + encodeURIComponent(username));
+      if (username !== activeChatRef.current) return;
+      const serverMessages = Array.isArray(data.messages) ? data.messages : [];
+      setChatMessages(current => {
+        const merged = new Map(serverMessages.map(message => [String(message.id), message]));
+        for (const local of current) {
+          if (merged.has(String(local.id))) continue;
+          const localTime = Date.parse(local.created_at || '');
+          const duplicate = serverMessages.some(remote => {
+            if (remote.sender_username !== local.sender_username ||
+                remote.recipient_username !== local.recipient_username ||
+                remote.content !== local.content) return false;
+            const remoteTime = Date.parse(remote.created_at || '');
+            return !Number.isFinite(localTime) || !Number.isFinite(remoteTime) ||
+              Math.abs(remoteTime - localTime) < 60000;
+          });
+          if (duplicate) continue;
+          // A poll may have started just before the POST committed. Keep a
+          // pending bubble or a very recent outgoing bubble until a later poll
+          // confirms it, instead of briefly removing it from the chat.
+          const sentWhileFetchWasInFlight = local.sender_username === user?.username &&
+            Number.isFinite(localTime) && localTime >= requestStartedAt - 10000;
+          if (local.pending || sentWhileFetchWasInFlight) merged.set(String(local.id), local);
+        }
+        return Array.from(merged.values()).sort((left, right) =>
+          (Date.parse(left.created_at || '') || 0) - (Date.parse(right.created_at || '') || 0)
+        );
+      });
+    } catch (e) {
+      if (username === activeChatRef.current) setError(e.message || tr("대화 내용을 불러오지 못했습니다."));
+    } finally {
+      conversationFetchRef.current.delete(username);
+    }
+  };
   const toggleFollow = async () => {
     if (!profileData || profileData.is_me) return;
     const target = profileData.username;
@@ -970,8 +1011,12 @@ function Dashboard({ user, tab, setTab, logout }) {
     let timer;
     const refreshMessages = async () => {
       if (!document.hidden) {
-        const refreshes = [loadThreads()];
-        if (activeChat) refreshes.push(loadConversation(activeChat));
+        const refreshes = [];
+        // Do not let the 1.5-second polling refresh race with an in-flight send.
+        if (!messageBusy) {
+          refreshes.push(loadThreads());
+          if (activeChat) refreshes.push(loadConversation(activeChat));
+        }
         await Promise.allSettled(refreshes);
       }
       if (!cancelled) timer = window.setTimeout(refreshMessages, 1500);
@@ -981,7 +1026,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [tab, activeChat]);
+  }, [tab, activeChat, messageBusy]);
   useEffect(() => { const panel=chatMessagesRef.current; if(panel) panel.scrollTop=panel.scrollHeight; }, [chatMessages, activeChat]);
   const resetPostForm = () => { postMediaFiles.forEach(item=>{if(item.previewUrl)URL.revokeObjectURL(item.previewUrl);}); if(postMedia?.previewUrl&&!postMediaFiles.some(item=>item.previewUrl===postMedia.previewUrl)) URL.revokeObjectURL(postMedia.previewUrl); setPostTitle(''); setPostContent(''); setPostHashtags(''); setPostWeight(''); setPostSets(''); setPostExercise(''); setPostReps(''); setPostDuration(''); setPostNotes(''); setPostMedia(null); setPostMediaFiles([]); setPostMediaName(''); setUploadProgress(0); };
   const chooseMedia = async (file, selectedFiles = null) => {
