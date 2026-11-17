@@ -1892,14 +1892,16 @@ def _purge_expired_accounts():
                     if owner == name:
                         _push_devices.pop(token, None)
                         _push_locales.pop(token, None)
-                for pid, post in list(_posts.items()):
-                    if post["author_username"]==name:
-                        _posts.pop(pid,None)
-                        _post_comments.pop(pid,None)
-                    else:
-                        _post_comments[pid]=[comment for comment in _post_comments.get(pid,[]) if comment.get("author_username")!=name]
-                _post_likes.difference_update([x for x in _post_likes if x[1]==name])
-                _comment_likes.difference_update([x for x in _comment_likes if name in x])
+                owned_post_ids={pid for pid,post in _posts.items() if post["author_username"]==name}
+                owned_comment_ids={comment.get("id") for comments in _post_comments.values() for comment in comments if comment.get("author_username")==name}
+                for pid in list(owned_post_ids):
+                    _posts.pop(pid,None)
+                    _post_comments.pop(pid,None)
+                for pid in list(_post_comments):
+                    _post_comments[pid]=[comment for comment in _post_comments.get(pid,[]) if comment.get("author_username")!=name]
+                _post_likes.difference_update([x for x in _post_likes if x[1]==name or x[0] in owned_post_ids])
+                _saved_posts.difference_update([x for x in _saved_posts if x[0]==name or x[1] in owned_post_ids])
+                _comment_likes.difference_update([x for x in _comment_likes if name in x or x[0] in owned_comment_ids])
 
 @app.get("/api/account/settings")
 def get_account_settings(user: dict = Depends(_current_user)):
