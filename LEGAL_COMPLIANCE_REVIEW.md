@@ -71,6 +71,7 @@ The repository policy page is deliberately marked as a draft. Do not remove that
 - Google Play account deletion requirement: https://support.google.com/googleplay/android-developer/answer/18265346
 - Google Play UGC policy: https://support.google.com/googleplay/android-developer/answer/9876937
 - FTC COPPA guidance: https://www.ftc.gov/business-guidance/resources/complying-coppa-frequently-asked-questions
+- U.S. Copyright Office DMCA Designated Agent Directory: https://copyright.gov/dmca-directory/
 - California CCPA overview (applicability depends on statutory scope/thresholds): https://oag.ca.gov/privacy/ccpa
 
 ## Current status
