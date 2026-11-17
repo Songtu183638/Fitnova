@@ -725,7 +725,9 @@ function Dashboard({ user, tab, setTab, logout }) {
         for (const local of current) {
           if (merged.has(String(local.id))) continue;
           const localTime = Date.parse(local.created_at || '');
-          const duplicate = serverMessages.some(remote => {
+          // Only match by content while the local bubble is still optimistic.
+          // Two real messages may legitimately contain identical text.
+          const duplicate = !!local.pending && serverMessages.some(remote => {
             if (remote.sender_username !== local.sender_username ||
                 remote.recipient_username !== local.recipient_username ||
                 remote.content !== local.content) return false;
