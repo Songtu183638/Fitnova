@@ -2229,3 +2229,30 @@ button:not(:disabled):active:not(.gallery-arrow) { transform:scale(.975); }
   .dashboard-main > .page-transition,.comment-thread { animation:none !important; }
   button:not(:disabled):active:not(.gallery-arrow) { transform:none; }
 }
+
+/* Show every post photo/video at its real aspect ratio.
+   The older home-feed rules forced a cropped 4:3 thumbnail; override them here. */
+.post-media,
+.home-feed-layout .post-media {
+  overflow: hidden;
+  background: #050706;
+  touch-action: pan-y pinch-zoom;
+}
+.post-media img,
+.post-media video,
+.home-feed-layout .post-media img,
+.home-feed-layout .post-media video,
+.post-media .post-gallery-image {
+  display: block;
+  width: 100%;
+  height: auto !important;
+  max-width: 100%;
+  max-height: min(78vh, 900px) !important;
+  aspect-ratio: auto !important;
+  object-fit: contain !important;
+  background: #050706;
+}
+.post-media .post-gallery-image {
+  user-select: none;
+  -webkit-user-drag: none;
+}
