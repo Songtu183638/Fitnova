@@ -645,3 +645,46 @@ def test_explicit_logout_revokes_server_session(monkeypatch):
     assert logged_out.status_code == 200
     assert logged_out.json()["logged_out"] is True
     assert client.get("/api/auth/me", headers=headers).status_code == 401
+
+
+def test_private_post_and_media_are_not_visible_to_non_followers(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    owner_token = _verified_user("private_owner", "privateowner@example.com", sent)
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    viewer_token = _verified_user("private_viewer", "privateviewer@example.com", sent)
+    viewer_headers = {"Authorization": f"Bearer {viewer_token}"}
+    settings = client.patch("/api/account/settings", headers=owner_headers, json={"private_account": True})
+    assert settings.status_code == 200
+    created = client.post("/api/posts", headers=owner_headers, json={
+        "title":"Private workout", "content":"Only followers should see this",
+        "media_type":"image",
+        "media_data":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==",
+        "hashtags":[]
+    })
+    assert created.status_code == 201
+    post_id = created.json()["post"]["id"]
+    assert all(p["id"] != post_id for p in client.get("/api/posts", headers=viewer_headers).json()["posts"])
+    assert client.get(f"/api/users/private_owner/posts", headers=viewer_headers).status_code == 404
+    assert client.get(f"/api/posts/{post_id}/media", headers=viewer_headers).status_code == 404
+    assert client.get(f"/api/posts/{post_id}/media/file", headers=viewer_headers).status_code == 404
+    assert client.post(f"/api/users/private_owner/follow", headers=viewer_headers).status_code == 200
+    assert any(p["id"] == post_id for p in client.get("/api/posts", headers=viewer_headers).json()["posts"])
+    assert client.get(f"/api/posts/{post_id}/media", headers=viewer_headers).status_code == 200
+
+
+def test_direct_messages_are_isolated_between_accounts(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    a_token = _verified_user("dm_owner_a", "dmownera@example.com", sent)
+    a_headers = {"Authorization": f"Bearer {a_token}"}
+    b_token = _verified_user("dm_owner_b", "dmownerb@example.com", sent)
+    b_headers = {"Authorization": f"Bearer {b_token}"}
+    c_token = _verified_user("dm_unrelated_c", "dmunrelatedc@example.com", sent)
+    c_headers = {"Authorization": f"Bearer {c_token}"}
+    secret = "DM PRIVATE DATA 918273"
+    sent_message = client.post("/api/messages/dm_owner_b", headers=a_headers, json={"content":secret})
+    assert sent_message.status_code == 201
+    assert secret in [m["content"] for m in client.get("/api/messages/dm_owner_a", headers=b_headers).json()["messages"]]
+    assert secret not in [m["content"] for m in client.get("/api/messages/dm_owner_a", headers=c_headers).json()["messages"]]
+    assert all(t["username"] != "dm_owner_a" for t in client.get("/api/messages", headers=c_headers).json()["threads"])
