@@ -1087,7 +1087,7 @@ def _detect_safe_media_mime(contents: bytes, media_type: str) -> str:
     if media_type == "image":
         if contents.startswith(b"\xff\xd8\xff"):
             return "image/jpeg"
-        if contents.startswith(b"\x89PNG\\r\\n\x1a\\n"):
+        if contents.startswith(b"\x89PNG\r\n\x1a\n"):
             return "image/png"
         if contents.startswith((b"GIF87a", b"GIF89a")):
             return "image/gif"
