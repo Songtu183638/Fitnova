@@ -1158,7 +1158,7 @@ def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> lis
 @app.post("/api/posts", status_code=201)
 def create_post(payload: PostIn, user: dict = Depends(_current_user)):
     global _post_seq
-    _rate_limit("post-create:" + user["username"].lower(), 10, 3600)
+    _rate_limit("post-create:" + user["username"].lower(), 30, 3600)
     content = payload.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="게시물 내용을 입력해 주세요.")
