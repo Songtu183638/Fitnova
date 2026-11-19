@@ -1896,7 +1896,7 @@ def send_direct_message(username: str, payload: MessageIn, background_tasks: Bac
         # Persist and return the DM immediately. Notification DB writes and FCM
         # network calls run after the response so push latency cannot delay chat.
         background_tasks.add_task(_notify, target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-        background_tasks.add_task(_send_push, target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
+        background_tasks.add_task(_send_push, target["username"], "새 메시지", "새 메시지가 도착했습니다.", {"kind":"message", "username":user["username"]})
         return {"message": _message_dict(dict(row))}
     with _lock:
         _message_seq += 1
@@ -1904,7 +1904,7 @@ def send_direct_message(username: str, payload: MessageIn, background_tasks: Bac
                    "content": content, "created_at": datetime.now(timezone.utc).isoformat(), "read_at": None}
         _messages.append(message)
     background_tasks.add_task(_notify, target["username"], user["username"], "message", "새 메시지를 보냈습니다.")
-    background_tasks.add_task(_send_push, target["username"], "새 메시지", f"@{user['username']}: {content[:140]}", {"kind":"message", "username":user["username"]})
+    background_tasks.add_task(_send_push, target["username"], "새 메시지", "새 메시지가 도착했습니다.", {"kind":"message", "username":user["username"]})
     return {"message": _message_dict(message)}
 
 
