@@ -212,6 +212,12 @@ def test_saved_posts_account_settings_email_password_and_message_privacy(monkeyp
     })
     assert changed.status_code == 200
     assert auth._password_hash.verify("NewStrongPass!456", auth._users["settings_a"]["password_hash"])
+    assert client.get("/api/account/settings", headers=headers_a).status_code == 401
+    relogin = client.post("/api/auth/login", json={"identifier":"settings_a", "password":"NewStrongPass!456"})
+    assert relogin.status_code == 202
+    relogin_verified = client.post("/api/auth/login/verify", json={"email":"settingsa@example.com", "code":sent["code"]})
+    assert relogin_verified.status_code == 200
+    headers_a = {"Authorization": f"Bearer {relogin_verified.json()['access_token']}"}
 
     requested_email = client.post("/api/account/email/request-code", headers=headers_a, json={"email":"newsettingsa@example.com"})
     assert requested_email.status_code == 202
