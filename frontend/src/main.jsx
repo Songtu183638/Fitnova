@@ -246,9 +246,12 @@ function App() {
     const sessionToken = localStorage.getItem(TOKEN_KEY);
     if (pushToken && sessionToken) {
       try { await fetch(API + '/api/push/devices/' + encodeURIComponent(pushToken), {method:'DELETE', headers:{Authorization:'Bearer '+sessionToken}}); } catch { /* The next login can re-associate the device token. */ }
-      localStorage.removeItem('fitnova_push_token');
-      localStorage.removeItem('fitnova_push_enabled');
     }
+    if (sessionToken) {
+      try { await fetch(API + '/api/auth/logout', {method:'POST', headers:{Authorization:'Bearer '+sessionToken}}); } catch { /* Always clear the local session even if the network is unavailable. */ }
+    }
+    localStorage.removeItem('fitnova_push_token');
+    localStorage.removeItem('fitnova_push_enabled');
     localStorage.removeItem(TOKEN_KEY);
     setUser(null); setTab('feed'); setMode('login'); setStep('form');
     setPassword(''); setError(''); setNotice(tr("안전하게 로그아웃했습니다."));
