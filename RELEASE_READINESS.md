@@ -111,3 +111,18 @@ GitHub 저장소 Settings → Secrets and variables → Actions → New reposito
 - Keep `JWT_SECRET`, `VERIFICATION_CODE_SECRET`, `DATABASE_URL`, and `FIREBASE_SERVICE_ACCOUNT_JSON` only in the backend host's secret environment settings. Never commit their values.
 - After setting or changing these values, redeploy the backend and verify `/health`, sign-in, media upload, and admin report access with both operator and ordinary accounts.
 - The repository CI checks code behavior; it does not verify production secrets, database permissions, backups, or real-device notification delivery.
+
+
+## Authorization / data-isolation verification
+
+- CI includes regression tests proving a non-follower cannot read a private account's feed posts or media, and that an unrelated account cannot read another pair's DM content or thread.
+- Run the same checks against the deployed PostgreSQL-backed service before release. The CI tests use the in-memory test store and do not prove PostgreSQL row isolation by themselves.
+- Do not expose the PostgreSQL connection string, database error details, service-account JSON, JWT secret, or verification secret in logs or client responses.
+- Back up the production database before schema or role changes. Verify restore by restoring a backup into a separate database; a backup job alone is not proof of recoverability.
+
+## PostgreSQL least-privilege limitation
+
+- The current application calls `_init_db()` during startup and performs `CREATE TABLE`, `CREATE INDEX`, and `ALTER TABLE` schema operations using `DATABASE_URL`. Therefore the current runtime database role still needs schema-migration privileges.
+- Do not simply replace the current connection with a restricted DML-only role until schema creation/alteration is moved into a separate, controlled migration step. Otherwise production startup may fail.
+- Before launch, split schema migrations from application startup, run migrations with a dedicated migration role, then run the API with a separate role granted only the required SELECT/INSERT/UPDATE/DELETE privileges and sequence usage. Restrict network access to the database to the backend service and trusted admin locations.
+- Confirm the provider's automated backups, retention period, encryption-at-rest, TLS requirement, and point-in-time recovery settings in its dashboard. These provider settings cannot be verified from repository CI.
