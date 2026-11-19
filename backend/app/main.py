@@ -1085,9 +1085,9 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
 def _detect_safe_media_mime(contents: bytes, media_type: str) -> str:
     """Identify supported media from file signatures; never trust client MIME/filename."""
     if media_type == "image":
-        if contents.startswith(b"\\xff\\xd8\\xff"):
+        if contents.startswith(b"\xff\xd8\xff"):
             return "image/jpeg"
-        if contents.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        if contents.startswith(b"\x89PNG\\r\\n\x1a\\n"):
             return "image/png"
         if contents.startswith((b"GIF87a", b"GIF89a")):
             return "image/gif"
@@ -1107,7 +1107,7 @@ def _detect_safe_media_mime(contents: bytes, media_type: str) -> str:
             if brand in {b"3gp4", b"3gp5", b"3gp6", b"3g2a"}:
                 return "video/3gpp"
             return "video/mp4"
-        if contents.startswith(b"\\x1a\\x45\\xdf\\xa3"):
+        if contents.startswith(b"\x1a\x45\xdf\xa3"):
             return "video/webm"
     raise HTTPException(status_code=415, detail="지원하지 않거나 실제 파일 형식이 확인되지 않는 미디어입니다.")
 
