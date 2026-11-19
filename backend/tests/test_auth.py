@@ -633,3 +633,15 @@ def test_admin_access_is_disabled_without_server_master_email(monkeypatch):
     assert auth._is_master({"verified": True, "email": "fitnova@naver.com"}) is True
     assert auth._is_master({"verified": False, "email": "fitnova@naver.com"}) is False
     assert auth._is_master({"verified": True, "email": "attacker@example.com"}) is False
+
+
+def test_explicit_logout_revokes_server_session(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token = _verified_user("logout_guard", "logoutguard@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.get("/api/auth/me", headers=headers).status_code == 200
+    logged_out = client.post("/api/auth/logout", headers=headers)
+    assert logged_out.status_code == 200
+    assert logged_out.json()["logged_out"] is True
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
