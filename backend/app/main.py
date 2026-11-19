@@ -749,6 +749,22 @@ def _current_user(authorization: str | None = Header(default=None)) -> dict:
     except Exception:
         raise HTTPException(status_code=401, detail="세션이 만료되었거나 유효하지 않습니다.")
 
+@app.post("/api/auth/logout")
+def logout(user: dict = Depends(_current_user)):
+    """Revoke every active session for this account after explicit logout."""
+    username_key = user["username"].lower()
+    if _DATABASE_URL:
+        with _db() as conn:
+            conn.execute(
+                "UPDATE users SET token_version=token_version+1 WHERE username_key=%s",
+                (username_key,),
+            )
+    else:
+        current = _users.get(user["username"])
+        if current is not None:
+            current["token_version"] = int(current.get("token_version", 0)) + 1
+    return {"logged_out": True, "message": "모든 로그인 세션을 종료했습니다."}
+
 @app.get("/health")
 def health():
     db_status = "configured" if _DATABASE_URL else "development-memory"
