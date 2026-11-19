@@ -102,3 +102,12 @@ GitHub 저장소 Settings → Secrets and variables → Actions → New reposito
 - [ ] 신고 접수 담당자, 검토 주기, 긴급 신고, 이의제기, 보존기간을 실제 운영 절차로 정해야 합니다.
 
 세부 내용은 `LEGAL_COMPLIANCE_REVIEW.md`에 기록했습니다. 이 점검은 코드상 조치와 미완료 항목을 구분하며 법률 준수 인증이 아닙니다.
+
+
+## Security deployment variables (required before enabling admin tools)
+
+- Set `MASTER_EMAIL` in the Render backend environment to the exact, verified operator mailbox. Admin moderation endpoints return 403 when this variable is absent. Do not place this value in frontend code.
+- Keep `CORS_ORIGINS` limited to exact trusted origins. The backend no longer accepts arbitrary `fitnova-*.vercel.app` preview origins.
+- Keep `JWT_SECRET`, `VERIFICATION_CODE_SECRET`, `DATABASE_URL`, and `FIREBASE_SERVICE_ACCOUNT_JSON` only in the backend host's secret environment settings. Never commit their values.
+- After setting or changing these values, redeploy the backend and verify `/health`, sign-in, media upload, and admin report access with both operator and ordinary accounts.
+- The repository CI checks code behavior; it does not verify production secrets, database permissions, backups, or real-device notification delivery.
