@@ -569,3 +569,50 @@ def test_english_locale_support():
         else:
             raise AssertionError(bad)
     auth._validate_community_text("Great leg day, new class record!", "Scunthorpe assassin")
+
+
+def test_media_upload_rejects_mime_spoofing_and_svg(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    token = _verified_user("media_guard", "mediaguard@example.com", sent)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    spoofed = client.post(
+        "/api/posts/upload",
+        headers=headers,
+        data={"title":"spoof", "content":"test", "media_type":"image", "hashtags":"[]"},
+        files={"media":("photo.png", b"<html>not an image</html>", "image/png")},
+    )
+    assert spoofed.status_code == 415
+
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    svg_response = client.post(
+        "/api/posts/upload",
+        headers=headers,
+        data={"title":"svg", "content":"test", "media_type":"image", "hashtags":"[]"},
+        files={"media":("photo.svg", svg, "image/svg+xml")},
+    )
+    assert svg_response.status_code == 415
+
+    direct_spoof = client.post("/api/posts", headers=headers, json={
+        "title":"spoof", "content":"test", "media_type":"image",
+        "media_data":"data:image/png;base64," + __import__("base64").b64encode(b"not a png").decode(),
+        "hashtags":[]
+    })
+    assert direct_spoof.status_code == 415
+
+
+def test_dm_push_notification_does_not_expose_message_text(monkeypatch):
+    sent = {}
+    pushes = []
+    monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
+    monkeypatch.setattr(auth, "_send_push", lambda username, title, body, data=None: pushes.append((username, title, body, data or {})))
+    sender = _verified_user("privacy_sender", "privacysender@example.com", sent)
+    receiver = _verified_user("privacy_receiver", "privacyreceiver@example.com", sent)
+    headers = {"Authorization": f"Bearer {sender}"}
+    secret_message = "THIS IS A PRIVATE MESSAGE 834921"
+    response = client.post("/api/messages/privacy_receiver", headers=headers, json={"content":secret_message})
+    assert response.status_code == 201
+    assert len(pushes) == 1
+    assert secret_message not in pushes[0][2]
+    assert pushes[0][2] == "새 메시지가 도착했습니다."
