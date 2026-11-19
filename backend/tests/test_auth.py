@@ -61,7 +61,7 @@ def test_posts_likes_comments_and_delete(monkeypatch):
     verified = client.post("/api/auth/verify", json={"email":body["email"],"code":sent["code"]})
     token = verified.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    created = client.post("/api/posts", json={"title":"첫 FITNOVA 게시물","content":"오늘의 운동 기록","media_type":"image","media_data":"data:image/png;base64,aGVsbG8gd29ybGQ=","hashtags":["#운동기록"],"weight":68.5,"sets_count":4,"exercise_name":"벤치프레스","reps":"10회 × 60kg","duration_minutes":45,"workout_notes":"마지막 세트까지 완료"}, headers=headers)
+    created = client.post("/api/posts", json={"title":"첫 FITNOVA 게시물","content":"오늘의 운동 기록","media_type":"image","media_data":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==","hashtags":["#운동기록"],"weight":68.5,"sets_count":4,"exercise_name":"벤치프레스","reps":"10회 × 60kg","duration_minutes":45,"workout_notes":"마지막 세트까지 완료"}, headers=headers)
     assert created.status_code == 201
     post_id = created.json()["post"]["id"]
     listed_post = client.get("/api/posts", headers=headers).json()["posts"][0]
@@ -115,7 +115,7 @@ def test_post_owner_comment_moderation_and_verified_master_actions(monkeypatch):
     master_headers = {"Authorization": f"Bearer {master}"}
     post = client.post("/api/posts", headers=owner_headers, json={
         "title": "Owner post", "content": "Workout", "media_type": "image",
-        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+        "media_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags": []
     }).json()["post"]
     comment = client.post(f"/api/posts/{post['id']}/comments", headers=commenter_headers, json={"content": "Nice work"}).json()["comment"]
     assert client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=owner_headers).status_code == 200
@@ -141,7 +141,7 @@ def test_hashtag_search_follow_profile_and_direct_messages(monkeypatch):
 
     created = client.post("/api/posts", headers=headers_b, json={
         "title": "오늘의 하체 운동", "content": "스쿼트 기록", "media_type": "image",
-        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": ["#하체", "#스쿼트"]
+        "media_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags": ["#하체", "#스쿼트"]
     })
     assert created.status_code == 201
     searched = client.get("/api/posts?hashtag=%23%ED%95%98%EC%B2%B4", headers=headers_a)
@@ -187,7 +187,7 @@ def test_saved_posts_account_settings_email_password_and_message_privacy(monkeyp
     headers_b = {"Authorization": f"Bearer {token_b}"}
     post = client.post("/api/posts", headers=headers_a, json={
         "title":"저장 테스트", "content":"저장할 게시물", "media_type":"image",
-        "media_data":"data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags":["#저장"]
+        "media_data":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags":["#저장"]
     })
     assert post.status_code == 201
     pid = post.json()["post"]["id"]
@@ -260,7 +260,7 @@ def test_hashtag_search_matches_visible_caption_and_video_and_normalizes_case(mo
         "title": "저녁 러닝",
         "content": "오늘은 #러닝 기록! 다음에는 #하체운동, 도 할 예정.",
         "media_type": "video",
-        "media_data": "data:video/mp4;base64,aGVsbG8=",
+        "media_data": "data:video/mp4;base64,AAAAGGZ0eXBpc29tAAACAGlzb21pc28y",
         "media_duration_seconds": 60,
         "hashtags": []
     })
@@ -283,7 +283,7 @@ def test_video_post_requires_duration_and_rejects_over_one_minute(monkeypatch):
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     token = _verified_user("video_user", "videouser@example.com", sent)
     headers = {"Authorization": f"Bearer {token}"}
-    base = {"title": "운동 영상", "content": "오늘 운동", "media_type": "video", "media_data": "data:video/mp4;base64,aGVsbG8="}
+    base = {"title": "운동 영상", "content": "오늘 운동", "media_type": "video", "media_data": "data:video/mp4;base64,AAAAGGZ0eXBpc29tAAACAGlzb21pc28y"}
     missing = client.post("/api/posts", headers=headers, json=base)
     assert missing.status_code == 422
     too_long = client.post("/api/posts", headers=headers, json={**base, "media_duration_seconds": 61})
@@ -302,14 +302,14 @@ def test_in_memory_hashtag_search_paginates_after_filtering(monkeypatch):
     # Put the matching post behind a full page of newer, unrelated posts.
     matching = client.post("/api/posts", headers=headers, json={
         "title": "오래된 러닝 기록", "content": "아침 #러닝", "media_type": "image",
-        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": ["러닝"]
+        "media_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags": ["러닝"]
     })
     assert matching.status_code == 201
     matching_id = matching.json()["post"]["id"]
     for index in range(18):
         created = client.post("/api/posts", headers=headers, json={
             "title": f"일반 기록 {index}", "content": "일반 운동 기록", "media_type": "image",
-            "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+            "media_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags": []
         })
         assert created.status_code == 201
     first_page = client.get("/api/posts?hashtag=러닝&limit=15&offset=0", headers=headers)
@@ -328,7 +328,7 @@ def test_post_owner_can_delete_comments_and_other_users_cannot(monkeypatch):
     headers_c = {"Authorization": f"Bearer {token_c}"}
     post = client.post("/api/posts", headers=headers_a, json={
         "title": "운동 기록", "content": "오늘 운동 완료", "media_type": "image",
-        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+        "media_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags": []
     }).json()["post"]
     comment = client.post(f"/api/posts/{post['id']}/comments", headers=headers_b, json={"content": "좋은 기록!"}).json()["comment"]
     forbidden = client.delete(f"/api/posts/{post['id']}/comments/{comment['id']}", headers=headers_c)
@@ -346,7 +346,7 @@ def test_profanity_and_sexual_content_blocked_server_side(monkeypatch):
     token = _verified_user("safe_user", "safeuser@example.com", sent)
     headers = {"Authorization": f"Bearer {token}"}
     base = {"title": "운동 기록", "content": "오늘 운동 완료", "media_type": "image",
-            "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []}
+            "media_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags": []}
     bad_post = client.post("/api/posts", headers=headers, json={**base, "content": "씨 발 진짜"})
     assert bad_post.status_code == 422
     post = client.post("/api/posts", headers=headers, json=base)
@@ -363,7 +363,7 @@ def test_post_feed_defers_media_payload_until_media_endpoint(monkeypatch):
     headers = {"Authorization": f"Bearer {token}"}
     created = client.post("/api/posts", headers=headers, json={
         "title": "미디어 지연 로딩", "content": "게시물 본문", "media_type": "image",
-        "media_data": "data:image/png;base64,aGVsbG8gd29ybGQ=", "hashtags": []
+        "media_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==", "hashtags": []
     })
     pid = created.json()["post"]["id"]
     feed = client.get("/api/posts", headers=headers).json()["posts"][0]
@@ -415,19 +415,19 @@ def test_binary_video_upload_and_raw_media_delivery(monkeypatch):
             "media_duration_seconds":"5",
             "hashtags":"[\"운동\"]",
         },
-        files={"media":("sample.mp4", b"fake-mp4-content", "video/mp4")},
+        files={"media":("sample.mp4", bytes.fromhex("000000186674797069736f6d0000020069736f6d69736f32"), "video/mp4")},
     )
     assert created.status_code == 201, created.text
     post_id = created.json()["post"]["id"]
     raw = client.get(f"/api/posts/{post_id}/media/file", headers=headers)
     assert raw.status_code == 200
     assert raw.headers["content-type"].startswith("video/mp4")
-    assert raw.content == b"fake-mp4-content"
+    assert raw.content == bytes.fromhex("000000186674797069736f6d0000020069736f6d69736f32")
     playback = client.get(f"/api/posts/{post_id}/media/playback", headers=headers)
     assert playback.status_code == 200
     stream = client.get(playback.json()["url"], headers={"Range":"bytes=0-4"})
     assert stream.status_code == 206
-    assert stream.content == b"fake-"
+    assert stream.content == bytes.fromhex("0000001866")
     assert stream.headers["content-range"].startswith("bytes 0-4/")
     assert stream.headers["accept-ranges"] == "bytes"
 
