@@ -628,7 +628,8 @@ def test_dm_push_notification_does_not_expose_message_text(monkeypatch):
 
 def test_admin_access_is_disabled_without_server_master_email(monkeypatch):
     monkeypatch.setattr(auth, "_MASTER_EMAIL", "")
-    sent = {}
-    token = _verified_user("claimed_master", "fitnova@naver.com", sent)
-    response = client.get("/api/admin/reports", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 403
+    assert auth._is_master({"verified": True, "email": "fitnova@naver.com"}) is False
+    monkeypatch.setattr(auth, "_MASTER_EMAIL", "fitnova@naver.com")
+    assert auth._is_master({"verified": True, "email": "fitnova@naver.com"}) is True
+    assert auth._is_master({"verified": False, "email": "fitnova@naver.com"}) is False
+    assert auth._is_master({"verified": True, "email": "attacker@example.com"}) is False
