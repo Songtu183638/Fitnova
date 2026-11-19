@@ -1158,6 +1158,7 @@ def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> lis
 @app.post("/api/posts", status_code=201)
 def create_post(payload: PostIn, user: dict = Depends(_current_user)):
     global _post_seq
+    _rate_limit("post-create:" + user["username"].lower(), 10, 3600)
     content = payload.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="게시물 내용을 입력해 주세요.")
@@ -1432,6 +1433,7 @@ def toggle_like(post_id: int, user: dict = Depends(_current_user)):
 @app.post("/api/posts/{post_id}/comments", status_code=201)
 def create_comment(post_id: int, payload: CommentIn, user: dict = Depends(_current_user)):
     global _comment_seq
+    _rate_limit("comment-create:" + user["username"].lower(), 40, 3600)
     content = payload.content.strip()
     if not content: raise HTTPException(status_code=422, detail="댓글 내용을 입력해 주세요.")
     _validate_community_text(content)
@@ -1918,6 +1920,7 @@ def get_conversation(username: str, user: dict = Depends(_current_user)):
 @app.post("/api/messages/{username}", status_code=201)
 def send_direct_message(username: str, payload: MessageIn, background_tasks: BackgroundTasks, user: dict = Depends(_current_user)):
     global _message_seq
+    _rate_limit("dm-send:" + user["username"].lower(), 30, 60)
     target = _find_username(username)
     if not target: raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     content = payload.content.strip()
@@ -2117,9 +2120,11 @@ def confirm_password_change(payload: PasswordChangeIn,user: dict = Depends(_curr
     if not _consume_account_code(user["username"],"password",payload.code): raise HTTPException(status_code=400,detail="보안 코드가 올바르지 않거나 만료되었습니다.")
     hashed=_password_hash.hash(payload.new_password)
     if _DATABASE_URL:
-        with _db() as conn: conn.execute("UPDATE users SET password_hash=%s WHERE username_key=%s",(hashed,user["username"].lower()))
-    else: _users[user["username"]]["password_hash"]=hashed
-    return {"changed":True,"message":"비밀번호를 변경했습니다."}
+        with _db() as conn: conn.execute("UPDATE users SET password_hash=%s, token_version=token_version+1 WHERE username_key=%s",(hashed,user["username"].lower()))
+    else:
+        _users[user["username"]]["password_hash"]=hashed
+        _users[user["username"]]["token_version"]=int(_users[user["username"]].get("token_version",0))+1
+    return {"changed":True,"message":"비밀번호를 변경했습니다. 보안을 위해 모든 기기에서 다시 로그인해 주세요."}
 
 @app.post("/api/account/email/request-code",status_code=202)
 def request_email_change_code(payload: EmailRequestIn,request: Request,user: dict = Depends(_current_user)):
@@ -2461,6 +2466,7 @@ def toggle_user_mute(username: str, user: dict = Depends(_current_user)):
 @app.post("/api/reports", status_code=201)
 def create_report(payload: ReportIn, user: dict = Depends(_current_user)):
     global _report_seq
+    _rate_limit("report-create:" + user["username"].lower(), 10, 3600)
     if payload.target_type == "user" and not _find_username(payload.target_id):
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     if payload.target_type == "post":
