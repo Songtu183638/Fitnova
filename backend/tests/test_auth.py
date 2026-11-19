@@ -105,6 +105,7 @@ def _verified_user(username, email, sent):
     return verified.json()["access_token"]
 
 def test_post_owner_comment_moderation_and_verified_master_actions(monkeypatch):
+    monkeypatch.setattr(auth, "_MASTER_EMAIL", "fitnova@naver.com")
     sent = {}
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
     owner = _verified_user("owner_user", "owner@example.com", sent)
@@ -483,6 +484,7 @@ def test_registration_requires_minimum_age_confirmation(monkeypatch):
 
 
 def test_master_is_alerted_once_after_five_reports_for_same_account(monkeypatch):
+    monkeypatch.setattr(auth, "_MASTER_EMAIL", "fitnova@naver.com")
     sent = {}
     pushes = []
     monkeypatch.setattr(auth, "_send_code", lambda email, code, purpose='': sent.update(email=email, code=code))
@@ -622,3 +624,11 @@ def test_dm_push_notification_does_not_expose_message_text(monkeypatch):
     assert len(pushes) == 1
     assert secret_message not in pushes[0][2]
     assert pushes[0][2] == "새 메시지가 도착했습니다."
+
+
+def test_admin_access_is_disabled_without_server_master_email(monkeypatch):
+    monkeypatch.setattr(auth, "_MASTER_EMAIL", "")
+    sent = {}
+    token = _verified_user("claimed_master", "fitnova@naver.com", sent)
+    response = client.get("/api/admin/reports", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 403
