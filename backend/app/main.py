@@ -70,7 +70,18 @@ def _normalize_locale(value) -> str:
 async def _locale_middleware(request, call_next):
     token = _request_locale.set(_normalize_locale(request.headers.get("x-app-locale")))
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-site")
+        if request.url.scheme == "https":
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        if request.url.path.startswith("/api/auth/"):
+            response.headers.setdefault("Cache-Control", "no-store")
+            response.headers.setdefault("Pragma", "no-cache")
+        return response
     finally:
         _request_locale.reset(token)
 
@@ -194,6 +205,14 @@ def _init_db():
             raise RuntimeError("DATABASE_URL must be configured in production.")
         return
     with _db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_rate_limits (
+                rate_key TEXT PRIMARY KEY,
+                window_started DOUBLE PRECISION NOT NULL,
+                request_count INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS api_rate_limits_window_idx ON api_rate_limits(window_started)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id BIGSERIAL PRIMARY KEY,
@@ -588,12 +607,32 @@ def _send_code(email: str, code: str, purpose: str = "계정 보안"):
         )
 
 def _rate_limit(key: str, limit: int = 8, window: int = 900):
+    """Enforce limits across all API workers when PostgreSQL is enabled."""
     now = time.time()
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    if _DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute(
+                """INSERT INTO api_rate_limits(rate_key, window_started, request_count)
+                   VALUES (%s, %s, 1)
+                   ON CONFLICT(rate_key) DO UPDATE SET
+                     window_started = CASE
+                       WHEN api_rate_limits.window_started <= %s THEN EXCLUDED.window_started
+                       ELSE api_rate_limits.window_started END,
+                     request_count = CASE
+                       WHEN api_rate_limits.window_started <= %s THEN 1
+                       ELSE api_rate_limits.request_count + 1 END
+                   RETURNING request_count""",
+                (digest, now, now - window, now - window),
+            ).fetchone()
+            if int(row["request_count"]) > limit:
+                raise HTTPException(status_code=429, detail="요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.")
+        return
     with _lock:
-        _attempts[key] = [t for t in _attempts[key] if now - t < window]
-        if len(_attempts[key]) >= limit:
+        _attempts[digest] = [t for t in _attempts[digest] if now - t < window]
+        if len(_attempts[digest]) >= limit:
             raise HTTPException(status_code=429, detail="요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.")
-        _attempts[key].append(now)
+        _attempts[digest].append(now)
 
 def _find_user(identifier: str):
     key = identifier.lower()
