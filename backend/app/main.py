@@ -759,6 +759,7 @@ def register(payload: RegisterIn, request: Request):
         raise HTTPException(status_code=422, detail="서비스 이용약관 동의와 개인정보 처리방침 확인이 필요합니다.")
     email = str(payload.email).lower()
     _rate_limit("register:" + (request.client.host if request.client else "unknown"), 5)
+    _rate_limit("register-email:" + email, 3, 3600)
     display_name = payload.name.strip() if payload.name is not None else payload.username
     if not display_name:
         raise HTTPException(status_code=422, detail="이름을 입력해 주세요.")
@@ -783,6 +784,7 @@ def register(payload: RegisterIn, request: Request):
 def verify(payload: VerifyIn, request: Request):
     email = str(payload.email).lower()
     _rate_limit("verify:" + (request.client.host if request.client else "unknown"), 15)
+    _rate_limit("verify-email:" + email, 8, 3600)
     record = _increment_pending_tries(email)
     if not record or record["expires"] < time.time():
         _delete_pending(email)
@@ -840,6 +842,8 @@ def _delete_login_challenge(email: str):
 @app.post("/api/auth/login", status_code=202)
 def login(payload: LoginIn, request: Request):
     _rate_limit("login:" + (request.client.host if request.client else "unknown"), 12)
+    normalized_identifier = payload.identifier.strip().lower()
+    _rate_limit("login-identifier:" + normalized_identifier, 8, 900)
     user = _find_user(payload.identifier.strip())
     if not user or not _password_hash.verify(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="아이디/이메일 또는 비밀번호를 확인해 주세요.")
@@ -856,6 +860,7 @@ def login(payload: LoginIn, request: Request):
 def verify_login(payload: LoginVerifyIn, request: Request):
     email = str(payload.email).lower()
     _rate_limit("login-verify:" + (request.client.host if request.client else "unknown"), 15)
+    _rate_limit("login-verify-email:" + email, 8, 900)
     record = _get_login_challenge(email)
     if not record or record["expires"] < time.time():
         _delete_login_challenge(email)
