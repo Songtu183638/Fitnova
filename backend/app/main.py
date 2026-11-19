@@ -1082,6 +1082,62 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
         result.append(post_data)
     return {"posts": result}
 
+def _detect_safe_media_mime(contents: bytes, media_type: str) -> str:
+    """Identify supported media from file signatures; never trust client MIME/filename."""
+    if media_type == "image":
+        if contents.startswith(b"\\xff\\xd8\\xff"):
+            return "image/jpeg"
+        if contents.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+            return "image/png"
+        if contents.startswith((b"GIF87a", b"GIF89a")):
+            return "image/gif"
+        if len(contents) >= 12 and contents[:4] == b"RIFF" and contents[8:12] == b"WEBP":
+            return "image/webp"
+        if len(contents) >= 12 and contents[4:8] == b"ftyp":
+            brand = contents[8:12]
+            if brand in {b"heic", b"heix", b"hevc", b"hevx", b"mif1", b"msf1"}:
+                return "image/heic"
+            if brand in {b"avif", b"avis"}:
+                return "image/avif"
+    elif media_type == "video":
+        if len(contents) >= 12 and contents[4:8] == b"ftyp":
+            brand = contents[8:12]
+            if brand in {b"qt  "}:
+                return "video/quicktime"
+            if brand in {b"3gp4", b"3gp5", b"3gp6", b"3g2a"}:
+                return "video/3gpp"
+            return "video/mp4"
+        if contents.startswith(b"\\x1a\\x45\\xdf\\xa3"):
+            return "video/webm"
+    raise HTTPException(status_code=415, detail="지원하지 않거나 실제 파일 형식이 확인되지 않는 미디어입니다.")
+
+
+def _validate_post_media_data(media_data: str, media_type: str) -> None:
+    """Validate JSON/base64 post media too, so callers cannot bypass upload checks."""
+    try:
+        decoded = json.loads(media_data)
+        items = decoded if isinstance(decoded, list) else [media_data]
+    except (json.JSONDecodeError, TypeError):
+        items = [media_data]
+    if media_type == "image" and not 1 <= len(items) <= 10:
+        raise HTTPException(status_code=422, detail="사진은 1장 이상 최대 10장까지 등록할 수 있습니다.")
+    if media_type == "video" and len(items) != 1:
+        raise HTTPException(status_code=422, detail="영상은 1개만 등록할 수 있습니다.")
+    for data_uri in items:
+        if not isinstance(data_uri, str):
+            raise HTTPException(status_code=415, detail="미디어 데이터 형식이 올바르지 않습니다.")
+        match = re.fullmatch(r"data:([^;,]+);base64,([A-Za-z0-9+/=]+)", data_uri, flags=re.DOTALL)
+        if not match:
+            raise HTTPException(status_code=415, detail="미디어 데이터 형식이 올바르지 않습니다.")
+        try:
+            contents = base64.b64decode(match.group(2), validate=True)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=415, detail="미디어 데이터를 읽을 수 없습니다.")
+        detected = _detect_safe_media_mime(contents, media_type)
+        if match.group(1).lower() != detected:
+            raise HTTPException(status_code=415, detail="파일 내용과 미디어 형식이 일치하지 않습니다.")
+
+
 def _collect_post_hashtags(content: str, title: str, supplied: list[str]) -> list[str]:
     """Merge explicit hashtag input with tags visibly written in the post."""
     collected = []
@@ -1110,6 +1166,7 @@ def create_post(payload: PostIn, user: dict = Depends(_current_user)):
         raise HTTPException(status_code=422, detail="영상 길이 확인이 필요합니다. 영상을 다시 선택해 주세요.")
     if payload.media_type == "image" and payload.media_duration_seconds is not None:
         raise HTTPException(status_code=422, detail="사진 게시물에는 영상 길이를 입력할 수 없습니다.")
+    _validate_post_media_data(payload.media_data, payload.media_type)
     if _DATABASE_URL:
         with _db() as conn:
             row = conn.execute("""INSERT INTO posts(author_username,content,title,media_type,media_data,media_duration_seconds,hashtags,weight,sets_count,exercise_name,reps,duration_minutes,workout_notes)
@@ -1159,12 +1216,7 @@ async def upload_post_media(
             raise HTTPException(status_code=422, detail="빈 파일은 업로드할 수 없습니다.")
         if len(contents) > limit:
             raise HTTPException(status_code=413, detail="사진은 각 5MB, 영상은 40MB 이하로 업로드해 주세요.")
-        guessed = mimetypes.guess_type(item.filename or "")[0]
-        mime = (item.content_type or guessed or "").lower()
-        if mime in {"application/octet-stream", "binary/octet-stream"} and guessed:
-            mime = guessed.lower()
-        if not mime.startswith(media_type + "/"):
-            raise HTTPException(status_code=415, detail="선택한 파일 형식과 미디어 종류가 일치하지 않습니다.")
+        mime = _detect_safe_media_mime(contents, media_type)
         media_items.append(f"data:{mime};base64,{base64.b64encode(contents).decode('ascii')}")
     media_data = media_items[0] if len(media_items) == 1 else json.dumps(media_items, separators=(",", ":"))
     try:
