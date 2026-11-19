@@ -15,7 +15,7 @@ from pwdlib import PasswordHash
 
 app = FastAPI(title="FITNOVA API", version="0.2.0")
 origins = list(dict.fromkeys([x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:4173,capacitor://localhost,https://localhost,http://localhost").split(",") if x.strip()] + ["https://localhost", "capacitor://localhost"]))
-app.add_middleware(CORSMiddleware, allow_origins=origins + ["https://fitnova-songtu183638.vercel.app", "https://fitnova-iota.vercel.app"], allow_origin_regex=r"https://fitnova(?:-[a-z0-9-]+)*\.vercel\.app", allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type","X-App-Locale"])
+app.add_middleware(CORSMiddleware, allow_origins=list(dict.fromkeys(origins + ["https://fitnova-songtu183638.vercel.app", "https://fitnova-iota.vercel.app"])), allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type","X-App-Locale"])
 
 _password_hash = PasswordHash.recommended()
 _lock = Lock()
@@ -58,6 +58,8 @@ if not _SECRET:
     _SECRET = secrets.token_urlsafe(48)
     print("WARNING: JWT_SECRET is unset; sessions will be invalidated on restart.")
 _CODE_SECRET = os.getenv("VERIFICATION_CODE_SECRET", _SECRET)
+# Configure MASTER_EMAIL in the production host; without it, admin endpoints stay locked.
+_MASTER_EMAIL = os.getenv("MASTER_EMAIL", "").strip().casefold()
 
 # --- Locale (English for US launch; Korean remains the default text) ---
 from contextvars import ContextVar
@@ -725,7 +727,8 @@ def _public(user: dict) -> dict:
     return {"name": user.get("name") or user["username"], "username": user["username"], "email": user["email"], "verified": user["verified"], "is_master": _is_master(user)}
 
 def _is_master(user: dict) -> bool:
-    return bool(user.get("verified") and str(user.get("email") or "").strip().casefold() == "fitnova@naver.com")
+    email = str(user.get("email") or "").strip().casefold()
+    return bool(_MASTER_EMAIL and user.get("verified") and email == _MASTER_EMAIL)
 
 def _current_user(authorization: str | None = Header(default=None)) -> dict:
     _purge_expired_accounts()
@@ -2501,6 +2504,7 @@ def list_admin_reports(
 ):
     if not _is_master(user):
         raise HTTPException(status_code=403, detail="마스터 계정만 신고를 관리할 수 있습니다.")
+    _rate_limit("admin-report-list:" + user["username"].lower(), 60, 60)
     if _DATABASE_URL:
         with _db() as conn:
             if status == "all":
@@ -2526,6 +2530,7 @@ def list_admin_reports(
 def update_admin_report_status(report_id: int, payload: ReportStatusIn, user: dict = Depends(_current_user)):
     if not _is_master(user):
         raise HTTPException(status_code=403, detail="마스터 계정만 신고를 관리할 수 있습니다.")
+    _rate_limit("admin-report-update:" + user["username"].lower(), 30, 60)
     if _DATABASE_URL:
         with _db() as conn:
             row = conn.execute(
