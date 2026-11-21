@@ -2173,9 +2173,24 @@ body { background: var(--bg); }
 }
 .comment-main { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; min-width:0; }
 .comment-author-link {
-  padding:0; border:0; background:none; color:var(--text); font:inherit;
-  font-size:12px; font-weight:800; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px; flex:0 0 auto;
+  min-height:30px; padding:2px 5px 2px 2px; border:0; border-radius:999px;
+  background:transparent; color:var(--text); font:inherit;
+  font-size:12px; font-weight:800; cursor:pointer; text-align:left;
+  transition:background 160ms ease, color 160ms ease, transform 160ms ease;
 }
+.comment-author-link:hover, .comment-author-link:focus-visible {
+  background:rgba(183,255,65,.09); color:var(--lime); outline:none;
+}
+.comment-author-link:active { transform:scale(.97); }
+.comment-author-link:disabled { cursor:default; opacity:.7; }
+.comment-author-avatar {
+  display:grid; place-items:center; width:25px; height:25px; flex:0 0 25px;
+  border:1px solid rgba(183,255,65,.28); border-radius:50%;
+  background:rgba(183,255,65,.1); color:var(--lime);
+  font-size:11px; font-weight:900;
+}
+.comment-author-name { min-width:0; overflow-wrap:anywhere; }
 .comment-pinned-label { color:var(--lime); font-size:10px; font-weight:800; }
 .comment-content {
   flex:1 1 100%; color:var(--text-2); font-size:13px; line-height:1.55; overflow-wrap:anywhere;
