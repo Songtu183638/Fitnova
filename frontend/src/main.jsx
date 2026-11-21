@@ -1382,7 +1382,19 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,onShareToDm=()=>{}
    const canPin = post.author_username === user.username && !comment.pending && !isReply;
    return <div className={"comment "+(isReply?'comment-reply ':'')+(comment.pinned?'comment-pinned':'')} key={comment.id}>
      <div className="comment-main">
-       <button type="button" className="comment-author-link" onClick={()=>openProfile(comment.author_username)}>{comment.author_username}</button>
+       <button
+         type="button"
+         className="comment-author-link"
+         onClick={() => {
+           if (typeof openProfile === 'function' && comment.author_username) openProfile(comment.author_username);
+         }}
+         aria-label={trf("{0} 프로필 보기", comment.author_username)}
+         title={trf("{0} 프로필 보기", comment.author_username)}
+         disabled={!comment.author_username || typeof openProfile !== 'function'}
+       >
+         <span className="comment-author-avatar" aria-hidden="true">{(comment.author_username || '?').slice(0, 1).toUpperCase()}</span>
+         <span className="comment-author-name">{comment.author_username}</span>
+       </button>
        {comment.pinned&&<span className="comment-pinned-label">⌖ {tr("고정됨")}</span>}
        {editingComment===String(comment.id)?
          <form className="comment-edit-form" onSubmit={async e=>{e.preventDefault();try{await editComment(post.id,comment.id,editDraft);setEditingComment(null);setEditDraft('');}catch(err){window.alert(err.message||tr("댓글을 수정하지 못했습니다."));}}}>
