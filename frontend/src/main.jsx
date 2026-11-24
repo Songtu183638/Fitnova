@@ -339,7 +339,33 @@ class DashboardErrorBoundary extends React.Component {
 }
 
 function Dashboard({ user, tab, setTab, logout }) {
+  const [interestCategories] = useState(["근력 운동 · 보디빌딩","다이어트 · 체지방 감량","러닝 · 마라톤","축구 · 풋살","농구","홈트레이닝","맨몸 운동 · 칼리스데닉스","수영","사이클링","요가 · 필라테스","등산 · 아웃도어","격투기 · 복싱","스포츠 영양 · 식단","운동 동기부여 · 자기관리"]);
+  const [interestSelection, setInterestSelection] = useState([]);
+  const [interestModalOpen, setInterestModalOpen] = useState(false);
+  const [interestSaving, setInterestSaving] = useState(false);
   const [posts, setPosts] = useState(() => readHomePostsCache(user.username));
+  useEffect(() => {
+    let active = true;
+    api('/api/interests').then(data => {
+      if (!active) return;
+      const selected = Array.isArray(data.selected) ? data.selected : [];
+      setInterestSelection(selected);
+      setInterestModalOpen(selected.length < 3);
+    }).catch(() => { if (active) setInterestModalOpen(false); });
+    return () => { active = false; };
+  }, [user.username]);
+  const toggleInterest = (category) => setInterestSelection(items => items.includes(category) ? items.filter(item => item !== category) : [...items, category]);
+  const saveInterestPreferences = async () => {
+    if (interestSelection.length < 3 || interestSaving) return;
+    setInterestSaving(true);
+    try {
+      await api('/api/interests', { method: 'PUT', body: JSON.stringify({ categories: interestSelection }) });
+      setInterestModalOpen(false);
+      setNotice(tr('관심 운동 분야를 저장했어요. 피드 추천에 반영됩니다.'));
+      loadPosts();
+    } catch (err) { setError(err.message || tr('관심 분야를 저장하지 못했습니다.')); }
+    finally { setInterestSaving(false); }
+  };
   const [feedLoading, setFeedLoading] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(false);
   const postsOffset = useRef(posts.length);
@@ -1181,6 +1207,7 @@ function Dashboard({ user, tab, setTab, logout }) {
   };
   const prettyDate = (value) => { try { return new Date(value).toLocaleString(LOCALE_TAG, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
   return <main className={"app-shell "+(tab==="messages"&&activeChat?"chat-active":"")}>
+    {interestModalOpen && <div role="dialog" aria-modal="true" aria-labelledby="interest-title" className="interest-onboarding-backdrop"><section className="interest-onboarding"><span className="eyebrow">FITNOVA · YOUR INTERESTS</span><h2 id="interest-title">{tr("어떤 운동에 관심이 있나요?")}</h2><p>{tr("관심 분야를 3개 이상 선택해 주세요. 선택한 분야와 좋아요·저장한 게시물을 분석해 피드를 추천해 드려요.")}</p><div className="interest-choice-grid">{interestCategories.map(category=><button type="button" key={category} className={interestSelection.includes(category)?"interest-choice selected":"interest-choice"} aria-pressed={interestSelection.includes(category)} onClick={()=>toggleInterest(category)}>{interestSelection.includes(category)?"✓ ":"＋ "}{category}</button>)}</div><div className="interest-onboarding-footer"><span>{trf("{0}개 선택됨 · 최소 3개", interestSelection.length)}</span><button type="button" className="primary compact" disabled={interestSelection.length<3||interestSaving} onClick={saveInterestPreferences}>{interestSaving?tr("저장 중…"):tr("선택 완료")}</button></div></section></div>}
     <div className="fitnova-entry-mark" aria-hidden="true"><span>F</span></div>
     <aside className="side-rail"><a className="brand" href="#feed"><span className="brand-icon"><Activity size={21}/></span><span className="rail-brand">FIT<span>NOVA</span></span></a><div className="rail-nav">{nav.map(item=><button key={item.id} className={item.id==='create'?'nav-create':tab===item.id?'selected':''} onClick={()=>handleNav(item.id)} aria-label={item.id==='create'?tr("게시물 작성"):undefined}><item.icon size={20}/><span>{item.label}</span></button>)}</div><div className="rail-bottom"><div className="avatar">{user.username.slice(0,1).toUpperCase()}</div><button className="rail-logout" onClick={logout} aria-label={tr("로그아웃")}><LogOut size={18}/></button></div></aside>
     <section className="dashboard-main"><header className={"dash-top "+(tab==="messages"&&activeChat?"chat-top-hidden":"")}><div><div className="eyebrow"><Sparkles size={13}/> MOVE. CONNECT. EVOLVE.</div><h1>{tab==='feed'?tr("함께 성장하는 피드"):tab==='home'?tr("오늘도 한 단계 성장해요"):tab==='steps'?tr("이번 주 걸음 수"):tab==='analysis'?tr("운동 데이터 분석"):tab==='messages'?tr("메시지"):tab==='settings'?tr("설정"):tab==='saved'?tr("저장한 게시물"):tab==='moderation'?tr("신고 관리"):tr("나의 FITNOVA")}</h1><span className="top-tagline">{tr("오늘의 운동을")}<br/>{tr("함께 기록해요")}</span></div><a className="top-brand" href="#top" aria-label={tr("FITNOVA 홈")} onClick={e=>{e.preventDefault();handleNav('home');window.scrollTo({top:0,behavior:'smooth'});}}>FITNOVA</a><div className="top-actions"><button className="icon-surface" aria-label={tr("검색")} title={tr("검색")} onClick={()=>{setSearchOpen(true);setNotificationsOpen(false);}}><Search size={19}/></button><button className="icon-surface notification-trigger" aria-label={tr("알림")} title={tr("알림")} onClick={()=>{setNotificationsOpen(!notificationsOpen);setSearchOpen(false);if(!notificationsOpen)loadNotifications(true);}}><Bell size={19}/>{unreadCount>0&&<i className="notification-dot">{unreadCount>9?'9+':unreadCount}</i>}</button><button className="user-chip" onClick={()=>setProfileOpen(!profileOpen)}><span className="avatar">{user.username.slice(0,1).toUpperCase()}</span><span><b>{user.username}</b><small>{tr("FITNOVA 멤버")}</small></span></button>{profileOpen&&<div className="profile-pop"><b>{user.username}</b><span>{user.email}</span><button onClick={logout}><LogOut size={15}/> {tr("로그아웃")}</button></div>}</div></header>
