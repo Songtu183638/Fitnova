@@ -30,6 +30,7 @@ _post_likes = set()
 _follows = set()
 _messages = []
 _saved_posts = set()
+_post_views = set()  # (post_id, username), unique authenticated viewers
 _workout_records = defaultdict(list)
 _workout_record_seq = 0
 _notifications = []
@@ -338,6 +339,15 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(username, post_id)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS post_views (
+                post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+                username TEXT NOT NULL,
+                viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY(post_id, username)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS post_views_post_idx ON post_views(post_id)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS account_security_codes (
                 username TEXT NOT NULL, purpose TEXT NOT NULL, target_email TEXT NOT NULL,
@@ -1050,7 +1060,8 @@ def _post_dict(row: dict, username: str, comments=None):
             "exercise_name": row.get("exercise_name", ""), "reps": row.get("reps", ""),
             "duration_minutes": row.get("duration_minutes"), "workout_notes": row.get("workout_notes", ""),
             "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
-            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": enriched_comments, "pinned": bool(row.get("pinned", False))}
+            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)),
+            "view_count": int(row.get("view_count", 0) or 0), "comments": enriched_comments, "pinned": bool(row.get("pinned", False))}
 
 def _can_view_author_content(viewer: str, author: str, conn=None) -> bool:
     if viewer.lower() == author.lower():
@@ -1078,7 +1089,8 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
         with _db() as conn:
             rows = conn.execute(f"""SELECT {_POST_LIST_COLUMNS},
                 (SELECT COUNT(*)::int FROM post_likes l WHERE l.post_id=p.id) AS like_count,
-                EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.username=%s) AS liked_by_me
+                EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.username=%s) AS liked_by_me,
+                (SELECT COUNT(*)::int FROM post_views v WHERE v.post_id=p.id) AS view_count
                 FROM posts p
                 WHERE (%s = '' OR p.hashtags @> ARRAY[%s]::text[]
                     OR EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag, '#'))=%s)
@@ -1156,10 +1168,33 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
         row.pop("media_data", None)
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
+        row["view_count"] = sum(1 for pid, _ in _post_views if pid == row["id"])
         post_data = _post_dict(row, user["username"], _post_comments.get(row["id"], []))
         post_data.pop("media_data", None)
         result.append(post_data)
     return {"posts": result}
+
+@app.post("/api/posts/{post_id}/view")
+def record_post_view(post_id: int, user: dict = Depends(_current_user)):
+    """Count one view per authenticated account per post."""
+    username = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            post = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not post or not _can_view_author_content(username, post["author_username"], conn):
+                raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            conn.execute(
+                "INSERT INTO post_views(post_id, username) VALUES (%s, %s) ON CONFLICT (post_id, username) DO NOTHING",
+                (post_id, username),
+            )
+            count = conn.execute("SELECT COUNT(*)::int AS count FROM post_views WHERE post_id=%s", (post_id,)).fetchone()["count"]
+            return {"view_count": count}
+    post = _posts.get(post_id)
+    if not post or not _can_view_author_content(username, post["author_username"]):
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    _post_views.add((post_id, username))
+    return {"view_count": sum(1 for pid, _ in _post_views if pid == post_id)}
+
 
 def _detect_safe_media_mime(contents: bytes, media_type: str) -> str:
     """Identify supported media from file signatures; never trust client MIME/filename."""
