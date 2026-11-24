@@ -43,7 +43,6 @@ _report_alert_lock = Lock()
 _notification_seq = 0
 _report_seq = 0
 _user_settings = {}
-_user_interests = {}
 _account_codes = {}
 _message_seq = 0
 _post_seq = 0
@@ -153,9 +152,6 @@ class PasswordResetConfirmIn(BaseModel):
     email: EmailStr
     code: str = Field(pattern=r"^\d{6}$")
     new_password: str = Field(min_length=10, max_length=128)
-
-class InterestPreferencesIn(BaseModel):
-    categories: list[str] = Field(min_length=3, max_length=14)
 
 class PostIn(BaseModel):
     title: str = Field(min_length=1, max_length=120)
@@ -785,34 +781,6 @@ def logout(user: dict = Depends(_current_user)):
         if current is not None:
             current["token_version"] = int(current.get("token_version", 0)) + 1
     return {"logged_out": True, "message": "모든 로그인 세션을 종료했습니다."}
-
-_INTEREST_CATEGORIES = ["근력 운동 · 보디빌딩","다이어트 · 체지방 감량","러닝 · 마라톤","축구 · 풋살","농구","홈트레이닝","맨몸 운동 · 칼리스데닉스","수영","사이클링","요가 · 필라테스","등산 · 아웃도어","격투기 · 복싱","스포츠 영양 · 식단","운동 동기부여 · 자기관리"]
-
-def _get_user_interests(username: str) -> list[str]:
-    if _DATABASE_URL:
-        with _db() as conn:
-            rows = conn.execute("SELECT category FROM user_interests WHERE username=%s ORDER BY category", (username,)).fetchall()
-        return [row["category"] for row in rows]
-    return list(_user_interests.get(username, []))
-
-@app.get("/api/interests")
-def get_interests(user: dict = Depends(_current_user)):
-    return {"categories": _INTEREST_CATEGORIES, "selected": _get_user_interests(user["username"])}
-
-@app.put("/api/interests")
-def save_interests(payload: InterestPreferencesIn, user: dict = Depends(_current_user)):
-    chosen = list(dict.fromkeys(str(item).strip() for item in payload.categories))
-    if len(chosen) < 3:
-        raise HTTPException(status_code=422, detail="관심 운동 분야를 최소 3개 선택해 주세요.")
-    if any(item not in _INTEREST_CATEGORIES for item in chosen):
-        raise HTTPException(status_code=422, detail="목록에 있는 운동 분야만 선택할 수 있습니다.")
-    if _DATABASE_URL:
-        with _db() as conn:
-            conn.execute("DELETE FROM user_interests WHERE username=%s", (user["username"],))
-            conn.executemany("INSERT INTO user_interests(username, category) VALUES (%s,%s) ON CONFLICT DO NOTHING", [(user["username"], item) for item in chosen])
-    else:
-        _user_interests[user["username"]] = chosen
-    return {"selected": chosen, "saved": True}
 
 @app.get("/health")
 def health():
