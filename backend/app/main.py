@@ -1090,9 +1090,18 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                       (b.blocker_username=%s AND b.blocked_username=p.author_username) OR
                       (b.blocker_username=p.author_username AND b.blocked_username=%s))
                   AND NOT EXISTS (SELECT 1 FROM user_mutes m WHERE m.muter_username=%s AND m.muted_username=p.author_username)
-                ORDER BY p.pinned DESC, p.created_at DESC LIMIT %s OFFSET %s""",
+                ORDER BY p.pinned DESC,
+                  CASE WHEN EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_username=%s AND f.followed_username=p.author_username) THEN 0 ELSE 1 END,
+                  CASE WHEN EXISTS (SELECT 1 FROM user_interests ui WHERE ui.username=%s AND (
+                    lower(COALESCE(p.title,'')) LIKE '%' || lower(ui.category) || '%' OR
+                    lower(COALESCE(p.content,'')) LIKE '%' || lower(ui.category) || '%' OR
+                    EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag,'#')) LIKE '%' || lower(ui.category) || '%')
+                  )) THEN 0 ELSE 1 END,
+                  CASE WHEN substring(md5(p.id::text || %s),1,1) IN ('0','1','2','3','4','5','6') THEN 1 ELSE 0 END,
+                  p.created_at DESC LIMIT %s OFFSET %s""",
                 (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, normalized_tag,
-                 user["username"], user["username"], user["username"], user["username"], user["username"], limit, offset)).fetchall()
+                 user["username"], user["username"], user["username"], user["username"], user["username"],
+                 user["username"], user["username"], user["username"], limit, offset)).fetchall()
             if not rows:
                 return {"posts": []}
             post_ids = [row["id"] for row in rows]
