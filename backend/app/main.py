@@ -309,13 +309,6 @@ def _init_db():
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_acknowledged_at TIMESTAMPTZ")
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_version TEXT")
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS user_interests (
-                username TEXT NOT NULL, category TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                PRIMARY KEY(username, category)
-            )
-        """)
-        conn.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
                 username TEXT PRIMARY KEY, private_account BOOLEAN NOT NULL DEFAULT FALSE,
                 allow_messages_from TEXT NOT NULL DEFAULT 'everyone',
