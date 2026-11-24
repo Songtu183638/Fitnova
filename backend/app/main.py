@@ -1104,23 +1104,23 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                   AND NOT EXISTS (SELECT 1 FROM user_mutes m WHERE m.muter_username=%s AND m.muted_username=p.author_username)
                 ORDER BY p.pinned DESC,
                   CASE WHEN EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_username=%s AND f.followed_username=p.author_username) THEN 0 ELSE 1 END,
-                  CASE WHEN EXISTS (SELECT 1 FROM user_interests ui WHERE ui.username=%s AND (
-                    lower(COALESCE(p.title,'')) LIKE '%' || lower(ui.category) || '%' OR
-                    lower(COALESCE(p.content,'')) LIKE '%' || lower(ui.category) || '%' OR
-                    EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag,'#')) LIKE '%' || lower(ui.category) || '%')
-                  )) THEN 0 ELSE 1 END,
-                  CASE WHEN EXISTS (
-                    SELECT 1 FROM unnest(p.hashtags) AS target_tag
-                    WHERE EXISTS (
-                      SELECT 1 FROM post_likes l JOIN posts liked_post ON liked_post.id=l.post_id
+                  (
+                    COALESCE((SELECT COUNT(DISTINCT lower(ltrim(target_tag,'#')))
+                      FROM post_likes l JOIN posts liked_post ON liked_post.id=l.post_id
                       CROSS JOIN LATERAL unnest(liked_post.hashtags) AS liked_tag
-                      WHERE l.username=%s AND lower(ltrim(liked_tag,'#'))=lower(ltrim(target_tag,'#'))
-                    ) OR EXISTS (
-                      SELECT 1 FROM saved_posts sp JOIN posts saved_post ON saved_post.id=sp.post_id
+                      CROSS JOIN LATERAL unnest(p.hashtags) AS target_tag
+                      WHERE l.username=%s AND lower(ltrim(liked_tag,'#'))=lower(ltrim(target_tag,'#'))),0)
+                    + 3 * COALESCE((SELECT COUNT(DISTINCT lower(ltrim(target_tag,'#')))
+                      FROM saved_posts sp JOIN posts saved_post ON saved_post.id=sp.post_id
                       CROSS JOIN LATERAL unnest(saved_post.hashtags) AS saved_tag
-                      WHERE sp.username=%s AND lower(ltrim(saved_tag,'#'))=lower(ltrim(target_tag,'#'))
-                    )
-                  ) THEN 0 ELSE 1 END,
+                      CROSS JOIN LATERAL unnest(p.hashtags) AS target_tag
+                      WHERE sp.username=%s AND lower(ltrim(saved_tag,'#'))=lower(ltrim(target_tag,'#'))),0)
+                    + 2 * COALESCE((SELECT COUNT(DISTINCT lower(ltrim(target_tag,'#')))
+                      FROM user_follows f JOIN posts followed_post ON followed_post.author_username=f.followed_username
+                      CROSS JOIN LATERAL unnest(followed_post.hashtags) AS followed_tag
+                      CROSS JOIN LATERAL unnest(p.hashtags) AS target_tag
+                      WHERE f.follower_username=%s AND lower(ltrim(followed_tag,'#'))=lower(ltrim(target_tag,'#'))),0)
+                  ) DESC,
                   CASE WHEN substring(md5(p.id::text || %s),1,1) IN ('0','1','2','3','4','5','6') THEN 1 ELSE 0 END,
                   p.created_at DESC LIMIT %s OFFSET %s""",
                 (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, normalized_tag,
@@ -1162,7 +1162,21 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
         if normalized_tag and normalized_tag not in tags and ("#" + normalized_tag) not in visible_text:
             continue
         visible_posts.append(p)
-    visible_posts.sort(key=lambda p: (bool(p.get("pinned")), p["created_at"]), reverse=True)
+    liked_ids = {pid for pid, name in _post_likes if name == user["username"]}
+    saved_ids = {pid for name, pid in _saved_posts if name == user["username"]}
+    followed_users = {followed for follower, followed in _follows if follower == user["username"]}
+    liked_tags = {str(tag).lstrip("#").strip().lower() for pid in liked_ids if pid in _posts for tag in (_posts[pid].get("hashtags") or [])}
+    saved_tags = {str(tag).lstrip("#").strip().lower() for pid in saved_ids if pid in _posts for tag in (_posts[pid].get("hashtags") or [])}
+    followed_tags = {str(tag).lstrip("#").strip().lower() for post in _posts.values() if post.get("author_username") in followed_users for tag in (post.get("hashtags") or [])}
+    def relevance_score(post):
+        tags = {str(tag).lstrip("#").strip().lower() for tag in (post.get("hashtags") or [])}
+        return len(tags & liked_tags) + 3 * len(tags & saved_tags) + 2 * len(tags & followed_tags)
+    visible_posts.sort(key=lambda p: (
+        bool(p.get("pinned")),
+        p.get("author_username") in followed_users,
+        relevance_score(p),
+        p["created_at"]
+    ), reverse=True)
     for p in visible_posts[offset:offset + limit]:
         row = dict(p)
         row.pop("media_data", None)
