@@ -598,6 +598,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setSavedPostIds(prev=>{const n=new Set(prev);if(d.saved)n.add(id);else n.delete(id);return n;});
       if(d.saved && post) setSavedPosts(prev=>[post,...prev.filter(x=>x.id!==id)]);
       if(!d.saved) setSavedPosts(prev=>prev.filter(x=>x.id!==id));
+      if (tab === 'home' || tab === 'feed') loadPosts();
     } catch(e) {
       setSavedPostIds(prev=>{const n=new Set(prev);if(wasSaved)n.add(id);else n.delete(id);return n;});
       if(wasSaved && post) setSavedPosts(prev=>[post,...prev.filter(x=>x.id!==id)]);
@@ -767,6 +768,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     try {
       const data = await api('/api/users/' + encodeURIComponent(target) + '/follow', { method: 'POST' });
       setProfileData(data.profile); setNotice(data.following ? tr("팔로우했습니다.") : tr("언팔로우했습니다."));
+      if (tab === 'home' || tab === 'feed') loadPosts();
     } catch (e) { setProfileData(before); setNotice(''); setError(e.message || tr("팔로우를 변경하지 못했습니다.")); }
     finally { pendingFollows.current.delete(target); }
   };
@@ -1090,6 +1092,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked}:p));
       setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked}:p));
       setSavedPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:result.liked}:p));
+      if (tab === 'home' || tab === 'feed') loadPosts();
     } catch(e) {
       setPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
       setOwnPosts(items=>items.map(p=>p.id===id?{...p,liked_by_me:previousLiked,like_count:Math.max(0,(p.like_count||0)+(nextLiked?-1:1))}:p));
