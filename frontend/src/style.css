@@ -2303,3 +2303,17 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
 .feed-list>.post-card:nth-child(2),.thread-list>.thread-item:nth-child(2){animation:fn-enter-up 300ms var(--motion-out) 35ms both}
 .feed-list>.post-card:nth-child(3),.thread-list>.thread-item:nth-child(3){animation:fn-enter-up 320ms var(--motion-out) 65ms both}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Personalized interest onboarding */
+.interest-onboarding-backdrop{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.82);backdrop-filter:blur(12px);animation:fadeIn .22s ease}
+.interest-onboarding{width:min(100%,650px);max-height:min(88dvh,760px);overflow:auto;padding:clamp(20px,4vw,32px);border:1px solid rgba(183,243,74,.28);border-radius:24px;background:#10150e;color:#f4f7f2;box-shadow:0 24px 90px rgba(0,0,0,.55)}
+.interest-onboarding h2{margin:10px 0 8px;font-size:clamp(22px,4vw,30px);letter-spacing:-.04em}
+.interest-onboarding>p{margin:0 0 22px;color:#aeb8a7;line-height:1.65;font-size:14px}
+.interest-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.interest-choice{min-height:48px;padding:11px 13px;border:1px solid #30392c;border-radius:13px;background:#171d14;color:#dce5d5;text-align:left;font:inherit;font-size:13px;font-weight:650;cursor:pointer;transition:transform .18s ease,border-color .18s ease,background .18s ease,color .18s ease}
+.interest-choice:hover{transform:translateY(-2px);border-color:#789d43}
+.interest-choice.selected{border-color:#b7f34a;background:rgba(183,243,74,.12);color:#caff78}
+.interest-onboarding-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid #293126;color:#aeb8a7;font-size:13px}
+.interest-onboarding-footer .primary:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:520px){.interest-choice-grid{grid-template-columns:1fr}.interest-onboarding{border-radius:20px}.interest-choice{min-height:44px}}
