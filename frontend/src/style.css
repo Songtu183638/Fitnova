@@ -2317,3 +2317,9 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
 .interest-onboarding-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid #293126;color:#aeb8a7;font-size:13px}
 .interest-onboarding-footer .primary:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:520px){.interest-choice-grid{grid-template-columns:1fr}.interest-onboarding{border-radius:20px}.interest-choice{min-height:44px}}
+
+
+/* Post metadata: publication time and unique viewer count */
+.post-author > div:last-child small { display: inline-flex; align-items: center; gap: 5px; }
+.post-view-count { display: inline-flex; align-items: center; gap: 6px; color: var(--muted, #929292); font-size: 12px; white-space: nowrap; }
+.post-view-count svg { opacity: .8; }
