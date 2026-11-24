@@ -30,6 +30,7 @@ _post_likes = set()
 _follows = set()
 _messages = []
 _saved_posts = set()
+_post_views = set()  # (post_id, username), unique authenticated viewers
 _workout_records = defaultdict(list)
 _workout_record_seq = 0
 _notifications = []
@@ -327,6 +328,15 @@ def _init_db():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(username, post_id)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS post_views (
+                post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+                username TEXT NOT NULL,
+                viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY(post_id, username)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS post_views_post_idx ON post_views(post_id)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS account_security_codes (
                 username TEXT NOT NULL, purpose TEXT NOT NULL, target_email TEXT NOT NULL,
@@ -1011,7 +1021,8 @@ def _post_dict(row: dict, username: str, comments=None):
             "exercise_name": row.get("exercise_name", ""), "reps": row.get("reps", ""),
             "duration_minutes": row.get("duration_minutes"), "workout_notes": row.get("workout_notes", ""),
             "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
-            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)), "comments": enriched_comments, "pinned": bool(row.get("pinned", False))}
+            "like_count": row.get("like_count", 0), "liked_by_me": bool(row.get("liked_by_me", False)),
+            "view_count": int(row.get("view_count", 0) or 0), "comments": enriched_comments, "pinned": bool(row.get("pinned", False))}
 
 def _can_view_author_content(viewer: str, author: str, conn=None) -> bool:
     if viewer.lower() == author.lower():
@@ -1039,7 +1050,8 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
         with _db() as conn:
             rows = conn.execute(f"""SELECT {_POST_LIST_COLUMNS},
                 (SELECT COUNT(*)::int FROM post_likes l WHERE l.post_id=p.id) AS like_count,
-                EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.username=%s) AS liked_by_me
+                EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.username=%s) AS liked_by_me,
+                (SELECT COUNT(*)::int FROM post_views v WHERE v.post_id=p.id) AS view_count
                 FROM posts p
                 WHERE (%s = '' OR p.hashtags @> ARRAY[%s]::text[]
                     OR EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag, '#'))=%s)
@@ -1051,8 +1063,29 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                       (b.blocker_username=%s AND b.blocked_username=p.author_username) OR
                       (b.blocker_username=p.author_username AND b.blocked_username=%s))
                   AND NOT EXISTS (SELECT 1 FROM user_mutes m WHERE m.muter_username=%s AND m.muted_username=p.author_username)
-                ORDER BY p.pinned DESC, p.created_at DESC LIMIT %s OFFSET %s""",
+                ORDER BY p.pinned DESC,
+                  CASE WHEN EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_username=%s AND f.followed_username=p.author_username) THEN 0 ELSE 1 END,
+                  (
+                    COALESCE((SELECT COUNT(DISTINCT lower(ltrim(target_tag,'#')))
+                      FROM post_likes l JOIN posts liked_post ON liked_post.id=l.post_id
+                      CROSS JOIN LATERAL unnest(liked_post.hashtags) AS liked_tag
+                      CROSS JOIN LATERAL unnest(p.hashtags) AS target_tag
+                      WHERE l.username=%s AND lower(ltrim(liked_tag,'#'))=lower(ltrim(target_tag,'#'))),0)
+                    + 3 * COALESCE((SELECT COUNT(DISTINCT lower(ltrim(target_tag,'#')))
+                      FROM saved_posts sp JOIN posts saved_post ON saved_post.id=sp.post_id
+                      CROSS JOIN LATERAL unnest(saved_post.hashtags) AS saved_tag
+                      CROSS JOIN LATERAL unnest(p.hashtags) AS target_tag
+                      WHERE sp.username=%s AND lower(ltrim(saved_tag,'#'))=lower(ltrim(target_tag,'#'))),0)
+                    + 2 * COALESCE((SELECT COUNT(DISTINCT lower(ltrim(target_tag,'#')))
+                      FROM user_follows f JOIN posts followed_post ON followed_post.author_username=f.followed_username
+                      CROSS JOIN LATERAL unnest(followed_post.hashtags) AS followed_tag
+                      CROSS JOIN LATERAL unnest(p.hashtags) AS target_tag
+                      WHERE f.follower_username=%s AND lower(ltrim(followed_tag,'#'))=lower(ltrim(target_tag,'#'))),0)
+                  ) DESC,
+                  CASE WHEN substring(md5(p.id::text || %s),1,1) IN ('0','1','2','3','4','5','6') THEN 1 ELSE 0 END,
+                  p.created_at DESC LIMIT %s OFFSET %s""",
                 (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, normalized_tag,
+                 user["username"], user["username"], user["username"], user["username"], user["username"],
                  user["username"], user["username"], user["username"], user["username"], user["username"], limit, offset)).fetchall()
             if not rows:
                 return {"posts": []}
@@ -1090,16 +1123,53 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
         if normalized_tag and normalized_tag not in tags and ("#" + normalized_tag) not in visible_text:
             continue
         visible_posts.append(p)
-    visible_posts.sort(key=lambda p: (bool(p.get("pinned")), p["created_at"]), reverse=True)
+    liked_ids = {pid for pid, name in _post_likes if name == user["username"]}
+    saved_ids = {pid for name, pid in _saved_posts if name == user["username"]}
+    followed_users = {followed for follower, followed in _follows if follower == user["username"]}
+    liked_tags = {str(tag).lstrip("#").strip().lower() for pid in liked_ids if pid in _posts for tag in (_posts[pid].get("hashtags") or [])}
+    saved_tags = {str(tag).lstrip("#").strip().lower() for pid in saved_ids if pid in _posts for tag in (_posts[pid].get("hashtags") or [])}
+    followed_tags = {str(tag).lstrip("#").strip().lower() for post in _posts.values() if post.get("author_username") in followed_users for tag in (post.get("hashtags") or [])}
+    def relevance_score(post):
+        tags = {str(tag).lstrip("#").strip().lower() for tag in (post.get("hashtags") or [])}
+        return len(tags & liked_tags) + 3 * len(tags & saved_tags) + 2 * len(tags & followed_tags)
+    visible_posts.sort(key=lambda p: (
+        bool(p.get("pinned")),
+        p.get("author_username") in followed_users,
+        relevance_score(p),
+        p["created_at"]
+    ), reverse=True)
     for p in visible_posts[offset:offset + limit]:
         row = dict(p)
         row.pop("media_data", None)
         row["like_count"] = sum(1 for pid, _ in _post_likes if pid == row["id"])
         row["liked_by_me"] = (row["id"], user["username"]) in _post_likes
+        row["view_count"] = sum(1 for pid, _ in _post_views if pid == row["id"])
         post_data = _post_dict(row, user["username"], _post_comments.get(row["id"], []))
         post_data.pop("media_data", None)
         result.append(post_data)
     return {"posts": result}
+
+@app.post("/api/posts/{post_id}/view")
+def record_post_view(post_id: int, user: dict = Depends(_current_user)):
+    """Count one view per authenticated account per post."""
+    username = user["username"]
+    if _DATABASE_URL:
+        with _db() as conn:
+            post = conn.execute("SELECT author_username FROM posts WHERE id=%s", (post_id,)).fetchone()
+            if not post or not _can_view_author_content(username, post["author_username"], conn):
+                raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            conn.execute(
+                "INSERT INTO post_views(post_id, username) VALUES (%s, %s) ON CONFLICT (post_id, username) DO NOTHING",
+                (post_id, username),
+            )
+            count = conn.execute("SELECT COUNT(*)::int AS count FROM post_views WHERE post_id=%s", (post_id,)).fetchone()["count"]
+            return {"view_count": count}
+    post = _posts.get(post_id)
+    if not post or not _can_view_author_content(username, post["author_username"]):
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    _post_views.add((post_id, username))
+    return {"view_count": sum(1 for pid, _ in _post_views if pid == post_id)}
+
 
 def _detect_safe_media_mime(contents: bytes, media_type: str) -> str:
     """Identify supported media from file signatures; never trust client MIME/filename."""
