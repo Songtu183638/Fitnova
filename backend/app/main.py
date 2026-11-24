@@ -1097,11 +1097,23 @@ def list_posts(hashtag: str | None = Query(default=None, max_length=50), limit: 
                     lower(COALESCE(p.content,'')) LIKE '%' || lower(ui.category) || '%' OR
                     EXISTS (SELECT 1 FROM unnest(p.hashtags) AS tag WHERE lower(ltrim(tag,'#')) LIKE '%' || lower(ui.category) || '%')
                   )) THEN 0 ELSE 1 END,
+                  CASE WHEN EXISTS (
+                    SELECT 1 FROM unnest(p.hashtags) AS target_tag
+                    WHERE EXISTS (
+                      SELECT 1 FROM post_likes l JOIN posts liked_post ON liked_post.id=l.post_id
+                      CROSS JOIN LATERAL unnest(liked_post.hashtags) AS liked_tag
+                      WHERE l.username=%s AND lower(ltrim(liked_tag,'#'))=lower(ltrim(target_tag,'#'))
+                    ) OR EXISTS (
+                      SELECT 1 FROM saved_posts sp JOIN posts saved_post ON saved_post.id=sp.post_id
+                      CROSS JOIN LATERAL unnest(saved_post.hashtags) AS saved_tag
+                      WHERE sp.username=%s AND lower(ltrim(saved_tag,'#'))=lower(ltrim(target_tag,'#'))
+                    )
+                  ) THEN 0 ELSE 1 END,
                   CASE WHEN substring(md5(p.id::text || %s),1,1) IN ('0','1','2','3','4','5','6') THEN 1 ELSE 0 END,
                   p.created_at DESC LIMIT %s OFFSET %s""",
                 (user["username"], normalized_tag, normalized_tag, normalized_tag, normalized_tag, normalized_tag,
                  user["username"], user["username"], user["username"], user["username"], user["username"],
-                 user["username"], user["username"], user["username"], limit, offset)).fetchall()
+                 user["username"], user["username"], user["username"], user["username"], user["username"], limit, offset)).fetchall()
             if not rows:
                 return {"posts": []}
             post_ids = [row["id"] for row in rows]
