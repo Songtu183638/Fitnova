@@ -2303,3 +2303,8 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
 .feed-list>.post-card:nth-child(2),.thread-list>.thread-item:nth-child(2){animation:fn-enter-up 300ms var(--motion-out) 35ms both}
 .feed-list>.post-card:nth-child(3),.thread-list>.thread-item:nth-child(3){animation:fn-enter-up 320ms var(--motion-out) 65ms both}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Inline post link action for DM-shared posts */
+.message-post-link { display:inline-flex; align-items:center; gap:6px; margin:8px 0 4px; padding:7px 11px; border:1px solid rgba(184,255,54,.32); border-radius:999px; background:rgba(184,255,54,.09); color:var(--accent,#b8ff36); font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.message-post-link:active { transform:scale(.97); }
