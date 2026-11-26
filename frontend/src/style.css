@@ -2329,3 +2329,18 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
 @media (prefers-reduced-motion: reduce) {
  .post-actions .like-action.liked .like-action-icon, .post-actions .save-action.active .save-action-icon { animation:none; }
 }
+
+
+/* Fix composer scroll: keep the publish controls anchored to the bottom of the viewport */
+.post-modal { display:flex; flex-direction:column; max-height:calc(100dvh - 32px); overflow:hidden; }
+.post-modal-head { flex:0 0 auto; }
+.post-draft-form { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-bottom:0; }
+.post-modal-actions { position:sticky; bottom:0; z-index:4; flex:0 0 auto; flex-direction:column-reverse; align-items:stretch; justify-content:flex-end; gap:10px; margin:0; padding:12px 0 max(14px,env(safe-area-inset-bottom)); background:linear-gradient(180deg,transparent 0%,var(--surface) 22%); }
+.post-modal-actions .primary { width:100%; min-height:58px; justify-content:center; }
+.post-modal-actions .text-button { align-self:center; min-height:42px; }
+.comment-main { align-items:flex-start; }
+.comment-author-link { max-width:100%; min-width:0; }
+.comment-author-name { max-width:min(45vw,220px); white-space:normal; overflow-wrap:anywhere; }
+.comment-content { min-width:0; max-width:100%; }
+.comment-tools { max-width:100%; }
+@media(max-width:640px){ .post-modal { max-height:calc(100dvh - 20px - var(--safe-top)); width:100%; } .post-draft-form { padding-bottom:0; } }
