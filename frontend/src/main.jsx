@@ -1192,7 +1192,7 @@ function Dashboard({ user, tab, setTab, logout }) {
     }
   };
   const removePost = async (id) => {
-    const snapshots = { posts, ownPosts, savedPosts };
+    const snapshots = { posts, ownPosts, savedPosts, savedPostIds: new Set(savedPostIds) };
     setPosts(items => items.filter(p => String(p.id) !== String(id)));
     setOwnPosts(items => items.filter(p => String(p.id) !== String(id)));
     setSavedPosts(items => items.filter(p => String(p.id) !== String(id)));
@@ -1204,7 +1204,7 @@ function Dashboard({ user, tab, setTab, logout }) {
       await loadPosts();
       await loadSavedPosts();
     } catch (e) {
-      setPosts(snapshots.posts); setOwnPosts(snapshots.ownPosts); setSavedPosts(snapshots.savedPosts);
+      setPosts(snapshots.posts); setOwnPosts(snapshots.ownPosts); setSavedPosts(snapshots.savedPosts); setSavedPostIds(snapshots.savedPostIds);
       setError(e.message || tr("게시물을 삭제하지 못했습니다."));
       setNotice('');
     }
