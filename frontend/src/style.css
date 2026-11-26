@@ -2308,3 +2308,24 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
 /* Inline post link action for DM-shared posts */
 .message-post-link { display:inline-flex; align-items:center; gap:6px; margin:8px 0 4px; padding:7px 11px; border:1px solid rgba(184,255,54,.32); border-radius:999px; background:rgba(184,255,54,.09); color:var(--accent,#b8ff36); font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
 .message-post-link:active { transform:scale(.97); }
+
+/* Immediate feedback for feed actions and sticky post composer controls */
+.post-actions .like-action.liked .like-action-icon { animation: fitnova-heart-pop .34s cubic-bezier(.2,.9,.3,1.4); }
+.post-actions .save-action.active .save-action-icon { animation: fitnova-bookmark-pop .32s cubic-bezier(.2,.9,.3,1.4); }
+.post-actions .like-action:active, .post-actions .save-action:active, .post-actions .share-post-action:active { transform: scale(.93); }
+@keyframes fitnova-heart-pop { 0% { transform: scale(.72); } 55% { transform: scale(1.35) rotate(-8deg); } 100% { transform: scale(1); } }
+@keyframes fitnova-bookmark-pop { 0% { transform: scale(.72) translateY(2px); } 55% { transform: scale(1.25) translateY(-2px); } 100% { transform: scale(1); } }
+.post-modal { display:flex; flex-direction:column; overflow:hidden; }
+.post-modal-head { flex:0 0 auto; }
+.post-draft-form { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-bottom:12px; }
+.post-modal-actions { position:sticky; bottom:0; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 -2px -2px; padding:12px 2px max(12px, env(safe-area-inset-bottom)); background:linear-gradient(180deg, rgba(18,18,18,.88), var(--surface) 35%); border-top:1px solid var(--line); }
+.post-modal-actions .primary { min-width:126px; justify-content:center; }
+@media (max-width:640px) {
+ .modal-backdrop { padding:12px; align-items:flex-end; }
+ .post-modal { width:100%; max-height:calc(100dvh - 24px - var(--safe-top)); border-radius:20px 20px 14px 14px; }
+ .post-draft-form { padding-bottom:10px; }
+ .post-modal-actions { padding-bottom:max(12px, env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+ .post-actions .like-action.liked .like-action-icon, .post-actions .save-action.active .save-action-icon { animation:none; }
+}
