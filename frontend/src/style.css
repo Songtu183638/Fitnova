@@ -2377,3 +2377,11 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
   .reel-feed .reel-post-card .post-media { position:absolute; inset:0; height:100%; }
   .reel-feed .reel-post-card .post-media video { width:100%; height:100% !important; max-height:none !important; object-fit:cover !important; }
 }
+
+/* The mobile video feed replaces the dashboard heading so it can use the full viewing area. */
+@media (max-width: 900px) {
+  .dashboard-main:has(.reel-feed) > .dash-top { display:none !important; }
+  .dashboard-main:has(.reel-feed) > .page-transition { margin:0 !important; padding:0 !important; min-height:0 !important; }
+  .dashboard-main:has(.reel-feed) > .page-transition > .reel-feed { margin:0 !important; padding:0 !important; }
+  .reel-feed .reel-post-card { height:calc(100dvh - 64px - var(--safe-bottom) - var(--safe-top)) !important; }
+}
