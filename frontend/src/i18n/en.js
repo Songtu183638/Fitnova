@@ -962,7 +962,7 @@ export default {
   "취소": "Cancel",
   "답글 취소": "Cancel reply",
   "@{0}님에게 답글 작성 중": "Replying to @{0}",
-  "@{0}님에게 답글 남기기": "Reply to @{0}"
+  "@{0}님에게 답글 남기기": "Reply to @{0}",
   "네트워크 연결이 끊겼습니다. 게시물 작성 내용은 유지했으니 다시 시도해 주세요.": "Your connection was lost. Your draft is saved—try publishing again.",
   "업로드 시간이 초과되었습니다. 연결을 확인하고 다시 시도해 주세요.": "Upload timed out. Check your connection and try again.",
   "게시물을 올리지 못했습니다. 작성 내용과 첨부 파일은 유지됩니다. 다시 시도해 주세요.": "Your post couldn't be published. Your text and media are still here—please try again.",
