@@ -19,7 +19,7 @@ import java.util.Date;
 import java.util.Locale;
 
 public class StepCounterService extends Service implements SensorEventListener {
-    private static final String CHANNEL_ID = "fitnova_step_counter_silent_v2";
+    private static final String CHANNEL_ID = "fitnova_step_counter_silent_en_v3";
     private static final int NOTIFICATION_ID = 7312;
     private static final String PREFS = "fitnova_step_counter";
     private static final String TRACKING_KEY = "tracking";
@@ -140,7 +140,8 @@ public class StepCounterService extends Service implements SensorEventListener {
         return builder.build();
     }
 
+    // FITNOVA US launch build keeps the persistent step notification in English.
     private static boolean ko() {
-        return "ko".equals(Locale.getDefault().getLanguage());
+        return false;
     }
 }
