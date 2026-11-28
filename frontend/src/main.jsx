@@ -1403,18 +1403,23 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,onShareToDm=()=>{}
  useEffect(() => {
    const video = videoRef.current;
    if (!video || post.media_type !== 'video' || !mediaData) return;
-   let visible = true;
+   let visible = !('IntersectionObserver' in window);
    const tryPlay = () => { if (visible) video.play().catch(() => {}); };
    const observer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
-     visible = entries.some(entry=>entry.isIntersecting && entry.intersectionRatio >= 0.35);
-     if (visible) tryPlay(); else video.pause();
-   }, {threshold:[0,0.35,0.6]}) : null;
+     visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= 0.35);
+     if (visible) tryPlay();
+     else video.pause();
+   }, { threshold: [0, 0.35, 0.6] }) : null;
    if (observer) observer.observe(video);
-   video.addEventListener('canplay',tryPlay);
-   video.addEventListener('loadeddata',tryPlay);
-   if (priority) tryPlay();
-   return () => { if(observer) observer.disconnect(); video.removeEventListener('canplay',tryPlay); video.removeEventListener('loadeddata',tryPlay); };
- }, [mediaData, post.media_type, priority]);
+   video.addEventListener('canplay', tryPlay);
+   video.addEventListener('loadeddata', tryPlay);
+   if (!observer) tryPlay();
+   return () => {
+     if (observer) observer.disconnect();
+     video.removeEventListener('canplay', tryPlay);
+     video.removeEventListener('loadeddata', tryPlay);
+   };
+ }, [mediaData, post.media_type]);
  const renderComment = (comment, isReply = false) => {
    const canEdit = comment.author_username === user.username && !comment.pending;
    const canPin = post.author_username === user.username && !comment.pending && !isReply;
@@ -1510,7 +1515,7 @@ function PostCard({post,user,prettyDate,removePost,toggleLike,onShareToDm=()=>{}
           {videoPlaybackFailed && (
             <div className="video-playback-error">
               <span>{tr('This video could not be played. Check the connection or video format.')}</span>
-              <button type="button" onClick={() => setMediaRetry(value => value + 1)}>{tr('Retry video')}</button>
+              <button type="button" onClick={() => { setMediaData(''); setMediaFailed(false); setVideoPlaybackFailed(false); setMediaRetry(value => value + 1); }}>{tr('Retry video')}</button>
             </div>
           )}
         </>
