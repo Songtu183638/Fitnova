@@ -2373,9 +2373,20 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
   .reel-feed .reel-post-card .post-media .video-playback-error { position:absolute; z-index:6; inset:30% 12px auto; }
 }
 @media (min-width: 901px) {
-  .reel-feed .reel-post-card { min-height:min(82vh,900px); max-width:560px; margin-inline:auto; position:relative; overflow:hidden; border-radius:20px; }
+  .reel-feed .reel-post-card { height:min(82vh,900px); min-height:560px; max-width:560px; margin-inline:auto; position:relative; overflow:hidden; border-radius:20px; }
+  .reel-feed .reel-post-card .post-top { position:absolute; z-index:4; top:14px; left:14px; right:14px; border:0; }
+  .reel-feed .reel-post-card .post-author { color:#fff; text-shadow:0 1px 4px #000; }
   .reel-feed .reel-post-card .post-media { position:absolute; inset:0; height:100%; }
   .reel-feed .reel-post-card .post-media video { width:100%; height:100% !important; max-height:none !important; object-fit:cover !important; }
+  .reel-feed .reel-post-card .post-title { position:absolute; z-index:3; left:16px; right:80px; bottom:118px; color:#fff; text-shadow:0 1px 5px #000; }
+  .reel-feed .reel-post-card .post-content { position:absolute; z-index:3; left:16px; right:80px; bottom:74px; max-height:4.2em; overflow:hidden; color:#fff; text-shadow:0 1px 5px #000; }
+  .reel-feed .reel-post-card .post-hashtags { position:absolute; z-index:3; left:16px; right:80px; bottom:36px; color:#fff; text-shadow:0 1px 5px #000; }
+  .reel-feed .reel-post-card .workout-details { display:none; }
+  .reel-feed .reel-post-card .post-actions { position:absolute; z-index:5; right:10px; bottom:118px; display:flex; flex-direction:column; align-items:center; gap:15px; margin:0; padding:0; border:0; background:transparent; }
+  .reel-feed .reel-post-card .post-actions button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:44px; min-height:44px; padding:4px; color:#fff; background:transparent; border:0; text-shadow:0 1px 4px #000; }
+  .reel-feed .reel-post-card .post-actions button svg { width:27px; height:27px; filter:drop-shadow(0 1px 3px #000); }
+  .reel-feed .reel-post-card .post-actions button span { font-size:11px; font-weight:700; }
+  .reel-feed .reel-post-card .comments-list,.reel-feed .reel-post-card .comment-form { display:none; }
 }
 
 /* The mobile video feed replaces the dashboard heading so it can use the full viewing area. */
