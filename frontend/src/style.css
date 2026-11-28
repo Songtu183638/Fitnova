@@ -553,6 +553,10 @@ label.settings-form { display: grid; gap: 8px; color: var(--text-2); font-size: 
 .post-actions button:hover { background: var(--surface-2); color: var(--text); }
 .post-actions button.liked, .post-actions button.active { color: var(--lime); }
 .comment-count { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding-right: 8px; color: var(--text-3); font-size: 13px; }
+.comment-count-action { cursor: pointer; border: 0; background: transparent; font: inherit; }
+.comment-count-action:hover { color: var(--lime); background: var(--surface-2); }
+.video-playback-error { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; background: rgba(0,0,0,.62); color: #fff; text-align: center; }
+.video-playback-error button { border: 1px solid rgba(183,255,58,.5); border-radius: 999px; padding: 10px 18px; background: #090909; color: var(--lime); font-weight: 700; cursor: pointer; }
 
 .comments-list { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 4px; border-top: 1px solid var(--line); }
 .comment { display: flex; align-items: baseline; gap: 8px; font-size: 14px; line-height: 1.5; }
@@ -2303,3 +2307,55 @@ input[type=checkbox]:active,input[type=radio]:active{transform:scale(.92)}
 .feed-list>.post-card:nth-child(2),.thread-list>.thread-item:nth-child(2){animation:fn-enter-up 300ms var(--motion-out) 35ms both}
 .feed-list>.post-card:nth-child(3),.thread-list>.thread-item:nth-child(3){animation:fn-enter-up 320ms var(--motion-out) 65ms both}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Reels-inspired FITNOVA vertical video feed */
+.reels-screen{margin:0 -18px;padding:0;background:#000;color:#fff;min-height:calc(100dvh - 112px);display:flex;flex-direction:column;overflow:hidden}
+.reels-header{height:64px;min-height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:#000;color:#fff;z-index:4}
+.reels-add,.reels-friends-icon{display:grid;place-items:center;border:0;background:transparent;color:#fff;padding:8px}
+.reels-tabs{display:flex;align-items:center;gap:24px}
+.reels-tabs button{border:0;background:none;color:#9b9b9b;font-size:20px;font-weight:700;padding:8px 2px}
+.reels-tabs button.active{color:#fff}
+.reels-feed-list{height:calc(100dvh - 176px);min-height:440px;overflow-y:auto;scroll-snap-type:y mandatory;overscroll-behavior:contain;scrollbar-width:none}
+.reels-feed-list::-webkit-scrollbar{display:none}
+.reel-card{height:calc(100dvh - 176px);min-height:440px;max-height:none;position:relative;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;border:0!important;border-radius:0!important;background:#000!important;scroll-snap-align:start;scroll-snap-stop:always;color:#fff!important}
+.reel-card .post-media{position:absolute;inset:0;margin:0;width:100%;height:100%;z-index:0;background:#000}
+.reel-card .post-media img,.reel-card .post-media video{width:100%;height:100%;max-height:none;object-fit:cover}
+.reel-card .post-media video{object-fit:contain}
+.reel-card .post-media:after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.42),transparent 22%,transparent 60%,rgba(0,0,0,.68))}
+.reel-card .post-title{order:1;position:relative;z-index:2;margin:0;padding:24px 18px 14px;text-align:center;font-size:clamp(20px,5vw,32px);line-height:1.2;font-weight:900;color:#fff;text-transform:uppercase;text-shadow:0 2px 12px #000;background:linear-gradient(180deg,#000 0%,rgba(0,0,0,.8) 72%,transparent 100%)}
+.reel-card .post-top{order:4;position:relative;z-index:2;margin:0;padding:12px 20px 0;align-self:flex-start}
+.reel-card .post-author{color:#fff}
+.reel-card .post-author b{font-size:16px}
+.reel-card .post-author small,.reel-card .post-owner-actions{display:none}
+.reel-card .composer-avatar{background:#27364b;color:#b7ff3a}
+.reel-card .post-content{order:5;position:relative;z-index:2;padding:4px 20px 8px;max-width:calc(100% - 78px);font-size:14px;line-height:1.45;color:#fff;text-shadow:0 1px 8px #000}
+.reel-card .post-hashtags{order:6;position:relative;z-index:2;padding:0 20px 16px;max-width:calc(100% - 78px)}
+.reel-card .post-hashtags span{color:#b7ff3a;text-shadow:0 1px 8px #000}
+.reel-card .workout-details,.reel-card .comments-list,.reel-card .comment-form{display:none}
+.reel-card.comments-open .comments-list{display:flex;position:absolute;z-index:8;left:0;right:0;bottom:58px;max-height:36dvh;overflow:auto;flex-direction:column;background:#101010;border-radius:16px 16px 0 0;padding:10px 12px}
+.reel-card.comments-open .comment-form{display:flex;position:absolute;z-index:9;left:0;right:0;bottom:0;margin:0;background:#101010;padding:10px 12px;border-top:1px solid #333}
+.reel-card .post-actions{order:3;position:absolute;z-index:3;right:8px;bottom:24%;width:62px;margin:0;padding:0;border:0;display:flex;flex-direction:column;gap:14px;align-items:center;background:transparent}
+.reel-card .post-actions button{height:auto;min-height:42px;width:58px;padding:4px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;color:#fff;font-size:11px;text-shadow:0 2px 8px #000;background:transparent;border-radius:0}
+.reel-card .post-actions button svg{width:27px;height:27px;filter:drop-shadow(0 2px 4px #000)}
+.reel-card .post-actions .comment-count-action{margin:0;padding:4px}
+.reel-card .post-actions .share-post-action:nth-of-type(5){display:none}
+.reel-card .post-actions button.liked,.reel-card .post-actions button.active{color:#b7ff3a}
+.reel-card .video-playback-error{background:rgba(0,0,0,.8);font-size:13px;line-height:1.4}
+.reels-empty{height:100%;min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#bbb}
+.reels-empty button{border:1px solid #b7ff3a;border-radius:24px;background:#000;color:#b7ff3a;padding:10px 16px}
+@media(max-width:720px){
+ .reels-screen{margin:-12px -12px 0;min-height:calc(100dvh - 80px)}
+ .reels-header{height:56px;min-height:56px;padding:0 16px}
+ .reels-tabs{gap:18px}
+ .reels-tabs button{font-size:18px}
+ .reels-feed-list{height:calc(100dvh - 144px);min-height:420px}
+ .reel-card{height:calc(100dvh - 144px);min-height:420px}
+ .reel-card .post-title{padding:28px 20px 16px;font-size:26px}
+ .reel-card .post-actions{bottom:18%;right:8px}
+ .reel-card .post-top{padding-left:16px}
+ .reel-card .post-content,.reel-card .post-hashtags{padding-left:16px}
+ .reel-card .post-content{max-width:calc(100% - 80px)}
+ .reel-card .post-hashtags{max-width:calc(100% - 80px)}
+ .mobile-nav{z-index:50}
+}
