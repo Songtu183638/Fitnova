@@ -200,6 +200,10 @@ input[type='checkbox'] { accent-color: var(--lime); }
 .alert.error { background: var(--danger-soft); border-color: var(--danger-line); color: #ffb4b4; }
 .alert.success { background: var(--lime-soft); border-color: var(--lime-line); color: #dcffa0; }
 .feed-alert { margin-top: 16px; }
+/* Feed notices float over the feed and never alter the Reels viewport geometry. */
+.page-transition{position:relative;}
+.page-transition>.feed-alert{position:fixed;top:calc(env(safe-area-inset-top, 0px) + 174px);left:50%;transform:translateX(-50%);z-index:120;width:min(92vw,520px);max-width:calc(100vw - 24px);margin:0;box-shadow:0 8px 30px rgba(0,0,0,.45);animation:feedToastIn .18s ease-out;pointer-events:none;}
+@keyframes feedToastIn{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 
 /* Text fields */
 .settings-form input,
