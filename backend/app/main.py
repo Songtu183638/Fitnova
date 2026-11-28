@@ -1,4 +1,4 @@
-import os, secrets, hashlib, hmac, time, json, re, base64, mimetypes, urllib.request, urllib.error
+import os, secrets, hashlib, hmac, time, json, re, base64, mimetypes, urllib.request, urllib.error, tempfile, subprocess
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict, OrderedDict
 from threading import Lock, Thread
@@ -1131,6 +1131,37 @@ def _detect_safe_media_mime(contents: bytes, media_type: str) -> str:
     raise HTTPException(status_code=415, detail="지원하지 않거나 실제 파일 형식이 확인되지 않는 미디어입니다.")
 
 
+
+def _normalize_video_h264(contents: bytes) -> bytes:
+    """Convert arbitrary uploaded/legacy video to browser-friendly H.264/AAC MP4."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="영상 호환 변환 모듈이 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.") from exc
+    with tempfile.TemporaryDirectory(prefix="fitnova-video-") as temp_dir:
+        input_path = os.path.join(temp_dir, "input-video")
+        output_path = os.path.join(temp_dir, "normalized.mp4")
+        with open(input_path, "wb") as source:
+            source.write(contents)
+        command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", input_path,
+                   "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast",
+                   "-crf", "24", "-pix_fmt", "yuv420p", "-profile:v", "baseline", "-level", "3.1",
+                   "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", "-threads", "2", output_path]
+        try:
+            completed = subprocess.run(command, capture_output=True, timeout=90, check=False)
+        except subprocess.TimeoutExpired as exc:
+            raise HTTPException(status_code=422, detail="영상 호환 변환 시간이 초과되었습니다. 더 짧은 영상으로 다시 시도해 주세요.") from exc
+        if completed.returncode != 0 or not os.path.isfile(output_path):
+            detail = completed.stderr.decode("utf-8", "ignore")[-700:]
+            raise HTTPException(status_code=422, detail="영상 형식을 호환되는 MP4로 변환하지 못했습니다. 다른 영상으로 시도해 주세요.")
+        with open(output_path, "rb") as converted:
+            result = converted.read()
+        if not result or len(result) > 40 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="변환된 영상이 40MB를 초과합니다. 짧거나 낮은 해상도의 영상으로 다시 시도해 주세요.")
+        return result
+
+
 def _validate_post_media_data(media_data: str, media_type: str) -> None:
     """Validate JSON/base64 post media too, so callers cannot bypass upload checks."""
     try:
@@ -1237,6 +1268,9 @@ async def upload_post_media(
         if len(contents) > limit:
             raise HTTPException(status_code=413, detail="사진은 각 5MB, 영상은 40MB 이하로 업로드해 주세요.")
         mime = _detect_safe_media_mime(contents, media_type)
+        if media_type == "video":
+            contents = _normalize_video_h264(contents)
+            mime = "video/mp4"
         media_items.append(f"data:{mime};base64,{base64.b64encode(contents).decode('ascii')}")
     media_data = media_items[0] if len(media_items) == 1 else json.dumps(media_items, separators=(",", ":"))
     try:
@@ -1390,6 +1424,9 @@ def stream_post_media(post_id: int, request: Request, expires: int, signature: s
             raise HTTPException(status_code=500, detail="미디어 파일을 읽지 못했습니다.")
         if not contents:
             raise HTTPException(status_code=404, detail="빈 미디어 파일입니다.")
+        if media_type.startswith("video/"):
+            contents = _normalize_video_h264(contents)
+            media_type = "video/mp4"
         # Video players request multiple byte ranges; decode the base64 payload only once per cached video.
         with _video_cache_lock:
             _video_cache[post_id] = (media_type, contents)
